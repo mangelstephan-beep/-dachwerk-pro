@@ -1,0 +1,19 @@
+{
+  "name": "DachWerk Pro by Stephan Mangel",
+  "short_name": "DachWerk Pro",
+  "description": "Die digitale Bauleiter-Zentrale für Dachhandwerker.",
+  "lang": "de-DE",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#cf202a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
