@@ -34,11 +34,5 @@
       "destination": "https://bauleiter-zentrale.mangel-stephan.chatgpt.site",
       "permanent": false
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/test",
-      "destination": "/index.html"
-    }
   ]
 }
