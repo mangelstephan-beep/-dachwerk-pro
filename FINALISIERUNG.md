@@ -67,6 +67,73 @@ Kein Logbucheintrag darf im normalen Anwenderbetrieb gelöscht oder überschrieb
 - Versand, Eingang, Rückmeldung und Eskalation werden im Logbuch protokolliert.
 - Dashboard zeigt: mir zugewiesen, heute fällig, Rückmeldung ausstehend, überfällig, eskaliert.
 
+## Mitarbeiterdatenbank / Personalstamm
+Mitarbeiterdatenbank und Benutzerverwaltung werden getrennt geführt. Ein Mitarbeiter kann ohne App-Zugang existieren; ein App-Benutzer kann extern sein.
+
+### Beschäftigungsart / Auswahlfelder
+- gewerblich Stundenlohn / Arbeiter
+- Angestellte Gehalt
+- Auszubildende
+- Teilzeit
+- Aushilfe / geringfügige Beschäftigung
+- Praktikum / Werkstudent optional
+- aktiv / ruhend / ausgeschieden
+
+### Persönliche Daten
+- Personalnummer
+- Anrede, Vorname, Nachname, Geburtsname
+- Geburtsdatum und Geburtsort
+- Staatsangehörigkeit
+- Anschrift: Straße, Hausnummer, PLZ, Ort, Land
+- private E-Mail und Telefon
+- Familienstand sowie abrechnungsrelevante Angaben nur soweit erforderlich
+- Eintrittsdatum, Austrittsdatum, Befristungsende
+- Abteilung, Standort, Kostenstelle, Tätigkeit/Funktion, Vorgesetzter
+- Führerscheinklassen und Gültigkeiten
+- Qualifikationen, Unterweisungen, Scheine und Ablaufdaten
+
+### Entgelt / Arbeitszeit
+- Stundenlohn oder Monatsgehalt
+- Wochenstunden / Teilzeitquote
+- regelmäßige Arbeitstage
+- Tarif-/Lohngruppe optional
+- Zuschläge / Auslösung / Prämien
+- Urlaubstage
+- Zeitkonto / Überstundenmodell
+- VWL-Daten inklusive Anbieter/Vertragsdaten und Arbeitgeber-/Arbeitnehmeranteil soweit benötigt
+
+### Steuer / Sozialversicherung / DATEV-Basis
+- Steuer-ID
+- Steuerklasse und ggf. Faktor/Freibetrag soweit über die Lohnabrechnung benötigt
+- Sozialversicherungsnummer
+- Krankenkasse aus Auswahlfenster
+- Personengruppenschlüssel / Beitragsgruppenschlüssel soweit für die Abrechnung erforderlich
+- Beschäftigungsstatus und SV-relevante Merkmale
+- Betriebsnummer des Arbeitgebers
+- ggf. Betriebsstätten-/Kostenstellenzuordnung
+- Bankverbindung: IBAN, BIC, Kontoinhaber
+- DATEV-Personalnummer / externe Abrechnungs-ID
+- Abrechnungsmandant / Beraternummer und Mandantennummer nur auf Unternehmensebene
+
+### Meldewesen / Schnittstellen vorbereiten
+- Eintritt/Austritt erzeugt einen prüfbaren Meldevorgang
+- Status je Meldung: Entwurf → geprüft → freigegeben → übertragen → bestätigt / Fehler
+- Krankenkassen-Auswahl mit Institutionskennung und Kontaktdaten
+- Vorbereitung für DEÜV-/SV-Meldungen, Krankenkassen-Datenaustausch und lohnrelevante Rückmeldungen
+- Rückmeldungen werden dem Mitarbeiter und dem ursprünglichen Meldevorgang zugeordnet
+- Online-An-/Abmeldungen dürfen erst nach Freigabe durch berechtigte Rolle übertragen werden
+- echte Übertragung nur über zulässige/unterstützte DATEV- bzw. Sozialversicherungs-Schnittstellen; DachWerk Pro bildet Workflow, Datenhaltung, Prüfung und Übergabe ab
+
+### DATEV-Übergabe
+DachWerk Pro soll DATEV-kompatible Stammdaten vorbereiten und exportieren. Der Personalstamm erhält dafür ein Mapping auf die benötigten DATEV-Felder, ohne den Nutzer zur Doppelerfassung zu zwingen. Vor Export erfolgt eine Pflichtfeldprüfung und ein Protokoll der übergebenen Datensätze.
+
+### Datenschutz / Berechtigungen Personal
+- besonders geschützte Personalrolle für sensible Stammdaten
+- Bank-, Steuer-, SV- und Entgeltdaten nur für explizit berechtigte Nutzer
+- Bauleitung sieht nur die für Einsatzplanung nötigen Mitarbeiterdaten
+- jede Einsicht/Änderung sensibler Daten wird im Audit-Trail protokolliert
+- Dokumente wie Verträge, Nachweise oder Bescheinigungen werden verschlüsselt und personenbezogen abgelegt
+
 ## E-Rechnung / Leitweg-ID
 - Kundenstamm und Projekt müssen Leitweg-ID speichern können
 - bei öffentlichen Auftraggebern Leitweg-ID vor Rechnungsfreigabe prüfen
@@ -78,6 +145,9 @@ Kein Logbucheintrag darf im normalen Anwenderbetrieb gelöscht oder überschrieb
 ## Gemeinsame Datenobjekte
 - Kunde
 - Projekt
+- Mitarbeiter / Beschäftigung / Personalstamm
+- Lohn-/Gehalts- und SV-Stammdaten
+- Personal-Meldevorgang / DATEV-Übergabe
 - Leistungsverzeichnis
 - LV-Position
 - Preisquelle / Preisliste / Materialartikel
@@ -97,7 +167,8 @@ Kein Logbucheintrag darf im normalen Anwenderbetrieb gelöscht oder überschrieb
 - Kalkulationen brauchen nachvollziehbare Material-, Lohn- und Zuschlagsanteile.
 - Exporte dürfen nur Daten aus dem aktuell ausgewählten Projekt/LV verwenden.
 - Rechnungen übernehmen Kunden-, Projekt-, Auftrags- und Leitweg-ID-Daten aus dem gemeinsamen Datenbestand.
+- Personalstammdaten werden nur einmal gepflegt und kontrolliert an Workflow, Kalkulation und DATEV-/Meldeprozesse weitergegeben.
 - Lokaler Browser-Speicher ist nur Testbetrieb; produktiv ist eine zentrale Datenbank mit Rollen/Rechten, Audit-Trail und serverseitigen Fristen erforderlich.
 
 ## Release-0.3-Abnahmekriterium
-Das LV „Garnmagazin Brücke (004)“ muss vollständig durch den Ablauf Import → Zuordnung → Preisquelle → Kalkulation → Speichern → Export-Test laufen können, ohne dass Positionen oder Projektbezug verloren gehen. Zusätzlich muss mindestens eine Preisliste per Drag & Drop eingelesen, geprüft, freigegeben und für eine LV-Position verwendet werden können. Ein Workflow-Test muss außerdem Zuweisung, E-Mail-Versand, Rückmeldefrist, Erinnerung, Statusänderung und vollständigen Logbuchnachweis abbilden.
+Das LV „Garnmagazin Brücke (004)“ muss vollständig durch den Ablauf Import → Zuordnung → Preisquelle → Kalkulation → Speichern → Export-Test laufen können, ohne dass Positionen oder Projektbezug verloren gehen. Zusätzlich muss mindestens eine Preisliste per Drag & Drop eingelesen, geprüft, freigegeben und für eine LV-Position verwendet werden können. Ein Workflow-Test muss außerdem Zuweisung, E-Mail-Versand, Rückmeldefrist, Erinnerung, Statusänderung und vollständigen Logbuchnachweis abbilden. Für Personal muss mindestens ein Mitarbeiter vollständig angelegt, einer Beschäftigungsart zugeordnet, mit DATEV-/SV-Pflichtfeldern geprüft und als Melde-/Exportvorgang vorbereitet werden können.
