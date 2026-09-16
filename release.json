@@ -1,8 +1,23 @@
 {
   "product": "DachWerk Pro by Stephan Mangel",
-  "release": "0.2",
-  "updated": "2026-09-14",
+  "release": "0.3",
+  "updated": "2026-09-16",
   "modules": 21,
-  "status": "frontend-test",
-  "source": "mangelstephan-beep/-dachwerk-pro"
+  "status": "frontend-test-with-local-workflows",
+  "source": "mangelstephan-beep/-dachwerk-pro",
+  "capabilities": [
+    "21 Arbeitsbereiche",
+    "lokale Workflow-Speicherung",
+    "lokales Logbuch",
+    "CSV-Tabellenexport",
+    "Druck/PDF-Ausgabe",
+    "SKR03-Betriebskostenbasis"
+  ],
+  "production_blockers": [
+    "serverseitige Authentifizierung und Rollen",
+    "zentrale Datenbank und Dateiablage",
+    "unveränderbarer serverseitiger Audit-Trail",
+    "GitHub-Vercel-Verknüpfung",
+    "produktive Mail-, Cloud-, DATEV- und GAEB-Schnittstellen"
+  ]
 }
