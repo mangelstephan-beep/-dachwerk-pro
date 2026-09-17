@@ -28,16 +28,25 @@
     });
   }
 
+  function loadGreenTheme() {
+    if (document.getElementById('dwp-green-theme-loader')) return;
+    const g = document.createElement('script');
+    g.id = 'dwp-green-theme-loader';
+    g.src = '/green-theme.js?v=1';
+    document.body.appendChild(g);
+  }
+
   function loadWorkflowAssistant() {
-    if (document.getElementById('dwp-workflow-assistant')) return;
+    if (document.getElementById('dwp-workflow-assistant')) { loadGreenTheme(); return; }
     const w = document.createElement('script');
     w.id = 'dwp-workflow-assistant';
     w.src = '/workflow-assistant.js?v=1';
+    w.onload = loadGreenTheme;
     document.body.appendChild(w);
   }
 
   function loadMaterialMatch() {
-    if (document.getElementById('dwp-lv-material-match')) return;
+    if (document.getElementById('dwp-lv-material-match')) { loadWorkflowAssistant(); return; }
     const m = document.createElement('script');
     m.id = 'dwp-lv-material-match';
     m.src = '/lv-material-match.js?v=1';
