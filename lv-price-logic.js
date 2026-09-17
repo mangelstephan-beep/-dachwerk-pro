@@ -146,8 +146,9 @@
       rows.push({ nr, qty, unit, text, target, gp });
     });
 
-    const win = window.open('', '_blank', 'noopener,noreferrer');
+    const win = window.open('', '_blank');
     if (!win) return;
+    win.opener = null;
     win.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${esc(work.name)} · DachWerk Pro</title><style>
       body{font-family:Arial,sans-serif;margin:28px;color:#111827}h1{margin:0 0 4px}p{color:#667085;margin:0 0 20px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border-bottom:1px solid #d0d5dd;padding:8px;text-align:left;vertical-align:top}th{background:#f2f4f7}.num{text-align:right;white-space:nowrap}.total{font-size:15px;font-weight:700}.note{margin-top:18px;font-size:11px;color:#667085}@media print{button{display:none}body{margin:12mm}}</style></head><body>
       <h1>${esc(work.name)}</h1><p>DachWerk Pro · Kalkulations-/LV-Ausgabe</p>
