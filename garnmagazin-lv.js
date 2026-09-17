@@ -28,6 +28,14 @@
     });
   }
 
+  function loadPriceLogic() {
+    if (document.getElementById('dwp-lv-price-logic')) return;
+    const p = document.createElement('script');
+    p.id = 'dwp-lv-price-logic';
+    p.src = '/lv-price-logic.js?v=1';
+    document.body.appendChild(p);
+  }
+
   async function boot() {
     // XLSX/Tesseract klassisch laden; PDF.js als ESM importieren und global bereitstellen.
     await Promise.all([loadScript(scripts[1]), loadScript(scripts[2])]);
@@ -42,7 +50,10 @@
       const m = document.createElement('script');
       m.id = 'dwp-lv-import-manager';
       m.src = '/lv-import-manager.js?v=1';
+      m.onload = loadPriceLogic;
       document.body.appendChild(m);
+    } else {
+      loadPriceLogic();
     }
   }
 
