@@ -27,12 +27,5 @@
         }
       ]
     }
-  ],
-  "redirects": [
-    {
-      "source": "/",
-      "destination": "https://bauleiter-zentrale.mangel-stephan.chatgpt.site",
-      "permanent": false
-    }
   ]
 }
