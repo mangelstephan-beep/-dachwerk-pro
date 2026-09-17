@@ -28,16 +28,27 @@
     });
   }
 
+  function loadMaterialLogic() {
+    if (document.getElementById('dwp-lv-material-match')) return;
+    const s = document.createElement('script');
+    s.id = 'dwp-lv-material-match';
+    s.src = '/lv-material-match.js?v=1';
+    document.body.appendChild(s);
+  }
+
   function loadPriceLogic() {
-    if (document.getElementById('dwp-lv-price-logic')) return;
+    if (document.getElementById('dwp-lv-price-logic')) {
+      loadMaterialLogic();
+      return;
+    }
     const p = document.createElement('script');
     p.id = 'dwp-lv-price-logic';
     p.src = '/lv-price-logic.js?v=1';
+    p.onload = loadMaterialLogic;
     document.body.appendChild(p);
   }
 
   async function boot() {
-    // XLSX/Tesseract klassisch laden; PDF.js als ESM importieren und global bereitstellen.
     await Promise.all([loadScript(scripts[1]), loadScript(scripts[2])]);
     try {
       const pdf = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs');
