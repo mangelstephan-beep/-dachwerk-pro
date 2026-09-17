@@ -2,7 +2,7 @@
   const main = document.querySelector('#main-content');
   if (!main) return;
 
-  const STORAGE_KEY = 'dwp-lv-garnmagazin-004';
+  const STORAGE_KEY = 'dwp-lv-garnmagazin-004-v2';
   const lv = {
     id: '20260448',
     customer: 'Garnmagazin GmbH & Co. KG',
@@ -11,6 +11,7 @@
     date: '19.05.2026',
     title: 'Los 08 · Alternativer Aufbau: Dämmung und Abdichtung Brücken- und Stegdecke',
     source: 'Spenglerei Stadler GmbH',
+    sourceAddress: 'Pullach 19 · 83059 Kolbermoor',
     positions: [
       ['08.1',310,'m²','Untergrundvorbereitung','Bereich Brücke – Umkehrdach; Reinigung der vorhandenen Dachfläche mit Dampfsperrbahn.'],
       ['08.2',310,'m²','Zweilagige Bitumenabdichtung','Zweilagige Bitumenabdichtung auf bauseits vorhandene Dampfsperre aufbringen.'],
@@ -40,18 +41,32 @@
     return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   }
 
-  function readPrices() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+  function parseNumber(v) {
+    const s = String(v ?? '').trim();
+    if (!s) return 0;
+    return Number(s.replace(/\./g,'').replace(',','.')) || 0;
   }
 
   function money(v) {
     return new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(v)||0);
   }
 
+  function number(v, digits = 2) {
+    return new Intl.NumberFormat('de-DE',{minimumFractionDigits:digits,maximumFractionDigits:digits}).format(Number(v)||0);
+  }
+
+  function readStore() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+  }
+
+  function writeStore(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
   function inject() {
     const page = main.querySelector('.page[data-page="calculation"]');
     if (!page || page.querySelector('[data-garnmagazin-lv]')) return;
-    const prices = readPrices();
+    const saved = readStore();
     const anchor = page.querySelector('.page-navigation') || page.querySelector('.page-header');
     if (!anchor) return;
 
@@ -62,64 +77,120 @@
     section.innerHTML = `
       <div class="panel-head">
         <div>
-          <span class="eyebrow">Importiertes Leistungsverzeichnis</span>
+          <span class="eyebrow">Importiertes Leistungsverzeichnis · Kalkulationsblatt</span>
           <h2>${esc(lv.project)}</h2>
           <p>${esc(lv.title)} · LV ${esc(lv.id)} · ${esc(lv.date)}</p>
         </div>
-        <span class="status-pill status-blue">21 Positionen</span>
+        <span class="status-pill status-blue">${lv.positions.length} Positionen</span>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 16px">
-        <span class="status-pill">AG: ${esc(lv.customer)}</span>
-        <span class="status-pill">Ort: Kolbermoor</span>
-        <span class="status-pill">Quelle: ${esc(lv.source)}</span>
+
+      <div class="panel panel-pad" style="margin:12px 0 16px;background:#fff">
+        <div style="display:grid;grid-template-columns:minmax(250px,1fr) minmax(220px,1fr);gap:16px;align-items:start">
+          <div>
+            <strong style="display:block;font-size:1.05rem">${esc(lv.source)}</strong>
+            <span class="muted">${esc(lv.sourceAddress)}</span><br>
+            <span class="muted">Original-LV: ${esc(lv.id)} · ${esc(lv.project)}</span>
+          </div>
+          <div style="text-align:right">
+            <strong>Auftraggeber</strong><br>
+            <span>${esc(lv.customer)}</span><br>
+            <span>${esc(lv.location)}</span>
+          </div>
+        </div>
       </div>
+
+      <div class="panel panel-pad" style="margin-bottom:16px;background:#f8fafc">
+        <div class="quick-form">
+          <div>
+            <label for="lv-minute-rate">Minutenwert Lohn in €</label>
+            <input id="lv-minute-rate" inputmode="decimal" value="${esc(saved.minuteRate ?? '')}" placeholder="z. B. 1,25" />
+            <small class="muted">Ein zentraler Minutenwert für alle Positionen.</small>
+          </div>
+          <div>
+            <label>entspricht Stundenverrechnungssatz</label>
+            <input id="lv-hour-rate" readonly value="0,00 € / h" />
+            <small class="muted">Minutenwert × 60.</small>
+          </div>
+        </div>
+      </div>
+
       <div class="data-table-wrap">
         <table class="data-table searchable-table" data-lv-table>
-          <thead><tr><th>Pos.</th><th>Menge</th><th>Leistung</th><th>EP netto</th><th>GP netto</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Pos.</th><th>Menge</th><th>Original-Leistungstext</th><th>Zeit min/${'Einh.'}</th><th>Lohn €/${'Einh.'}</th><th>Material €/${'Einh.'}</th><th>EP netto</th><th>GP netto</th>
+            </tr>
+          </thead>
           <tbody>
-            ${lv.positions.map(p => `
-              <tr>
+            ${lv.positions.map(p => {
+              const s = saved.positions?.[p.nr] || {};
+              return `
+              <tr data-lv-row="${esc(p.nr)}">
                 <td><strong>${esc(p.nr)}</strong></td>
                 <td>${p.qty.toLocaleString('de-DE')} ${esc(p.unit)}</td>
-                <td><strong>${esc(p.title)}</strong><small style="display:block;margin-top:4px">${esc(p.text)}</small></td>
-                <td style="min-width:135px"><input data-lv-ep="${esc(p.nr)}" inputmode="decimal" value="${esc(prices[p.nr] ?? '')}" placeholder="0,00" style="width:110px" /></td>
-                <td data-lv-gp="${esc(p.nr)}">${money((Number(String(prices[p.nr]??'').replace(',','.'))||0)*p.qty)}</td>
-              </tr>`).join('')}
+                <td style="min-width:320px"><strong>${esc(p.title)}</strong><small style="display:block;margin-top:4px;line-height:1.45">${esc(p.text)}</small></td>
+                <td style="min-width:100px"><input data-lv-time="${esc(p.nr)}" inputmode="decimal" value="${esc(s.time ?? '')}" placeholder="0,00" style="width:88px" /></td>
+                <td data-lv-labor="${esc(p.nr)}" style="white-space:nowrap">0,00 €</td>
+                <td style="min-width:115px"><input data-lv-material="${esc(p.nr)}" inputmode="decimal" value="${esc(s.material ?? '')}" placeholder="0,00" style="width:100px" /></td>
+                <td data-lv-ep="${esc(p.nr)}" style="white-space:nowrap;font-weight:700">0,00 €</td>
+                <td data-lv-gp="${esc(p.nr)}" style="white-space:nowrap;font-weight:700">0,00 €</td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>
+
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
-        <div style="min-width:280px;display:grid;grid-template-columns:1fr auto;gap:8px 16px">
+        <div style="min-width:320px;display:grid;grid-template-columns:1fr auto;gap:8px 16px">
           <span>Summe netto</span><strong data-lv-net>0,00 €</strong>
           <span>19 % MwSt.</span><strong data-lv-vat>0,00 €</strong>
           <span>Gesamtsumme</span><strong data-lv-gross>0,00 €</strong>
         </div>
       </div>
-      <p class="muted" style="margin-top:12px">EP-Eingaben werden lokal im Browser gespeichert. GP, Netto, MwSt. und Gesamtsumme werden automatisch berechnet.</p>`;
+      <p class="muted" style="margin-top:12px">Berechnung: Zeitwert je Einheit × Minutenwert = Lohn je Einheit. Lohn + Material = EP. EP × Menge = GP. Eingaben werden lokal gespeichert und beim Drucken mit ausgegeben.</p>`;
 
     anchor.insertAdjacentElement('afterend', section);
 
+    const minuteInput = section.querySelector('#lv-minute-rate');
+    const hourInput = section.querySelector('#lv-hour-rate');
+
     function recalc() {
+      const minuteRate = parseNumber(minuteInput.value);
+      hourInput.value = `${number(minuteRate * 60)} € / h`;
       let net = 0;
-      const store = {};
-      section.querySelectorAll('[data-lv-ep]').forEach(input => {
-        const p = lv.positions.find(x => x.nr === input.dataset.lvEp);
-        const raw = input.value.trim();
-        const ep = Number(raw.replace(/\./g,'').replace(',','.')) || 0;
-        if (raw) store[p.nr] = raw;
+      const store = { minuteRate: minuteInput.value, positions: {} };
+
+      lv.positions.forEach(p => {
+        const timeInput = section.querySelector(`[data-lv-time="${CSS.escape(p.nr)}"]`);
+        const materialInput = section.querySelector(`[data-lv-material="${CSS.escape(p.nr)}"]`);
+        const time = parseNumber(timeInput?.value);
+        const material = parseNumber(materialInput?.value);
+        const labor = time * minuteRate;
+        const ep = labor + material;
         const gp = ep * p.qty;
         net += gp;
-        const out = section.querySelector(`[data-lv-gp="${CSS.escape(p.nr)}"]`);
-        if (out) out.textContent = money(gp);
+
+        const laborCell = section.querySelector(`[data-lv-labor="${CSS.escape(p.nr)}"]`);
+        const epCell = section.querySelector(`[data-lv-ep="${CSS.escape(p.nr)}"]`);
+        const gpCell = section.querySelector(`[data-lv-gp="${CSS.escape(p.nr)}"]`);
+        if (laborCell) laborCell.textContent = money(labor);
+        if (epCell) epCell.textContent = money(ep);
+        if (gpCell) gpCell.textContent = money(gp);
+
+        store.positions[p.nr] = {
+          time: timeInput?.value || '',
+          material: materialInput?.value || ''
+        };
       });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+
+      writeStore(store);
       section.querySelector('[data-lv-net]').textContent = money(net);
       section.querySelector('[data-lv-vat]').textContent = money(net * 0.19);
       section.querySelector('[data-lv-gross]').textContent = money(net * 1.19);
     }
 
     section.addEventListener('input', e => {
-      if (e.target.matches('[data-lv-ep]')) recalc();
+      if (e.target.matches('#lv-minute-rate,[data-lv-time],[data-lv-material]')) recalc();
     });
     recalc();
   }
