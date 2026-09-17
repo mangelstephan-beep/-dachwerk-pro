@@ -28,23 +28,29 @@
     });
   }
 
-  function loadMaterialLogic() {
+  function loadWorkflowAssistant() {
+    if (document.getElementById('dwp-workflow-assistant')) return;
+    const w = document.createElement('script');
+    w.id = 'dwp-workflow-assistant';
+    w.src = '/workflow-assistant.js?v=1';
+    document.body.appendChild(w);
+  }
+
+  function loadMaterialMatch() {
     if (document.getElementById('dwp-lv-material-match')) return;
-    const s = document.createElement('script');
-    s.id = 'dwp-lv-material-match';
-    s.src = '/lv-material-match.js?v=1';
-    document.body.appendChild(s);
+    const m = document.createElement('script');
+    m.id = 'dwp-lv-material-match';
+    m.src = '/lv-material-match.js?v=1';
+    m.onload = loadWorkflowAssistant;
+    document.body.appendChild(m);
   }
 
   function loadPriceLogic() {
-    if (document.getElementById('dwp-lv-price-logic')) {
-      loadMaterialLogic();
-      return;
-    }
+    if (document.getElementById('dwp-lv-price-logic')) { loadMaterialMatch(); return; }
     const p = document.createElement('script');
     p.id = 'dwp-lv-price-logic';
     p.src = '/lv-price-logic.js?v=1';
-    p.onload = loadMaterialLogic;
+    p.onload = loadMaterialMatch;
     document.body.appendChild(p);
   }
 
