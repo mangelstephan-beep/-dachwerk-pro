@@ -664,14 +664,62 @@ function bindDynamicInteractions() {
   const tableFilter = mainContent.querySelector(".table-filter");
   if (tableFilter) tableFilter.addEventListener("input", () => filterRows(tableFilter));
   const projectFilter = mainContent.querySelector(".project-filter");
-  if (projectFilter) projectFilter.addEventListener("input", () => filterCards(projectFilter, ".project-card"));
+  if (projectFilter) projectFilter.addEventListener("input", () => filterCards(projectFilter, ".project-card, [data-project-list] tbody tr"));
   const folderFilter = mainContent.querySelector(".folder-filter");
   if (folderFilter) folderFilter.addEventListener("input", () => filterCards(folderFilter, ".searchable-folder"));
   if (state.currentView === "calculation") bindCalculation();
   if (state.currentView === "gaeb") bindGaebDropzone();
+  if (state.currentView === "projects") applyProjectLayout();
+}
+
+function applyProjectLayout() {
+  const board = mainContent.querySelector(".project-board");
+  const toggle = mainContent.querySelector('[data-action="list-view"]');
+  if (!board || !toggle) return;
+  const listMode = localStorage.getItem("dwp-project-layout") === "list";
+  mainContent.querySelector("[data-project-list]")?.remove();
+  board.style.display = listMode ? "none" : "";
+  toggle.textContent = listMode ? "Kartenansicht" : "Listenansicht";
+  toggle.setAttribute("aria-label", listMode ? "Zur Kartenansicht wechseln" : "Zur Listenansicht wechseln");
+  if (!listMode) return;
+  const wrapper = document.createElement("section");
+  wrapper.className = "panel data-table-wrap";
+  wrapper.dataset.projectList = "true";
+  const table = document.createElement("table");
+  table.className = "data-table";
+  const caption = table.createCaption();
+  caption.textContent = "Projektübersicht – Listenansicht";
+  const heading = table.createTHead().insertRow();
+  ["Projektnummer", "Projekt", "Ort", "Phase", "Hinweis", "Aktion"].forEach(label => {
+    const th = document.createElement("th"); th.scope = "col"; th.textContent = label; heading.append(th);
+  });
+  const body = table.createTBody();
+  board.querySelectorAll(".project-card").forEach(card => {
+    const row = body.insertRow();
+    const phase = card.closest(".board-column")?.querySelector(".board-head")?.childNodes[0]?.textContent?.trim() || "";
+    [card.querySelector(".project-no")?.textContent, card.querySelector("h3")?.textContent, card.querySelector("p")?.textContent, phase, card.querySelector(".project-card-footer span")?.textContent].forEach(value => {
+      row.insertCell().textContent = value || "";
+    });
+    const open = document.createElement("button");
+    open.type = "button"; open.className = "text-button"; open.textContent = "Öffnen →";
+    open.addEventListener("click", () => card.querySelector('[data-action="open-project"]')?.click());
+    row.insertCell().append(open);
+  });
+  wrapper.append(table); board.after(wrapper);
+  const filter = mainContent.querySelector(".project-filter");
+  if (filter) filterCards(filter, ".project-card, [data-project-list] tbody tr");
 }
 
 function handleAction(action) {
+  if (action === "list-view") {
+    try {
+      localStorage.setItem("dwp-project-layout", localStorage.getItem("dwp-project-layout") === "list" ? "cards" : "list");
+      applyProjectLayout();
+    } catch {
+      showToast("Ansicht konnte nicht gespeichert werden", "Bitte den lokalen Browserspeicher freigeben.");
+    }
+    return;
+  }
   if (["save-calc", "save-settings"].includes(action)) saveCurrentDraft();
   if (["new-customer", "new-project", "new-record"].includes(action)) {
     openQuickModal(action === "new-project" ? "Projekt" : action === "new-customer" ? "Kunde" : undefined);
