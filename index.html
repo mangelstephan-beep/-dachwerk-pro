@@ -16,7 +16,97 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <section class="login-screen" id="login-screen" aria-label="Anmeldung">
+    <section class="public-home" id="public-home">
+      <header class="public-header">
+        <a class="public-brand" href="#start" aria-label="DachWerk Pro Startseite">
+          <img src="/assets/dachwerk-pro-logo.svg" alt="DachWerk Pro by Stephan Mangel" />
+        </a>
+        <nav class="public-nav" aria-label="Seitennavigation">
+          <a href="#einsatz">Einsatz</a>
+          <a href="#vorteile">Vorteile</a>
+          <a href="#kontakt">Kontakt</a>
+          <button class="button button-secondary" type="button" data-open-login>Anmelden</button>
+        </nav>
+      </header>
+
+      <main>
+        <section class="public-hero" id="start">
+          <div class="hero-copy">
+            <span class="eyebrow">Branchenlösung für Dach · Wand · Abdichtung</span>
+            <h1>Baustelle und Büro in einem durchgängigen System.</h1>
+            <p class="hero-lead">DachWerk Pro verbindet Kalkulation, Leistungsverzeichnisse, Aufmaß, Bauleitung, Dokumentation und Abrechnung – praxisnah entwickelt vom Dachhandwerker für Dachhandwerker.</p>
+            <div class="hero-actions">
+              <button class="button button-primary button-large" type="button" data-open-request>Testzugang anfragen</button>
+              <button class="button button-secondary button-large" type="button" data-open-login>Zum geschützten Bereich</button>
+            </div>
+            <p class="hero-note"><span class="status-dot"></span>Aktuell im betreuten Praxistest</p>
+          </div>
+          <div class="hero-card" aria-label="Leistungsübersicht">
+            <div class="hero-card-head"><span>Projektablauf</span><strong>Alles im Blick</strong></div>
+            <ol class="workflow-list">
+              <li><span>01</span><div><strong>LV prüfen und kalkulieren</strong><small>PDF, GAEB, Zielpreise und Materialdaten</small></div></li>
+              <li><span>02</span><div><strong>Ausführung steuern</strong><small>Aufmaß, Bautenstand, Termine und Nachweise</small></div></li>
+              <li><span>03</span><div><strong>Sauber dokumentieren</strong><small>Fotos, Mängel, Schriftverkehr und Abrechnung</small></div></li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="public-section" id="einsatz">
+          <div class="section-heading">
+            <span class="eyebrow">Wofür DachWerk Pro eingesetzt wird</span>
+            <h2>Ein Arbeitsmittel für den gesamten Projektverlauf.</h2>
+            <p>Vom ersten Leistungsverzeichnis bis zur prüfbaren Schlussrechnung bleiben technische, kaufmännische und organisatorische Informationen am selben Projekt.</p>
+          </div>
+          <div class="feature-grid">
+            <article><span>LV</span><h3>Ausschreibung und Kalkulation</h3><p>Leistungsverzeichnisse importieren, Positionen prüfen, Leistungen zuordnen und belastbare Zielpreise bilden.</p></article>
+            <article><span>BL</span><h3>Bauleitung und Ausführung</h3><p>Aufmaß, Bautenstand, Tagesdokumentation, Regiearbeiten und offene Aufgaben direkt von der Baustelle erfassen.</p></article>
+            <article><span>QS</span><h3>Qualität und Nachweise</h3><p>Mängel, Abweichungen, Fotos, Fristen und technische Bewertungen nachvollziehbar am Vorgang dokumentieren.</p></article>
+            <article><span>RE</span><h3>Abrechnung und Projektabschluss</h3><p>Mengen, Leistungen und Nachweise zusammenführen und für Abschlags-, Teil- und Schlussrechnungen vorbereiten.</p></article>
+          </div>
+        </section>
+
+        <section class="benefit-band" id="vorteile">
+          <div>
+            <span class="eyebrow eyebrow-light">Aus der Praxis entwickelt</span>
+            <h2>Weniger doppelte Eingaben. Weniger Informationsverluste. Mehr Zeit für die Baustelle.</h2>
+          </div>
+          <ul>
+            <li>Einheitlicher Projektstand für Büro und Baustelle</li>
+            <li>Schnellere Prüfung von LV, Mengen und Preisen</li>
+            <li>Nachvollziehbare Foto- und Mängeldokumentation</li>
+            <li>Klare nächste Schritte und offene Aufgaben</li>
+            <li>KI-Unterstützung für Prüfungen und Routinearbeiten</li>
+          </ul>
+        </section>
+
+        <section class="public-section contact-section" id="kontakt">
+          <div class="section-heading">
+            <span class="eyebrow">Kontakt und Testzugang</span>
+            <h2>DachWerk Pro im eigenen Arbeitsablauf testen.</h2>
+            <p>Testzugänge werden persönlich vergeben. So kann der Praxistest begleitet und Rückmeldung direkt in die Weiterentwicklung aufgenommen werden.</p>
+          </div>
+          <div class="contact-card">
+            <div>
+              <strong>Stephan Mangel</strong>
+              <p>Dachdeckermeister<br />Sachverständiger (DGUSV) für Dach-, Wand- und Abdichtungstechnik<br />Gebäudeenergieberater (EEE) · Technischer Fachwirt</p>
+            </div>
+            <div class="contact-links">
+              <a href="tel:+4915121471973">0151 21471973</a>
+              <a href="mailto:kontakt@dachwerkpro.de">kontakt@dachwerkpro.de</a>
+              <button class="contact-request-link" type="button" data-open-request>testzugang@dachwerkpro.de</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="public-footer">
+        <div><strong>DachWerk Pro by Stephan Mangel</strong><span>Das Tool vom Dachhandwerker für Dachhandwerker.</span></div>
+        <address>Upsalastraße 48 · 28719 Bremen</address>
+        <span>© 2026 DachWerk Pro</span>
+      </footer>
+    </section>
+
+    <section class="login-screen is-hidden" id="login-screen" aria-label="Anmeldung">
       <div class="login-visual" aria-hidden="true">
         <div class="login-grid"></div>
         <div class="visual-copy">
@@ -41,16 +131,17 @@
           </div>
 
           <div class="login-heading">
-            <span class="eyebrow">Willkommen</span>
+            <button class="back-to-home" type="button" data-back-home>← Zur Startseite</button>
+            <span class="eyebrow">Geschützter Bereich</span>
             <h2>DachWerk Pro öffnen</h2>
-            <p>Persönlicher Zugang für Stephan Mangel.</p>
+            <p>Zugang für freigeschaltete Anwender und betreute Praxistests.</p>
           </div>
 
           <form id="login-form" novalidate>
             <label for="username">E-Mail</label>
             <div class="input-wrap">
               <span aria-hidden="true">@</span>
-              <input id="username" name="username" type="email" autocomplete="username" value="mangel.stephan@icloud.com" placeholder="E-Mail-Adresse" />
+              <input id="username" name="username" type="email" autocomplete="username" placeholder="E-Mail-Adresse" />
             </div>
 
             <label for="password">Passwort</label>
@@ -65,11 +156,34 @@
             <button class="button button-secondary button-block" id="demo-login" type="button" style="display:none" aria-hidden="true" tabindex="-1">Demo starten</button>
           </form>
 
-          <div class="login-note"><span class="status-dot"></span>DachWerk Pro · persönlicher Arbeitsbereich</div>
+          <div class="login-note"><span class="status-dot"></span>DachWerk Pro · geschützter Arbeitsbereich</div>
+          <button class="test-access-link" type="button" data-open-request>Noch keinen Zugang? Testzugang anfragen</button>
           <p class="brand-claim">Das Tool vom Dachhandwerker für Dachhandwerker.</p>
         </div>
       </div>
     </section>
+
+    <div class="request-backdrop is-hidden" id="request-backdrop">
+      <section class="request-dialog" role="dialog" aria-modal="true" aria-labelledby="request-title">
+        <div class="request-head">
+          <div><span class="eyebrow">Betreuter Praxistest</span><h2 id="request-title">Testzugang anfragen</h2></div>
+          <button class="icon-button" id="request-close" type="button" aria-label="Anfrage schließen">×</button>
+        </div>
+        <p class="request-intro">Nach deiner Anfrage prüft Stephan Mangel die Angaben persönlich. Erst nach Genehmigung erhältst du eine Bestätigungsmail und kannst dein eigenes Passwort festlegen. Der Zugang gilt fünf Kalendertage ab Freischaltung.</p>
+        <form id="test-request-form" class="request-form">
+          <div><label for="request-name">Vor- und Nachname *</label><input id="request-name" required autocomplete="name" /></div>
+          <div><label for="request-company">Firmenname *</label><input id="request-company" required autocomplete="organization" /></div>
+          <div><label for="request-email">E-Mail-Adresse *</label><input id="request-email" required type="email" autocomplete="email" /></div>
+          <div><label for="request-phone">Telefonnummer *</label><input id="request-phone" required type="tel" autocomplete="tel" /></div>
+          <div class="field-span"><label for="request-address">Anschrift / Ort *</label><input id="request-address" required autocomplete="street-address" /></div>
+          <div><label for="request-role">Funktion im Betrieb</label><input id="request-role" placeholder="z. B. Bauleitung" /></div>
+          <div><label for="request-start">Gewünschter Testbeginn</label><input id="request-start" type="date" /></div>
+          <label class="request-consent field-span"><input id="request-consent" type="checkbox" required /><span>Ich bestätige, dass meine Angaben für die Bearbeitung der Testzugangsanfrage verwendet werden dürfen. *</span></label>
+          <p class="request-status field-span" id="request-status" role="status"></p>
+          <div class="request-actions field-span"><button class="button button-secondary" id="request-cancel" type="button">Abbrechen</button><button class="button button-primary" type="submit">Anfrage per E-Mail senden</button></div>
+        </form>
+      </section>
+    </div>
 
     <div class="app-shell is-hidden" id="app-shell">
       <aside class="sidebar" id="sidebar">

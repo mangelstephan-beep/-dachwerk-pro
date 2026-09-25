@@ -7,12 +7,14 @@ const state = {
 };
 
 const loginScreen = document.querySelector("#login-screen");
+const publicHome = document.querySelector("#public-home");
 const appShell = document.querySelector("#app-shell");
 const mainContent = document.querySelector("#main-content");
 const sidebar = document.querySelector("#sidebar");
 const sidebarBackdrop = document.querySelector("#sidebar-backdrop");
 const modalBackdrop = document.querySelector("#modal-backdrop");
 const toastRegion = document.querySelector("#toast-region");
+const requestBackdrop = document.querySelector("#request-backdrop");
 
 const euro = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -558,6 +560,7 @@ const views = {
 };
 
 function startApp() {
+  publicHome.classList.add("is-hidden");
   loginScreen.classList.add("is-hidden");
   appShell.classList.remove("is-hidden");
   const initialView = views[state.currentView] ? state.currentView : "dashboard";
@@ -565,6 +568,36 @@ function startApp() {
   state.historyIndex = 0;
   renderView(initialView);
   requestAnimationFrame(() => document.querySelector(".page-header h1")?.focus?.());
+}
+
+function showPublicHome() {
+  appShell.classList.add("is-hidden");
+  loginScreen.classList.add("is-hidden");
+  publicHome.classList.remove("is-hidden");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showLogin() {
+  publicHome.classList.add("is-hidden");
+  loginScreen.classList.remove("is-hidden");
+  setTimeout(() => document.querySelector("#username")?.focus(), 40);
+}
+
+function openRequestDialog() {
+  requestBackdrop.classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => document.querySelector("#request-name")?.focus(), 40);
+}
+
+function closeRequestDialog() {
+  requestBackdrop.classList.add("is-hidden");
+  document.body.style.overflow = "";
+}
+
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function saveCurrentDraft() {
@@ -848,25 +881,23 @@ function closeSidebar() {
   sidebarBackdrop.classList.remove("is-open");
 }
 
-document.querySelector("#login-form").addEventListener("submit", (event) => {
+document.querySelector("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const username = document.querySelector("#username").value.trim();
+  const username = document.querySelector("#username").value.trim().toLocaleLowerCase("de");
   const password = document.querySelector("#password").value;
   const error = document.querySelector("#login-error");
   if (!username || !password) {
     error.textContent = "Bitte Benutzername und Passwort eingeben.";
     return;
   }
+  const credentialHash = await sha256(`${username}:${password}`);
+  const masterCredentialHash = "69758e6c949a2ffde4a268f3c7dba007c1840246336a2b2fc666dcc9fa67ba38";
+  if (credentialHash !== masterCredentialHash) {
+    error.textContent = "Zugangsdaten nicht gültig oder noch nicht freigeschaltet.";
+    return;
+  }
   error.textContent = "";
-  sessionStorage.setItem("dwp-test-session", "active");
-  startApp();
-});
-
-document.querySelector("#demo-login").addEventListener("click", () => {
-  document.querySelector("#username").value = "Stephan";
-  document.querySelector("#password").value = "Demo123!";
-  document.querySelector("#login-error").textContent = "";
-  sessionStorage.setItem("dwp-test-session", "demo");
+  sessionStorage.setItem("dwp-test-session", "master");
   startApp();
 });
 
@@ -886,9 +917,48 @@ document.querySelector("#logout-button").addEventListener("click", () => {
   if (!confirmPageChange()) return;
   sessionStorage.removeItem("dwp-test-session");
   appShell.classList.add("is-hidden");
-  loginScreen.classList.remove("is-hidden");
   document.querySelector("#password").value = "";
-  document.querySelector("#username").focus();
+  showPublicHome();
+});
+
+document.querySelectorAll("[data-open-login]").forEach((button) => button.addEventListener("click", showLogin));
+document.querySelectorAll("[data-back-home]").forEach((button) => button.addEventListener("click", showPublicHome));
+document.querySelectorAll("[data-open-request]").forEach((button) => button.addEventListener("click", openRequestDialog));
+document.querySelector("#request-close").addEventListener("click", closeRequestDialog);
+document.querySelector("#request-cancel").addEventListener("click", closeRequestDialog);
+requestBackdrop.addEventListener("click", (event) => {
+  if (event.target === requestBackdrop) closeRequestDialog();
+});
+
+document.querySelector("#test-request-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!form.reportValidity()) return;
+  const requestId = `DWP-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  const name = document.querySelector("#request-name").value.trim();
+  const company = document.querySelector("#request-company").value.trim();
+  const email = document.querySelector("#request-email").value.trim();
+  const phone = document.querySelector("#request-phone").value.trim();
+  const address = document.querySelector("#request-address").value.trim();
+  const role = document.querySelector("#request-role").value.trim() || "nicht angegeben";
+  const start = document.querySelector("#request-start").value || "nach Genehmigung";
+  const subject = `Testzugang DachWerk Pro – ${company} – ${requestId}`;
+  const body = [
+    "Anfrage für einen fünftägigen DachWerk-Pro-Testzugang",
+    "",
+    `Anfrage-ID: ${requestId}`,
+    `Name: ${name}`,
+    `Firma: ${company}`,
+    `E-Mail: ${email}`,
+    `Telefon: ${phone}`,
+    `Anschrift / Ort: ${address}`,
+    `Funktion: ${role}`,
+    `Gewünschter Testbeginn: ${start}`,
+    "",
+    "Der Zugang soll erst nach persönlicher Genehmigung durch Stephan Mangel freigeschaltet werden. Das Passwort wird anschließend vom Antragsteller selbst festgelegt.",
+  ].join("\n");
+  document.querySelector("#request-status").textContent = "Die E-Mail-Anfrage wird jetzt vorbereitet. Bitte im Mailprogramm noch absenden.";
+  window.location.href = `mailto:testzugang@dachwerkpro.de?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 });
 document.querySelector("#modal-close").addEventListener("click", closeQuickModal);
 document.querySelector("#modal-cancel").addEventListener("click", closeQuickModal);
@@ -942,6 +1012,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeQuickModal();
     closeSidebar();
+    closeRequestDialog();
   }
 });
 
@@ -950,3 +1021,5 @@ window.addEventListener("beforeunload", (event) => {
   event.preventDefault();
   event.returnValue = "";
 });
+
+if (sessionStorage.getItem("dwp-test-session") === "master") startApp();
