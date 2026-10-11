@@ -27,5 +27,19 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/training",
+      "destination": "/api/training"
+    },
+    {
+      "source": "/demo",
+      "destination": "/api/training"
+    },
+    {
+      "source": "/demo.html",
+      "destination": "/api/training"
+    }
   ]
 }
