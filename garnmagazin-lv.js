@@ -64,7 +64,8 @@
   }
 
   async function boot() {
-    await Promise.all([loadScript(scripts[1]), loadScript(scripts[2])]);
+    // Optional remote parsers must not prevent local workspaces from loading.
+    await Promise.allSettled([loadScript(scripts[1]), loadScript(scripts[2])]);
     try {
       const pdf = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs');
       window.pdfjsLib = pdf;

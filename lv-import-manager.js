@@ -230,5 +230,10 @@
     ['dragover','drop'].forEach(ev=>drop.addEventListener(ev,e=>e.preventDefault())); drop.addEventListener('drop',e=>{try{const dt=new DataTransfer();[...e.dataTransfer.files].forEach(f=>dt.items.add(f));input.files=dt.files;drop.firstChild.textContent=`${dt.files.length} Datei(en) ausgewählt `;}catch{}});
   }
 
-  const observer=new MutationObserver(()=>{render();extendQuickModal();}); observer.observe(document.body,{childList:true,subtree:true}); render();extendQuickModal();
+  const observer=new MutationObserver(()=>{
+    const page=main.querySelector('.page[data-page="calculation"]');
+    // Ignore our own updates: re-rendering on each mutation causes an endless loop.
+    if(page && !page.querySelector('[data-lv-import-manager]'))render();
+    extendQuickModal();
+  }); observer.observe(document.body,{childList:true,subtree:true}); render();extendQuickModal();
 })();
