@@ -12,13 +12,13 @@
   const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); } catch { return fallback; } };
   const write = (key, value) => localStorage.setItem(key, JSON.stringify(value));
   const money = (v) => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(v)||0);
-  const num = (v) => Number(String(v ?? '').replace(/\./g,'').replace(',','.')) || 0;
+  const num = DachWerkCore.number;
 
   function getDb(){ return read(DB_KEY,{documents:[],workingCopies:[]}); }
   function saveDb(db){ write(DB_KEY,db); }
   function getEntities(){ return read(ENTITY_KEY,[]); }
   function saveEntities(x){ write(ENTITY_KEY,x); }
-  function currentEntity(){ const id=localStorage.getItem(CURRENT_KEY); return getEntities().find(x=>x.id===id) || null; }
+  function currentEntity(){ return DachWerkCore.current(); }
 
   function seedIfEmpty(){
     const db=getDb();
@@ -102,7 +102,7 @@
       const nr=m[1].replace(/\s+/g,'.').replace(/[)]$/,'');
       const qty=num(m[2]||0); const unit=(m[3]||'').replace('m2','m²').replace('m3','m³'); const txt=(m[4]||'').trim();
       if(!txt && !qty) continue;
-      positions.push({id:uid('pos'),nr,qty,unit,title:txt.slice(0,120)||'Leistungsposition',text:txt,time:0,material:0,ep:0});
+      positions.push({id:uid('pos'),nr,qty,unit,title:txt.slice(0,120)||'Leistungsposition',text:txt,time:0,material:0,ep:null});
     }
     // GAEB/XML often has compact text: fall back to item blocks if no classic rows were found.
     if(!positions.length){
@@ -110,7 +110,7 @@
         const xml=new DOMParser().parseFromString(text,'text/xml');
         [...xml.querySelectorAll('Item,BoQCtgy,Description,OutlineText')].slice(0,500).forEach((node,i)=>{
           const t=node.textContent?.replace(/\s+/g,' ').trim();
-          if(t && t.length>8) positions.push({id:uid('pos'),nr:String(i+1).padStart(3,'0'),qty:0,unit:'',title:t.slice(0,120),text:t,time:0,material:0,ep:0});
+          if(t && t.length>8) positions.push({id:uid('pos'),nr:String(i+1).padStart(3,'0'),qty:0,unit:'',title:t.slice(0,120),text:t,time:0,material:0,ep:null});
         });
       }catch{}
     }
@@ -118,6 +118,7 @@
   }
 
   async function importFile(file, entityId=null){
+    if(!entityId) throw new Error('Bitte zuerst ein Projekt auswählen.');
     if(!supported(file)) throw new Error('Dateiformat noch nicht unterstützt.');
     const ext=extension(file.name); let pages=[];
     setStatus(`Lese ${file.name} …`);
@@ -143,15 +144,16 @@
     const anchor=page.querySelector('.page-navigation')||page.querySelector('.page-header'); if(!anchor) return;
     if(!root){ root=document.createElement('section'); root.dataset.lvImportManager='true'; root.className='panel panel-pad'; root.style.marginBottom='16px'; anchor.insertAdjacentElement('afterend',root); }
     const db=getDb(); const ent=currentEntity();
+    const visible = id => ent ? id === ent.id : !id;
     root.innerHTML=`
-      <div class="panel-head"><div><span class="eyebrow">LV-Importzentrale · Original bleibt unverändert</span><h2>Drag & Drop → prüfen → Arbeitskopie kalkulieren</h2><p>${ent?`Zuordnung: <strong>${esc(ent.type)} ${esc(ent.number)} · ${esc(ent.name)}</strong>`:'Noch keinem Kunden/Projekt fest zugeordnet.'}</p></div><span class="status-pill status-green">${db.documents.length} Originale · ${db.workingCopies.length} Arbeitskopien</span></div>
+      <div class="panel-head"><div><span class="eyebrow">LV-Importzentrale · Original bleibt unverändert</span><h2>Drag & Drop → prüfen → Arbeitskopie kalkulieren</h2><p>${ent?`Zuordnung: <strong>${esc(ent.type)} ${esc(ent.number)} · ${esc(ent.name)}</strong>`:'Noch keinem Kunden/Projekt fest zugeordnet.'}</p></div><span class="status-pill status-green">${db.documents.filter(s=>visible(s.entityId)).length} Originale · ${db.workingCopies.filter(w=>visible(w.entityId)).length} Arbeitskopien</span></div>
       <div data-lv-drop style="border:2px dashed #9fb2c8;border-radius:14px;padding:22px;text-align:center;margin:14px 0;background:#f8fafc;cursor:pointer">
         <strong style="display:block;font-size:1.08rem">LV hier hineinziehen oder anklicken</strong><span class="muted">PDF/Scan, Bild, GAEB/XML/X83/X84, Excel, CSV oder TXT</span><input data-lv-file type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.xml,.x83,.x84,.d83,.d84,.xlsx,.xls,.csv,.txt" hidden>
       </div>
       <p data-lv-import-status class="muted">Importbereit. Bei gescannten PDFs können einzelne Seiten gewählt und per OCR gelesen werden.</p>
       <div style="display:grid;grid-template-columns:minmax(260px,.75fr) minmax(500px,1.6fr);gap:14px;margin-top:14px">
-        <div>${db.documents.map(sourceCard).join('')}</div>
-        <div>${db.workingCopies.map(workCard).join('') || '<div class="panel panel-pad"><span class="muted">Noch keine Arbeitskopie.</span></div>'}</div>
+        <div>${db.documents.filter(s=>visible(s.entityId)).map(sourceCard).join('')}</div>
+        <div>${db.workingCopies.filter(w=>visible(w.entityId)).map(workCard).join('') || '<div class="panel panel-pad"><span class="muted">Noch keine Arbeitskopie.</span></div>'}</div>
       </div>`;
     bind(root);
   }
@@ -171,8 +173,8 @@
       <div style="margin-top:10px;display:flex;gap:8px"><button class="button button-secondary" data-work-action="add-row" data-work-id="${esc(w.id)}">+ Position</button><button class="button button-primary" data-work-action="save" data-work-id="${esc(w.id)}">Arbeitskopie speichern</button></div></article>`;
   }
 
-  function row(w,p){ const ep=num(p.ep)||(num(p.material)+(num(p.time)/60)*num(read('dwp-calc-settings',{hourRate:0}).hourRate)); const gp=ep*num(p.qty); return `<tr data-pos-id="${esc(p.id)}"><td><input data-f="nr" value="${esc(p.nr)}" style="width:75px"></td><td><input data-f="qty" value="${esc(p.qty)}" style="width:80px"> ${esc(p.unit)}</td><td><textarea data-f="text" rows="2" style="min-width:260px">${esc(p.text||p.title)}</textarea></td><td><input data-f="time" value="${esc(p.time||'')}" style="width:70px"></td><td><input data-f="material" value="${esc(p.material||'')}" style="width:85px"></td><td><input data-f="ep" value="${esc(p.ep||'')}" placeholder="auto" style="width:85px"></td><td data-gp>${money(gp)}</td></tr>`; }
-  function calcTotal(w){ return (w.positions||[]).reduce((s,p)=>s+(num(p.ep)||num(p.material))*num(p.qty),0); }
+  function row(w,p){ const ep=DachWerkCore.effectivePrice(p); const gp=ep*num(p.qty); return `<tr data-pos-id="${esc(p.id)}"><td><input data-f="nr" value="${esc(p.nr)}" style="width:75px"></td><td><input data-f="qty" value="${esc(p.qty)}" style="width:80px"> ${esc(p.unit)}</td><td><textarea data-f="text" rows="2" style="min-width:260px">${esc(p.text||p.title)}</textarea></td><td><input data-f="time" value="${esc(p.time||'')}" style="width:70px"></td><td><input data-f="material" value="${esc(p.material||'')}" style="width:85px"></td><td><input data-f="ep" value="${esc(p.ep??'')}" placeholder="auto" style="width:85px"></td><td data-gp>${money(gp)}</td></tr>`; }
+  function calcTotal(w){ return (w.positions||[]).reduce((s,p)=>s+DachWerkCore.effectivePrice(p)*num(p.qty),0); }
 
   function bind(root){
     const dz=root.querySelector('[data-lv-drop]'), fi=root.querySelector('[data-lv-file]');
@@ -202,7 +204,7 @@
     });
     root.querySelectorAll('[data-work-action]').forEach(btn=>btn.onclick=()=>{
       const db=getDb(), w=db.workingCopies.find(x=>x.id===btn.dataset.workId); if(!w) return;
-      if(btn.dataset.workAction==='add-row'){w.positions.push({id:uid('pos'),nr:'',qty:0,unit:'',title:'',text:'',time:0,material:0,ep:0});saveDb(db);render();return;}
+      if(btn.dataset.workAction==='add-row'){w.positions.push({id:uid('pos'),nr:'',qty:0,unit:'',title:'',text:'',time:0,material:0,ep:null});saveDb(db);render();return;}
       syncWorkFromCard(btn.closest('[data-work-card]'),w); saveDb(db); setStatus(`${w.name} wurde gespeichert.`); render();
     });
     root.querySelectorAll('[data-work-name]').forEach(inp=>inp.onchange=()=>{const db=getDb(),w=db.workingCopies.find(x=>x.id===inp.dataset.workName);if(w){w.name=inp.value.trim()||w.name;saveDb(db);render();}});
@@ -210,25 +212,35 @@
 
   function syncWorkFromCard(card,w){
     const byId=new Map((w.positions||[]).map(p=>[p.id,p]));
-    card.querySelectorAll('tbody tr[data-pos-id]').forEach(tr=>{const p=byId.get(tr.dataset.posId); if(!p)return; tr.querySelectorAll('[data-f]').forEach(i=>{const f=i.dataset.f; p[f]=['qty','time','material','ep'].includes(f)?num(i.value):i.value;});});
+    card.querySelectorAll('tbody tr[data-pos-id]').forEach(tr=>{const p=byId.get(tr.dataset.posId); if(!p)return; tr.querySelectorAll('[data-f]').forEach(i=>{const f=i.dataset.f; p[f]=f==='ep'&&i.value.trim()===''?null:['qty','time','material','ep'].includes(f)?num(i.value):i.value;});});
   }
   function recalcCard(card){
-    let total=0; card.querySelectorAll('tbody tr').forEach(tr=>{const q=num(tr.querySelector('[data-f="qty"]')?.value), mat=num(tr.querySelector('[data-f="material"]')?.value), ep=num(tr.querySelector('[data-f="ep"]')?.value); const gp=(ep||mat)*q; total+=gp; const out=tr.querySelector('[data-gp]');if(out)out.textContent=money(gp);}); const out=card.querySelector('[data-work-total]');if(out)out.textContent=money(total);
+    let total=0;
+    card.querySelectorAll('tbody tr[data-pos-id]').forEach(tr=>{
+      const val=f=>tr.querySelector(`[data-f="${f}"]`)?.value;
+      const gp=DachWerkCore.effectivePrice({ep:val('ep'),material:val('material'),time:val('time')})*num(val('qty'));
+      total+=gp; const out=tr.querySelector('[data-gp]');if(out)out.textContent=money(gp);
+    });
+    const out=card.querySelector('[data-work-total]');if(out)out.textContent=money(total);
   }
 
   function extendQuickModal(){
     const form=document.querySelector('#quick-form'); if(!form || form.querySelector('[data-lv-entity-drop]')) return;
     const actions=form.querySelector('.modal-actions'); if(!actions)return;
     const wrap=document.createElement('div'); wrap.className='field-span'; wrap.dataset.lvEntityDrop='true'; wrap.innerHTML=`<label>Leistungsverzeichnis direkt zuordnen (optional)</label><div data-entity-drop style="border:2px dashed #b9c7d6;border-radius:10px;padding:12px;text-align:center">LV hier ablegen oder Datei wählen<input data-entity-file type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xml,.x83,.x84,.d83,.d84,.xlsx,.xls,.csv,.txt" multiple style="display:block;margin:8px auto 0"></div><small class="muted">Beim Speichern von Kunde/Projekt wird das Original dort abgelegt und gleichzeitig eine getrennte Kalkulationskopie angelegt.</small>`; actions.before(wrap);
-    form.addEventListener('submit',e=>{
-      const type=document.querySelector('#record-type').value, number=document.querySelector('#record-number').value, name=document.querySelector('#record-name').value.trim(), location=document.querySelector('#record-location').value.trim();
-      if(!['Kunde','Projekt'].includes(type)||!name)return;
-      const entities=getEntities(); const ent={id:uid(type==='Projekt'?'project':'customer'),type,number,name,location,createdAt:new Date().toISOString()}; entities.push(ent);saveEntities(entities);localStorage.setItem(CURRENT_KEY,ent.id);
-      const files=[...(form.querySelector('[data-entity-file]')?.files||[])]; setTimeout(()=>files.forEach(f=>importFile(f,ent.id).catch(err=>setStatus(err.message))),50);
-    },true);
     const drop=wrap.querySelector('[data-entity-drop]'), input=wrap.querySelector('[data-entity-file]');
     ['dragover','drop'].forEach(ev=>drop.addEventListener(ev,e=>e.preventDefault())); drop.addEventListener('drop',e=>{try{const dt=new DataTransfer();[...e.dataTransfer.files].forEach(f=>dt.items.add(f));input.files=dt.files;drop.firstChild.textContent=`${dt.files.length} Datei(en) ausgewählt `;}catch{}});
   }
 
-  const observer=new MutationObserver(()=>{render();extendQuickModal();}); observer.observe(document.body,{childList:true,subtree:true}); render();extendQuickModal();
+  window.addEventListener('dwp-entity-saved', e => {
+    const {record,files}=e.detail;
+    if(record.type === 'Projekt') files.forEach(f=>importFile(f,record.id).catch(err=>setStatus(err.message)));
+  });
+  window.addEventListener('dwp-project-changed',()=>render());
+  const observer=new MutationObserver(()=>{
+    if(main.querySelector('.page[data-page="calculation"]') && !main.querySelector('[data-lv-import-manager]')) render();
+    extendQuickModal();
+  }); observer.observe(document.body,{childList:true,subtree:true}); render();extendQuickModal();
+  window.addEventListener('pagehide',()=>observer.disconnect());
+  window.addEventListener('pageshow',()=>observer.observe(document.body,{childList:true,subtree:true}));
 })();

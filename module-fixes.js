@@ -56,6 +56,9 @@
   }
 
   function renderWorkspace(ctx) {
+    if (DachWerkRecords.render(ctx)) return;
+    const project = DachWerkCore.current();
+    if (project) ctx = {...ctx, id: `${project.id}:${ctx.id}`};
     const saved = readStore()[ctx.id] || {};
     const status = saved.status || "Offen";
     const notes = saved.notes || "";
@@ -121,8 +124,8 @@
           <aside class="dashboard-side">
             <section class="panel panel-pad">
               <span class="eyebrow">Modulstatus</span>
-              <h2 class="section-title" style="margin-top:9px">Jetzt benutzbar</h2>
-              <p class="muted" style="line-height:1.6">Dieser Bereich ersetzt den bisherigen reinen Hinweis-Button. Eingaben werden lokal im Browser gespeichert und bleiben beim nächsten Öffnen erhalten.</p>
+              <h2 class="section-title" style="margin-top:9px">Arbeitsnotizen</h2>
+              <p class="muted" style="line-height:1.6">Dieser Bereich erfasst Arbeitsnotizen. Die fachliche Modulberechnung ist noch nicht implementiert. Eingaben werden lokal im Browser gespeichert.</p>
             </section>
             <section class="panel panel-pad">
               <span class="eyebrow">Hinweis</span>
@@ -156,6 +159,12 @@
   }
 
   main.addEventListener("click", (event) => {
+    const action = event.target.closest('[data-action]');
+    const card = action?.closest('.module-card');
+    if (card && DachWerkRecords.types[card.querySelector('h3')?.textContent?.trim()]) {
+      const ctx = getModuleContext(action);
+      event.preventDefault();event.stopImmediatePropagation();renderWorkspace(ctx);return;
+    }
     const openButton = event.target.closest('[data-action="open-module"]');
     if (openButton) {
       const ctx = getModuleContext(openButton);

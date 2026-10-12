@@ -5,7 +5,7 @@
   const PERSONNEL_KEY = 'dwp-personnel-v1';
   const MATERIAL_KEY = 'dwp-material-db-v1';
   const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-  const num = (v) => Number(String(v ?? '').replace(/\./g,'').replace(',','.')) || 0;
+  const num = DachWerkCore.number;
   const money = (v) => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(num(v));
   const read = (key, fallback=[]) => { try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); } catch { return fallback; } };
   const write = (key, value) => localStorage.setItem(key, JSON.stringify(value));

@@ -197,53 +197,11 @@ function dashboardView() {
 }
 
 function customersView() {
-  return `
-    <section class="page" data-page="customers">
-      ${pageHeader("customers", `${button("CSV exportieren", "export")}${button("+ Neuer Kunde · F3", "new-customer", "primary")}`)}
-      <section class="panel">
-        <div class="filterbar">
-          <input class="filter-input table-filter" placeholder="Kundennummer, Firma oder Ort suchen …" />
-          <select class="filter-select"><option>Alle Kundengruppen</option><option>Auftraggeber</option><option>Planer</option><option>Lieferanten</option></select>
-          <select class="filter-select"><option>Status: alle</option><option>Aktiv</option><option>Interessent</option><option>Archiv</option></select>
-        </div>
-        <div class="data-table-wrap">
-          <table class="data-table searchable-table">
-            <thead><tr><th>Kundennr.</th><th>Firma / Kunde</th><th>Ansprechpartner</th><th>Ort</th><th>Aktive Projekte</th><th>Status</th><th>Letzter Kontakt</th></tr></thead>
-            <tbody>
-              <tr><td><strong>K-2026-0039</strong></td><td><div class="project-cell"><span class="project-icon">BG</span><div><strong>Baugesellschaft Nord GmbH</strong><small>Auftraggeber</small></div></div></td><td>Martin Weber</td><td>Bremen</td><td>2</td><td><span class="status-pill status-green">Aktiv</span></td><td>Heute</td></tr>
-              <tr><td><strong>K-2026-0037</strong></td><td><div class="project-cell"><span class="project-icon">AP</span><div><strong>Architektur Partner</strong><small>Planungsbüro</small></div></div></td><td>Laura Schmidt</td><td>Hamburg</td><td>1</td><td><span class="status-pill status-green">Aktiv</span></td><td>10.09.2026</td></tr>
-              <tr><td><strong>K-2026-0034</strong></td><td><div class="project-cell"><span class="project-icon">WH</span><div><strong>Wohnbau Hanse</strong><small>Hausverwaltung</small></div></div></td><td>Jens Peters</td><td>Oldenburg</td><td>3</td><td><span class="status-pill status-blue">Angebot</span></td><td>08.09.2026</td></tr>
-              <tr><td><strong>K-2026-0028</strong></td><td><div class="project-cell"><span class="project-icon">DB</span><div><strong>Dachbaustoffe Bremen</strong><small>Lieferant</small></div></div></td><td>Anne Koch</td><td>Stuhr</td><td>–</td><td><span class="status-pill status-grey">Lieferant</span></td><td>03.09.2026</td></tr>
-              <tr><td><strong>K-2026-0022</strong></td><td><div class="project-cell"><span class="project-icon">PG</span><div><strong>Projektentwicklung Grün</strong><small>Interessent</small></div></div></td><td>Tobias Lang</td><td>Rosenheim</td><td>0</td><td><span class="status-pill status-amber">Interessent</span></td><td>27.08.2026</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </section>`;
+  return DachWerkCore.customers(pageHeader("customers", button("+ Neuer Kunde · F3", "new-customer", "primary")));
 }
 
 function projectsView() {
-  const card = (no, title, place, meta, status = "") => `
-    <article class="project-card">
-      <span class="project-no">${no}</span><h3>${title}</h3><p>${place}</p>
-      ${status ? `<span class="status-pill ${status[1]}">${status[0]}</span>` : ""}
-      <div class="project-card-footer"><span>${meta}</span><button class="text-button" data-action="open-project">Öffnen →</button></div>
-    </article>`;
-  return `
-    <section class="page" data-page="projects">
-      ${pageHeader("projects", `${button("Listenansicht", "list-view")}${button("+ Neues Projekt", "new-project", "primary")}`)}
-      <div class="filterbar panel" style="margin-bottom:16px">
-        <input class="filter-input project-filter" placeholder="Projekt suchen …" />
-        <select class="filter-select"><option>Alle Verantwortlichen</option><option>Stephan Mangel</option><option>Team Nord</option></select>
-        <select class="filter-select"><option>Alle Regionen</option><option>Nord</option><option>Süd</option></select>
-      </div>
-      <div class="board project-board">
-        <section class="board-column"><div class="board-head">Anfrage <span>2</span></div>${card("P-2026-0041", "Schulzentrum – Dachflächen", "Bremen", "Anfrage vom 11.09.")}${card("P-2026-0040", "Produktionshalle West", "Osnabrück", "Unterlagen unvollständig")}</section>
-        <section class="board-column"><div class="board-head">Kalkulation <span>2</span></div>${card("P-2026-0031", "Kita Neubau Süd", "Rosenheim", "Abgabe 25.09.", ["In Bearbeitung", "status-blue"])}${card("P-2026-0029", "Verwaltungsbau Mitte", "Hannover", "LV 212 Positionen", ["GAEB geprüft", "status-green"])}</section>
-        <section class="board-column"><div class="board-head">Ausführung <span>3</span></div>${card("P-2026-0038", "Dachsanierung Gewerbehalle Nord", "Bremen", "Baufortschritt 72 %", ["Planmäßig", "status-green"])}${card("P-2026-0035", "Wohnanlage Am Park", "Hamburg", "Baufortschritt 48 %", ["Prüfung", "status-amber"])}${card("P-2026-0028", "Flachdach Logistikzentrum", "Hannover", "Baufortschritt 83 %", ["Klärung", "status-red"])}</section>
-        <section class="board-column"><div class="board-head">Abnahme <span>1</span></div>${card("P-2026-0023", "Bürohaus Weserufer", "Bremen", "Abnahme 17.09.", ["Dokumentation", "status-purple"])}</section>
-      </div>
-    </section>`;
+  return DachWerkCore.projects(pageHeader("projects", button("Listenansicht", "list-view") + button("+ Neues Projekt", "new-project", "primary")));
 }
 
 function calculationView() {
@@ -594,12 +552,6 @@ function closeRequestDialog() {
   document.body.style.overflow = "";
 }
 
-async function sha256(value) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function saveCurrentDraft() {
   const fields = {};
   mainContent.querySelectorAll("input, select, textarea").forEach((field, index) => {
@@ -662,6 +614,7 @@ function renderView(view) {
   state.currentView = safeView;
   localStorage.setItem("dwp-current-view", safeView);
   mainContent.innerHTML = views[safeView]();
+  DachWerkCore.context(mainContent);
   document.querySelectorAll(".nav-item[data-view]").forEach((item) => {
     item.classList.toggle("is-active", item.dataset.view === safeView);
   });
@@ -681,7 +634,7 @@ function bindDynamicInteractions() {
     element.addEventListener("click", () => navigateTo(element.dataset.go));
   });
   mainContent.querySelectorAll("[data-action]").forEach((element) => {
-    element.addEventListener("click", () => handleAction(element.dataset.action));
+    element.addEventListener("click", () => handleAction(element.dataset.action, element));
   });
   mainContent.querySelectorAll("[data-nav]").forEach((element) => {
     element.addEventListener("click", () => {
@@ -743,7 +696,12 @@ function applyProjectLayout() {
   if (filter) filterCards(filter, ".project-card, [data-project-list] tbody tr");
 }
 
-function handleAction(action) {
+function handleAction(action, element) {
+  if (action === "open-project" && element?.dataset.projectId) {
+    localStorage.setItem("dwp-current-entity-v1", element.dataset.projectId);
+    navigateTo("calculation");
+    return;
+  }
   if (action === "list-view") {
     try {
       localStorage.setItem("dwp-project-layout", localStorage.getItem("dwp-project-layout") === "list" ? "cards" : "list");
@@ -888,6 +846,7 @@ function openQuickModal(type) {
   modalBackdrop.classList.remove("is-hidden");
   if (type) document.querySelector("#record-type").value = type;
   updateRecordNumber();
+  DachWerkCore.refreshForm();
   setTimeout(() => document.querySelector("#record-name").focus(), 40);
 }
 
@@ -899,7 +858,7 @@ function closeQuickModal() {
 function updateRecordNumber() {
   const type = document.querySelector("#record-type").value;
   const prefixes = { Kunde: "K", Projekt: "P", Aufgabe: "A", Dokument: "D" };
-  document.querySelector("#record-number").value = `${prefixes[type] || "D"}-2026-0042`;
+  document.querySelector("#record-number").value = DachWerkCore.nextNumber(type);
 }
 
 function showToast(title, copy) {
@@ -931,22 +890,15 @@ function closeSidebar() {
 
 document.querySelector("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const username = document.querySelector("#username").value.trim().toLocaleLowerCase("de");
-  const password = document.querySelector("#password").value;
   const error = document.querySelector("#login-error");
-  if (!username || !password) {
-    error.textContent = "Bitte Benutzername und Passwort eingeben.";
-    return;
-  }
-  const credentialHash = await sha256(`${username}:${password}`);
-  const masterCredentialHash = "69758e6c949a2ffde4a268f3c7dba007c1840246336a2b2fc666dcc9fa67ba38";
-  if (credentialHash !== masterCredentialHash) {
-    error.textContent = "Zugangsdaten nicht gültig oder noch nicht freigeschaltet.";
-    return;
-  }
-  error.textContent = "";
-  sessionStorage.setItem("dwp-test-session", "master");
-  startApp();
+  const button = event.currentTarget.querySelector('[type="submit"]');
+  if(button) button.disabled=true;
+  try {
+    const response=await fetch('/original',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:document.querySelector('#username').value,password:document.querySelector('#password').value}),credentials:'same-origin'});
+    if(!response.ok) {error.textContent=response.status===401?'Zugangsdaten nicht gültig.':'Anmeldung derzeit nicht möglich.';return;}
+    window.location.assign('/original');
+  } catch {error.textContent='Verbindung fehlgeschlagen. Bitte erneut versuchen.';}
+  finally {if(button)button.disabled=false;}
 });
 
 document.querySelector("#toggle-password").addEventListener("click", (event) => {
@@ -961,9 +913,13 @@ document.querySelectorAll(".nav-item[data-view]").forEach((item) => {
 });
 
 document.querySelector("#f3-button").addEventListener("click", () => openQuickModal());
-document.querySelector("#logout-button").addEventListener("click", () => {
+document.querySelector("#logout-button").addEventListener("click", async () => {
   if (!confirmPageChange()) return;
-  sessionStorage.removeItem("dwp-test-session");
+  try {
+    const response=await fetch('/original',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=logout',credentials:'same-origin'});
+    if(!response.ok) throw new Error('Abmeldung fehlgeschlagen');
+    window.location.assign('/original');
+  } catch {showToast('Abmeldung fehlgeschlagen','Bitte die Verbindung prüfen und erneut abmelden.');return;}
   appShell.classList.add("is-hidden");
   document.querySelector("#password").value = "";
   showPublicHome();
@@ -1010,7 +966,7 @@ document.querySelector("#test-request-form").addEventListener("submit", (event) 
 });
 document.querySelector("#modal-close").addEventListener("click", closeQuickModal);
 document.querySelector("#modal-cancel").addEventListener("click", closeQuickModal);
-document.querySelector("#record-type").addEventListener("change", updateRecordNumber);
+document.querySelector("#record-type").addEventListener("change", () => { updateRecordNumber(); DachWerkCore.refreshForm(); });
 modalBackdrop.addEventListener("click", (event) => {
   if (event.target === modalBackdrop) closeQuickModal();
 });
@@ -1018,8 +974,17 @@ modalBackdrop.addEventListener("click", (event) => {
 document.querySelector("#quick-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const type = document.querySelector("#record-type").value;
-  const number = document.querySelector("#record-number").value;
+  let record;
+  const files = [...(document.querySelector('[data-entity-file]')?.files || [])];
+  try {
+    if (files.length && type !== 'Projekt') throw new Error('LV-Dateien bitte einem Projekt zuordnen.');
+    record = DachWerkCore.formRecord();
+  }
+  catch (error) { showToast("Speichern fehlgeschlagen", error.message); return; }
+  const number = record.number;
+  window.dispatchEvent(new CustomEvent('dwp-entity-saved', {detail:{record,files}}));
   closeQuickModal();
+  renderView(type === "Kunde" ? "customers" : type === "Projekt" ? "projects" : state.currentView);
   showToast(`${type} angelegt`, `${number} wurde in der Testumgebung gespeichert.`);
 });
 
@@ -1070,4 +1035,5 @@ window.addEventListener("beforeunload", (event) => {
   event.returnValue = "";
 });
 
-if (sessionStorage.getItem("dwp-test-session") === "master") startApp();
+if (document.body.dataset.serverAuth === "true") startApp();
+

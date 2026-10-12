@@ -64,14 +64,6 @@
   }
 
   async function boot() {
-    await Promise.all([loadScript(scripts[1]), loadScript(scripts[2])]);
-    try {
-      const pdf = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs');
-      window.pdfjsLib = pdf;
-    } catch (err) {
-      console.warn('PDF.js konnte nicht vorgeladen werden', err);
-    }
-
     if (!document.getElementById('dwp-lv-import-manager')) {
       const m = document.createElement('script');
       m.id = 'dwp-lv-import-manager';
@@ -83,5 +75,9 @@
     }
   }
 
+  // Optional parsers must not block the original local modules and project forms.
+  Promise.allSettled([loadScript(scripts[1]), loadScript(scripts[2]),
+    import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs').then(pdf=>{window.pdfjsLib=pdf;})
+  ]).then(results=>results.forEach(r=>{if(r.status==='rejected') console.warn(r.reason);}));
   boot().catch(err => console.error('DachWerk LV-Import konnte nicht starten:', err));
 })();

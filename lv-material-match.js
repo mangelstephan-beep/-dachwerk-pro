@@ -3,7 +3,7 @@
   const SEARCH_DB_KEY = 'dwp-lv-search-v1';
   const MATERIAL_DB_KEY = 'dwp-material-db-v1';
 
-  const num = (v) => Number(String(v ?? '').replace(/\./g,'').replace(',','.')) || 0;
+  const num = DachWerkCore.number;
   const esc = (v) => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); } catch { return fallback; } };
   const write = (key, value) => localStorage.setItem(key, JSON.stringify(value));
@@ -137,7 +137,7 @@
     if (!work) return;
     const byId=new Map((work.positions||[]).map(p=>[p.id,p]));
     card.querySelectorAll('tbody tr[data-pos-id]').forEach(tr=>{
-      const p=byId.get(tr.dataset.posId); if(p) enhanceRow(card,tr,work,p);
+      const p=byId.get(tr.dataset.posId); if(p) { enhanceRow(card,tr,work,p); const input=tr.querySelector('[data-f="material"]'); if(input) {input.value=String(p.material??'');input.dispatchEvent(new Event('input',{bubbles:true}));} }
     });
     if (!card.querySelector('[data-material-all-button]')) {
       const actions=card.querySelector('[data-work-action]')?.parentElement;
@@ -145,7 +145,7 @@
         const btn=document.createElement('button'); btn.type='button'; btn.className='button button-secondary'; btn.dataset.materialAllButton='true'; btn.textContent='Materialpreise automatisch abgleichen';
         btn.onclick=()=>{
           let count=0; for(const p of work.positions||[]) if(applyBestMaterial(work.id,p.id)) count++;
-          card.querySelectorAll('tbody tr[data-pos-id]').forEach(tr=>{const p=(read(LV_DB_KEY,{workingCopies:[]}).workingCopies||[]).find(w=>w.id===work.id)?.positions?.find(x=>x.id===tr.dataset.posId); if(p) enhanceRow(card,tr,work,p);});
+          card.querySelectorAll('tbody tr[data-pos-id]').forEach(tr=>{const p=(read(LV_DB_KEY,{workingCopies:[]}).workingCopies||[]).find(w=>w.id===work.id)?.positions?.find(x=>x.id===tr.dataset.posId); if(p) { enhanceRow(card,tr,work,p); const input=tr.querySelector('[data-f="material"]'); if(input) {input.value=String(p.material??'');input.dispatchEvent(new Event('input',{bubbles:true}));} }});
           location.hash=location.hash;
         };
         actions.appendChild(btn);
@@ -154,5 +154,8 @@
   }
 
   function enhance(){ indexPositions(); document.querySelectorAll('[data-work-card]').forEach(enhanceCard); }
-  const observer=new MutationObserver(enhance); observer.observe(document.body,{childList:true,subtree:true}); enhance();
+  const observer=new MutationObserver(()=>{observer.disconnect();try{enhance();}finally{observer.observe(document.body,{childList:true,subtree:true});}});
+  enhance();observer.observe(document.body,{childList:true,subtree:true});
+  window.addEventListener('pagehide',()=>observer.disconnect());
+  window.addEventListener('pageshow',()=>observer.observe(document.body,{childList:true,subtree:true}));
 })();
