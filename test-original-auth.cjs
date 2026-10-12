@@ -18,6 +18,6 @@ async function call(method='GET',body=null,cookie='',extra={}) {
  r=await call('POST',{username:'Trainer1',password:'test-password'},'',{'sec-fetch-site':'cross-site'});assert.equal(r.statusCode,403);
  r=await call('DELETE');assert.equal(r.statusCode,405);
  r=await call('POST',{action:'logout'},cookie);assert.equal(r.statusCode,303);assert.ok(r.headers['Set-Cookie'].includes('Max-Age=0'));
- delete process.env.ORIGINAL_SESSION_SECRET;delete process.env.TRAINING_SESSION_SECRET;r=await call();assert.equal(r.statusCode,503);
+ delete process.env.ORIGINAL_SESSION_SECRET;delete process.env.WORKSPACE_SESSION_SECRET;delete process.env.TRAINING_SESSION_SECRET;r=await call();assert.equal(r.statusCode,503);
  console.log('PASS: server login, wrong password, signed HttpOnly session, protected original HTML, forged/cross-scope cookies, origin validation, logout, unavailable configuration.');
 })().catch(e=>{console.error(e);process.exit(1)});

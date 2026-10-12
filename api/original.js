@@ -18,8 +18,8 @@ module.exports=async function handler(req,res) {
   res.setHeader('Cache-Control','private, no-store');res.setHeader('Vary','Cookie');
   res.setHeader('X-Robots-Tag','noindex, nofollow');res.setHeader('Content-Type','text/html; charset=utf-8');
   // Reuse the already configured preview access, never expose configuration to the browser.
-  const secret=process.env.ORIGINAL_SESSION_SECRET || process.env.TRAINING_SESSION_SECRET;
-  const credential=(process.env.ORIGINAL_CREDENTIAL_HASH || process.env.TRAINING_CREDENTIAL_HASH)?.trim();
+  const secret=process.env.ORIGINAL_SESSION_SECRET || process.env.WORKSPACE_SESSION_SECRET || process.env.TRAINING_SESSION_SECRET;
+  const credential=(process.env.ORIGINAL_CREDENTIAL_HASH || process.env.WORKSPACE_CREDENTIAL_HASH || process.env.TRAINING_CREDENTIAL_HASH)?.trim();
   if(!secret||secret.length<32||!credential)return res.status(503).send(login('Der Originalzugang ist noch nicht eingerichtet.'));
   if(req.method==='POST') {
     const origin=req.headers.origin,host=req.headers.host;
