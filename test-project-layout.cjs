@@ -5,6 +5,9 @@ const dom = new JSDOM(fs.readFileSync('index.html', 'utf8'), { url: 'https://dac
 const w = dom.window;
 w.scrollTo = () => {};
 w.confirm = () => true;
+w.eval(fs.readFileSync('project-core.js', 'utf8'));
+const customer = w.DachWerkCore.saveEntity({type:'Kunde',number:'K-test',name:'Testkunde'});
+for(let i=0;i<8;i++) w.DachWerkCore.saveEntity({type:'Projekt',number:'P-test-'+i,name:'Projekt '+i,customerId:customer.id,location:i<3?'Bremen':'Hamburg',phase:'Anfrage'});
 w.eval(fs.readFileSync('app.js', 'utf8'));
 w.eval("renderView('projects')");
 const query = s => w.document.querySelector(s);
@@ -28,3 +31,4 @@ assert.equal(w.localStorage.getItem('dwp-project-layout'), 'list');
 assert.equal(w.document.querySelectorAll('[data-project-list]').length, 1);
 dom.window.close();
 console.log('Project layout: cards, list, filter and persisted preference passed.');
+

@@ -1,7 +1,7 @@
 (() => {
   const DB_KEY = 'dwp-lv-import-v1';
   const money = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(Number(v) || 0);
-  const num = (v) => Number(String(v ?? '').replace(/\./g, '').replace(',', '.')) || 0;
+  const num = DachWerkCore.number;
   const esc = (v) => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
   function readDb() {
@@ -138,9 +138,8 @@
       const nr = tr.querySelector('[data-f="nr"]')?.value || '';
       const qty = num(tr.querySelector('[data-f="qty"]')?.value);
       const text = tr.querySelector('[data-f="text"]')?.value || '';
-      const target = num(tr.querySelector('[data-f="ep"]')?.value);
-      const unitText = tr.children[1]?.textContent || '';
-      const unit = unitText.replace(String(tr.querySelector('[data-f="qty"]')?.value || ''), '').trim();
+      const target = DachWerkCore.effectivePrice({ep:tr.querySelector('[data-f="ep"]')?.value,material:tr.querySelector('[data-f="material"]')?.value,time:tr.querySelector('[data-f="time"]')?.value});
+      const unit = work.positions?.find(p=>p.id===tr.dataset.posId)?.unit || ''; 
       const gp = qty * target;
       total += gp;
       rows.push({ nr, qty, unit, text, target, gp });
@@ -167,4 +166,6 @@
   const observer = new MutationObserver(enhance);
   observer.observe(document.body, { childList: true, subtree: true });
   enhance();
+  window.addEventListener('pagehide',()=>observer.disconnect());
+  window.addEventListener('pageshow',()=>observer.observe(document.body,{childList:true,subtree:true}));
 })();

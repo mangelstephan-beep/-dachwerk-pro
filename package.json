@@ -1,0 +1,10 @@
+{
+  "name": "dachwerk-pro-original",
+  "private": true,
+  "scripts": {
+    "test": "node test-original-workflow.cjs && node test-project-layout.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}
