@@ -552,12 +552,6 @@ function closeRequestDialog() {
   document.body.style.overflow = "";
 }
 
-async function sha256(value) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function saveCurrentDraft() {
   const fields = {};
   mainContent.querySelectorAll("input, select, textarea").forEach((field, index) => {
@@ -896,22 +890,15 @@ function closeSidebar() {
 
 document.querySelector("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const username = document.querySelector("#username").value.trim().toLocaleLowerCase("de");
-  const password = document.querySelector("#password").value;
   const error = document.querySelector("#login-error");
-  if (!username || !password) {
-    error.textContent = "Bitte Benutzername und Passwort eingeben.";
-    return;
-  }
-  const credentialHash = await sha256(`${username}:${password}`);
-  const masterCredentialHash = "69758e6c949a2ffde4a268f3c7dba007c1840246336a2b2fc666dcc9fa67ba38";
-  if (credentialHash !== masterCredentialHash) {
-    error.textContent = "Zugangsdaten nicht gültig oder noch nicht freigeschaltet.";
-    return;
-  }
-  error.textContent = "";
-  sessionStorage.setItem("dwp-test-session", "master");
-  startApp();
+  const button = event.currentTarget.querySelector('[type="submit"]');
+  if(button) button.disabled=true;
+  try {
+    const response=await fetch('/original',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:document.querySelector('#username').value,password:document.querySelector('#password').value}),credentials:'same-origin'});
+    if(!response.ok) {error.textContent=response.status===401?'Zugangsdaten nicht gültig.':'Anmeldung derzeit nicht möglich.';return;}
+    window.location.assign('/original');
+  } catch {error.textContent='Verbindung fehlgeschlagen. Bitte erneut versuchen.';}
+  finally {if(button)button.disabled=false;}
 });
 
 document.querySelector("#toggle-password").addEventListener("click", (event) => {
@@ -926,9 +913,13 @@ document.querySelectorAll(".nav-item[data-view]").forEach((item) => {
 });
 
 document.querySelector("#f3-button").addEventListener("click", () => openQuickModal());
-document.querySelector("#logout-button").addEventListener("click", () => {
+document.querySelector("#logout-button").addEventListener("click", async () => {
   if (!confirmPageChange()) return;
-  sessionStorage.removeItem("dwp-test-session");
+  try {
+    const response=await fetch('/original',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'action=logout',credentials:'same-origin'});
+    if(!response.ok) throw new Error('Abmeldung fehlgeschlagen');
+    window.location.assign('/original');
+  } catch {showToast('Abmeldung fehlgeschlagen','Bitte die Verbindung prüfen und erneut abmelden.');return;}
   appShell.classList.add("is-hidden");
   document.querySelector("#password").value = "";
   showPublicHome();
@@ -1044,5 +1035,5 @@ window.addEventListener("beforeunload", (event) => {
   event.returnValue = "";
 });
 
-if (sessionStorage.getItem("dwp-test-session") === "master") startApp();
+if (document.body.dataset.serverAuth === "true") startApp();
 

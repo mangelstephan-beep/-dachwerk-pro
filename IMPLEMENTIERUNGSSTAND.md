@@ -27,3 +27,9 @@ Keine visuelle Browser-, iPhone-, Live-Deployment- oder reale GAEB/PDF/XLSX-Impo
 Die Anwendung ist weiterhin ein lokaler Testbetrieb. Die 36 gewünschten Original-Komponenten sind nicht vollständig abgeschlossen. Insbesondere fehlen zentrale Datenbank, serverseitige Anmeldung/Rollen, geschützte Personalverwaltung, manipulationsgeschütztes Audit, E-Mail-/Graph-Anbindung, verlässliche Originaldateiablage, Foto-Uploads, Aufmaßübernahme in Ausgangsrechnungen, geprüfte E-Rechnung/GAEB-Ausgabe, Preislistenfreigabe mit Historie und mehrere Fachberechnungen. Abnahmen erfassen Vorgänge; digitale Unterschriften und unterschriftsreife PDF-Protokolle sind noch offen. Nachweise speichern Verweise; sie laden keine Dateien hoch.
 
 Die neuen Fachmasken ändern keine produktiven Freigaben und senden keine Nachrichten. Eine Veröffentlichung wurde in diesem Arbeitspaket nicht durchgeführt.
+
+## Online-Arbeitszugang – weiterer Stand
+
+/original prüft Zugangsdaten serverseitig und liefert die Originaloberfläche erst nach erfolgreicher Anmeldung aus. Die Sitzung ist signiert, HttpOnly, Secure und acht Stunden gültig. Der Trainingszugang und der Originalzugang verwenden unterschiedliche Sitzungscookies. Der Originalzugang kann die bestehende Vorschaukonfiguration nutzen; separate ORIGINAL_CREDENTIAL_HASH und ORIGINAL_SESSION_SECRET haben Vorrang. Passwortprüfungen und automatische Anmeldung über einen veränderbaren sessionStorage-Wert wurden aus dem Frontend entfernt.
+
+Die Authentifizierung dieses einzelnen Arbeitszugangs ersetzt noch keine produktive Mehrbenutzerverwaltung, geteilte Datenbank oder revisionssichere Ablage. Er bleibt eine Arbeitsversion. Lokale Tests prüfen Passwortfehler, Session-Signatur, Cookie-Eigenschaften, fremde Origins, getrennte Cookies, Abmeldung und fehlende Konfiguration.
