@@ -155,6 +155,7 @@
               <button class="input-action" id="toggle-password" type="button">Anzeigen</button>
             </div>
 
+            <button class="test-access-link" id="forgot-password-button" type="button" style="margin:8px 0 12px">Passwort vergessen?</button>
             <p class="form-error" id="login-error" role="alert"></p>
             <button class="button button-primary button-block" type="submit">DachWerk Pro starten</button>
             <button class="button button-secondary button-block" id="demo-login" type="button" style="display:none" aria-hidden="true" tabindex="-1">Demo starten</button>
@@ -167,6 +168,21 @@
       </div>
     </section>
 
+    <div class="request-backdrop is-hidden" id="password-reset-backdrop">
+      <section class="request-dialog" role="dialog" aria-modal="true" aria-labelledby="password-reset-title">
+        <div class="request-head"><div><span class="eyebrow">Kontowiederherstellung</span><h2 id="password-reset-title">Passwort zurücksetzen</h2></div><button class="icon-button" id="password-reset-close" type="button" aria-label="Schließen">×</button></div>
+        <form id="password-reset-request-form" class="request-form">
+          <div class="field-span"><label for="password-reset-email">Hinterlegte E-Mail-Adresse</label><input id="password-reset-email" type="email" autocomplete="email" required /></div>
+          <p id="password-reset-status" class="request-status field-span" role="status" aria-live="polite"></p>
+          <div class="request-actions field-span"><button class="button button-secondary" id="password-reset-cancel" type="button">Abbrechen</button><button class="button button-primary" type="submit">Reset-Link anfordern</button></div>
+        </form>
+        <form id="password-reset-complete-form" class="request-form is-hidden">
+          <div class="field-span"><label for="password-reset-new">Neues Passwort (mindestens 12 Zeichen)</label><input id="password-reset-new" type="password" minlength="12" autocomplete="new-password" required /></div>
+          <p id="password-reset-complete-status" class="request-status field-span" role="status" aria-live="polite"></p>
+          <div class="request-actions field-span"><button class="button button-primary" type="submit">Neues Passwort speichern</button></div>
+        </form>
+      </section>
+    </div>
     <div class="request-backdrop is-hidden" id="request-backdrop">
       <section class="request-dialog" role="dialog" aria-modal="true" aria-labelledby="request-title">
         <div class="request-head">
@@ -264,6 +280,7 @@
 
     <div class="toast-region" id="toast-region" aria-live="polite"></div>
     <script src="/app.js"></script>
+    <script src="/password-reset.js"></script>
     <script src="/module-fixes.js"></script>
     <script src="/garnmagazin-lv.js"></script>
     <link rel="stylesheet" href="/project-workflows.css">
