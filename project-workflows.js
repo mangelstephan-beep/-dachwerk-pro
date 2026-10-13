@@ -101,6 +101,14 @@
     const r=editing?db.get(editing):null, values=r?.pendingPrice?.data || r?.data || defaults(mod.id);
     return panel(r?'Vorgang bearbeiten':'Vorgang anlegen',`<form id="dwp-record" class="quick-form"><input type="hidden" name="module" value="${esc(mod.id)}">${mod.fields.map(f=>field(f.label,input(f,values[f.key]))).join('')}${field('Status',`<select name="status">${core.statuses.map(s=>`<option ${s===(r?.status || 'Neu')?'selected':''}>${esc(s)}</option>`).join('')}</select>`)}${field('Verantwortlich',`<input name="owner" value="${esc(r?.owner || '')}" placeholder="Name / Rolle">`)}${field('Rückmeldefrist',`<input name="due" type="date" value="${esc(r?.due)}">`)}<div class="field-span dwp-actions"><button class="button button-primary" type="submit">Speichern</button>${r?btn('Bearbeitung abbrechen','cancel'):''}</div></form>`);
   }
+  function lvTreePanel() {
+    const tree=db.lvTree();
+    const renderNode=node=>{
+      const positionRows=node.positions.map(p=>`<li class="dwp-lv-position" data-lv-position="${esc(p.id)}"><span><strong>${esc(p.number)}</strong> · ${esc(p.text)}</span><span>${esc(p.qty)} ${esc(p.unit)} · ${esc(p.kind || 'Hauptleistung')} · ${money(p.gp)}</span></li>`).join('');
+      return `<li class="dwp-lv-node" data-lv-level="${node.level}" data-lv-path="${esc(node.path)}"><details open><summary><strong>${esc(node.label)}</strong> <span>Ebene ${node.level} · Zwischensumme netto ${money(node.net)}</span></summary>${positionRows?`<ul class="dwp-lv-positions">${positionRows}</ul>`:''}${node.children.length?`<ul class="dwp-lv-branches">${node.children.map(renderNode).join('')}</ul>`:''}</details></li>`;
+    };
+    return panel('Hierarchischer LV-Baum',`<p>Bis zu fünf aufklappbare Titelstufen. Die Zwischensumme einer Gruppe enthält ihre Untergruppen bereits; sie wird nicht erneut zum Gesamtbetrag addiert. Bedarfs- und Alternativpositionen erscheinen zur Prüfung, jedoch nicht in den Grundsummen.</p>${tree.length?`<ul class="dwp-lv-branches" aria-label="LV-Titelhierarchie">${tree.map(renderNode).join('')}</ul>`:'<p>Für dieses Projekt sind noch keine LV-Positionen vorhanden.</p>'}`);
+  }
   function records(mod) {
     const list=db.list(mod.id);
     const rows=list.map(r=>[
@@ -110,7 +118,7 @@
     ]);
     let summary='';
     if(mod.id==='contract')summary=panel('Automatische LV-Datenprüfung',`<p>Prüft Mengen, Gliederung, Nachtragsnummern, Kostenansätze und Deckung. Befunde können einzeln als Rückfrage gespeichert werden. Vertragstexte und Fachregeln werden anhand der angegebenen Quelle separat geprüft.</p>${table(['Position','Befund','Rückfrage','Aktion'],db.contractChecks().map(f=>[esc(f.number),esc(f.finding),esc(f.question),btn('Rückfrage anlegen','contract-finding',f.positionId+'/'+f.code)]))}`);
-    if(mod.id==='lv') summary=panel('LV-Gliederung und Zwischensummen',`<p>Gliederung je Position als Gewerk / Titel / Abschnitt erfassen. Übergeordnete Summen enthalten ihre Unterabschnitte; sie werden nicht zusätzlich zur Kalkulationssumme addiert.</p>${table(['Gliederung','Ebene','Positionen','Netto'],db.lvGroups().map(g=>[esc(g.path),esc(g.level),esc(g.positions),money(g.net)]))}`);
+    if(mod.id==='lv') summary=lvTreePanel()+panel('LV-Gliederung und Zwischensummen',`<p>Gliederung je Position als Gewerk / Titel / Abschnitt erfassen. Übergeordnete Summen enthalten ihre Unterabschnitte; sie werden nicht zusätzlich zur Kalkulationssumme addiert.</p>${table(['Gliederung','Ebene','Positionen','Netto'],db.lvGroups().map(g=>[esc(g.path),esc(g.level),esc(g.positions),money(g.net)]))}`);
     if(mod.id==='measurements') summary=panel('Freigegebenes Aufmaß und Abweichung',table(['Position','LV-Menge','Aufmaß','Differenz'],db.list('lv').map(r=>[esc(r.data.number),`${r.data.qty} ${esc(r.data.unit)}`,`${db.measured(r.id)} ${esc(r.data.unit)}`,esc(core.round(db.measured(r.id)-r.data.qty))])));
     if(mod.id==='operating') summary=panel('Kosten je produktiver Stunde',table(['Kostenansatz','€/h'],list.map(r=>[esc(r.data.title),money(r.data.annualCost/r.data.productiveHours)])));
     if(mod.id==='operating') {
