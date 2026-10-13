@@ -1,0 +1,19 @@
+/* DachWerkPro Ampelstatus: ungeprüft/noch nicht fertig = rot.
+   Grün nur nach explizitem, dokumentiertem und bestandenem Integrationstest,
+   signalisiert durch data-dwp-verified="true". */
+.dwp-workspace .page-header .header-actions button,
+.dwp-workspace .module-card button {
+ background:#c62828!important;border-color:#a51e25!important;color:#fff!important;
+}
+.dwp-workspace .page-header .header-actions button:hover,
+.dwp-workspace .module-card button:hover {
+ background:#a51e25!important;border-color:#a51e25!important;
+}
+.dwp-workspace .page-header .header-actions button[data-dwp-verified="true"],
+.dwp-workspace .module-card button[data-dwp-verified="true"] {
+ background:#168554!important;border-color:#127345!important;color:#fff!important;
+}
+.dwp-workspace .page-header .header-actions button[data-dwp-verified="true"]:hover,
+.dwp-workspace .module-card button[data-dwp-verified="true"]:hover {
+ background:#127345!important;border-color:#127345!important;
+}
