@@ -51,6 +51,23 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
   assert.equal(db.lvGroups().find(g=>g.path==='01 Dach').net,60);
   assert.equal(db.lvGroups().find(g=>g.path==='01 Dach').positions,2);
   assert.equal(db.get(first.id).data.version,1,'Alte Fassung bleibt unverändert');
+  // Hierarchical tree: nested levels, subtotal boundaries, optional positions and snapshots.
+  const tree=db.lvTree();
+  const dach=tree.find(n=>n.path==='01 Dach');
+  assert(dach,'Wurzelgruppe ist vorhanden');
+  assert.equal(dach.net,60,'Übergeordnete Summe addiert Kinder nicht doppelt');
+  assert.equal(dach.children.length,2,'Titel werden als echte Kinder abgebildet');
+  assert.equal(dach.children[0].positions.length,1,'Positionen hängen am letzten Titel');
+  assert.equal(dach.children[1].positions[0].kind,'Nachtrag');
+  const deep=await lv('09.01','Bedarfsposition','',100,'Gewerk / Los / Titel / Abschnitt / Untertitel');
+  const updated=new Store({getItem:()=>JSON.stringify(state),setItem:()=>{}});
+  const deepRoot=updated.lvTree().find(n=>n.label==='Gewerk');
+  assert.equal(deepRoot.children[0].children[0].children[0].children[0].positions[0].id,deep.id);
+  assert.equal(deepRoot.net,0,'Bedarfsposition verändert die Grundsumme nicht');
+  const beforeTooDeep=state.revision;
+  await assert.rejects(lv('10.01','Hauptleistung','',1,'A / B / C / D / E / F'),/Gliederung/);
+  assert.equal(state.revision,beforeTooDeep,'Ungültige sechste Ebene wird atomar abgewiesen');
+
   const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'}),w=dom.window;
   w.localStorage.setItem('dwp-project-core-v1',raw);w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
   for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
