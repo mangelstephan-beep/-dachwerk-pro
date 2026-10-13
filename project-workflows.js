@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   const core=window.DWPProject, main=document.querySelector('#main-content');
-  let db, current='dashboard', editing=null, search='', signatureStrokes=[];
+  let db, current='dashboard', editing=null, search='', signatureStrokes=[], importPreview=null;
   const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const money=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v||0);
   const verified=id=>window.DWPRemote?.active===true&&window.DWPVerification?.isVerified(id)===true;
@@ -106,7 +106,7 @@
     const rows=list.map(r=>[
       `<strong>${esc(names(r.id))}</strong><small>${esc(r.id.slice(0,8))}</small>`,
       `<span class="status-pill ${r.status==='Freigegeben'?'status-green':'status-grey'}">${esc(r.status)}</span>`,
-      esc(r.owner),esc(r.due),`${btn(r.pendingPrice?'Importpreis prüfen':'Bearbeiten','edit',r.id)}${btn('Drucken / PDF','print',r.id)}${['documents','defects','expert','acceptance','diary'].includes(mod.id)?btn('Datei / Foto','attach',r.id):''}${['acceptance','times'].includes(mod.id)?btn(`Unterschrift${r.signatures?.length?' ('+r.signatures.length+')':''}`,'signature',r.id):''}${mod.id==='services'?btn('Ins LV','service-lv',r.id):''}`
+      esc(r.owner),esc(r.due),`${btn(r.pendingPrice?'Importpreis prüfen':'Bearbeiten','edit',r.id)}${btn('Drucken / PDF','print',r.id)}${['documents','defects','expert','acceptance','diary'].includes(mod.id)?btn('Datei / Foto','attach',r.id):''}${['acceptance','times'].includes(mod.id)?btn(`Unterschrift${r.signatures?.length?' ('+r.signatures.length+')':''}`,'signature',r.id):''}${mod.id==='services'?btn('Ins LV','service-lv',r.id):''}${r.importFinding && r.status!=='Erledigt'?btn('Wandlung prüfen','convert-import',r.id):''}`
     ]);
     let summary='';
     if(mod.id==='contract')summary=panel('Automatische LV-Datenprüfung',`<p>Prüft Mengen, Gliederung, Nachtragsnummern, Kostenansätze und Deckung. Befunde können einzeln als Rückfrage gespeichert werden. Vertragstexte und Fachregeln werden anhand der angegebenen Quelle separat geprüft.</p>${table(['Position','Befund','Rückfrage','Aktion'],db.contractChecks().map(f=>[esc(f.number),esc(f.finding),esc(f.question),btn('Rückfrage anlegen','contract-finding',f.positionId+'/'+f.code)]))}`);
@@ -147,7 +147,7 @@
   }
   function signatureView(id) {
     if(state.unsavedChanges && !confirm('Ungespeicherte Eingaben verwerfen und gespeicherten Vorgang unterschreiben?'))return;
-    const r=db.get(id);signatureStrokes=[];
+    const r=db.get(id);signatureStrokes=[], importPreview=null;
     shell('Vorgang unterschreiben',panel('Diesen gespeicherten Stand bestätigen',`<h3>${esc(names(id))}</h3><p>${esc(db.project()?.data.name)} · ${esc(core.definitions[r.module].name)} · ${esc(r.status)}</p>${table(['Feld','Angabe'],core.definitions[r.module].fields.map(f=>[esc(f.label),esc(['employee','position'].includes(f.type)?names(r.data[f.key]):r.data[f.key])]))}`)+panel('Unterschrift erfassen',`<form id="dwp-sign" class="quick-form"><input name="recordId" type="hidden" value="${esc(id)}">${field('Name des Unterzeichners',`<input name="signer" required>`)}${field('Funktion',`<select name="role"><option>Auftraggeber</option><option>Auftragnehmer</option><option>Vertreter</option></select>`)}<div class="field-span"><p>Mit Finger, Stift oder Maus im Feld unterschreiben. Die Unterschrift wird mit genau dem oben angezeigten Stand gespeichert; spätere Änderungen erfordern einen neuen Vorgang.</p><canvas id="dwp-signature" width="640" height="240" aria-label="Unterschriftsfläche"></canvas><div class="dwp-actions">${btn('Unterschrift löschen','clear-signature')}<button class="button button-primary" type="submit">Unterschrift und Protokoll speichern</button>${btn('Zurück','open',r.module)}</div></div></form>`)+(r.signatures?.length?panel('Bereits gespeicherte Unterschriften',r.signatures.map(s=>`<p>${esc(s.signer)} · ${esc(s.role)} · ${esc(new Date(s.signedAt).toLocaleString('de-DE'))}</p>${signatureSvg(s)}`).join('')):''));
     const canvas=main.querySelector('#dwp-signature'),context=canvas.getContext('2d');
     if(!context){showError(Error('Unterschriftsfläche ist in diesem Browser nicht verfügbar.'));return;}
@@ -191,7 +191,18 @@
   }
   function importView() {
     let legacy=[];try{legacy=JSON.parse(localStorage.getItem('dwp-lv-import-v1') || '{}').workingCopies || [];}catch{}
-    return panel('CSV-LV in das aktuelle Projekt übernehmen',`<p>Pflichtspalten: number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;choiceGroup;changeNumber;discountPercent;useTargetPrice;targetEp. Leistungsarten: Hauptleistung, Nachtrag, Bedarfsposition, Grundposition, Alternativposition. Wahlgruppen bleiben beim Import erhalten. Dezimalpunkt oder Dezimalkomma möglich. Zuerst Vorschau prüfen, danach übernehmen.</p><label>CSV-Datei<input id="dwp-import-file" type="file" accept=".csv,text/csv"></label><form id="dwp-import"><label>CSV-Inhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>PDF-, Excel-, OCR- und GAEB-Varianten benötigen weiterhin Parserprüfungen. Der bisherige Importmanager bleibt als separate Testfunktion erhalten.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
+    return panel('LV in das aktuelle Projekt übernehmen',`<p>CSV: Pflichtspalten number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;changeNumber;discountPercent. GAEB: X83 / XML 3.3 mit normalen Mengenpositionen und bis fünf Titelstufen. Sonderpositionen und Vorbemerkungen werden mit Originalinhalt und Wandlungsvorschlag in die LV-/Vertragsprüfung übernommen. Offene Prüfungen sperren Angebote und Aufträge.</p><label>LV-Datei<input id="dwp-import-file" type="file" accept=".csv,.xml,.x83,text/csv,application/xml,text/xml"></label><form id="dwp-import"><label>Format<select name="format" id="dwp-import-format"><option value="CSV">CSV</option><option value="GAEB XML">GAEB X83 / XML 3.3</option></select></label><label>Quelle / Dateiname<input name="source" id="dwp-import-source" placeholder="Dateiname oder Herkunft"></label><label>Dateiinhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>GAEB-Texte werden als Klartext übernommen. Briefkopf, Textformatierung und PDF-Originale bleiben außerhalb dieser Positionsübernahme. Das eingelesene GAEB-XML bleibt im Importjournal erhalten. Alle Positionen bleiben ungeprüft; Preise und Zeitansätze anschließend ergänzen. PDF/OCR, Excel, GAEB 90/2000 und weitere XML-Phasen sind noch offen.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
+  }
+  function importJournal() {
+    return panel('Importjournal',table(['Quelle','Format','Übernahme','Original'],db.list('imports').map(r=>[esc(r.data.source),esc(r.data.format),esc(r.data.notes),r.originalText?btn('GAEB-Original anzeigen','import-original',r.id):''])));
+  }
+  function importInput() {
+    return {text:document.querySelector('#dwp-csv').value,format:document.querySelector('#dwp-import-format').value,source:document.querySelector('#dwp-import-source').value,projectId:db.data.selectedProject,revision:db.data.revision};
+  }
+  function parsedImport(input) {
+    if(input.format==='CSV')return {rows:csvRows(input.text),findings:[]};
+    if(!window.DWPGaebImport)throw Error('GAEB-Parser fehlt. Bitte die Anwendung neu laden.');
+    return window.DWPGaebImport.report(input.text);
   }
   function csvRows(text,required=['number','text','qty','unit']) {
     const delimiter=text.split(/\r?\n/)[0].includes(';')?';':',';
@@ -217,7 +228,7 @@
   }
   function openModule(id) {
     if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und Bereich wechseln?')) return;
-    current=id;editing=null;search='';
+    current=id;editing=null;search='';importPreview=null;
     const section=core.definitions[id]?.view || (['help','settings'].includes(id)?id:'dashboard');
     state.currentView=section;localStorage.setItem('dwp-current-view',section);
     document.querySelectorAll('.nav-item[data-view]').forEach(item=>item.classList.toggle('is-active',item.dataset.view===section));
@@ -236,7 +247,7 @@
     if(['offers','invoices'].includes(id))body=snapshots(id);
     if(id==='controlling')body=controlling();
     if(id==='closing')body=panel('Projektbezogenes Belegpaket',`<p>JSON enthält die Projektakte, CSV die Rechnungen und Kostenbelege. DATEV-Importformate und automatischer Monatsabschluss sind noch nicht freigegeben.</p>${btn('Projektakte JSON','project-json')}${btn('Belegübersicht CSV','closing-csv')}`);
-    if(id==='imports')body=importView();
+    if(id==='imports')body=importView()+importJournal();
     shell(mod.name,body);
     if(id==='offers')updateChoiceTotal();
   }
@@ -282,7 +293,13 @@
       }
       if(['dwp-settings','dwp-company'].includes(form.id))command=['settings',values];
       if(form.id==='dwp-capacity')command=['settings',{capacity:core.capacity(values)}];
-      if(form.id==='dwp-import')command=['importPositions',csvRows(values.csv)];
+      if(form.id==='dwp-convert-import'){command=['convertImportFinding',values.findingId,values,{reason:values.reason,owner:state.currentUser}];afterModule='contract';}
+      if(form.id==='dwp-import') {
+        const input=importInput();
+        if(!importPreview || JSON.stringify(input)!==JSON.stringify(importPreview))throw Error('Bitte die aktuelle Vorschau prüfen. Inhalt, Quelle, Format oder Projektbestand haben sich geändert.');
+        const report=parsedImport(input);
+        command=['importPositions',report.rows,{source:input.source || input.format,format:input.format,title:'LV-Import '+(input.source || input.format),findings:report.findings,originalText:input.format==='GAEB XML'?input.text:''}];
+      }
       if(form.id==='dwp-quote')command=['quote',values.supplierId,values];
       if(form.id==='dwp-schedule')command=['schedule',values.employeeId,values];
       if(form.id==='dwp-sign'){command=['sign',values.recordId,{...values,strokes:signatureStrokes}];afterModule=db.get(values.recordId).module;}
@@ -309,6 +326,15 @@
       }
       if(action==='advance-phase')mutate('advancePhase',[id],()=>{notice('Projektübergabe geprüft und gespeichert.');openModule('workflow');});
       if(action==='open')openModule(id);
+      if(action==='import-original') {
+        const r=db.get(id);if(r?.module!=='imports' || r.projectId!==db.data.selectedProject)throw Error('Importquelle nicht gefunden.');
+        shell('GAEB-Original',panel(r.data.source,`<label>Unveränderter eingelesener Dateiinhalt<textarea rows="20" readonly>${esc(r.originalText)}</textarea></label>${btn('Zurück zum Importjournal','open','imports')}`));
+      }
+      if(action==='convert-import') {
+        const r=db.get(id);if(!r?.importFinding || r.projectId!==db.data.selectedProject)throw Error('Prüfvorgang nicht gefunden.');
+        const candidate=r.importFinding.candidate;
+        shell('Sonderposition wandeln',panel(r.data.title,`<p>${esc(r.data.finding)}</p><p><strong>Vorschlag:</strong> ${esc(r.data.question)}</p><form id="dwp-convert-import" class="quick-form"><input type="hidden" name="findingId" value="${esc(id)}">${core.definitions.lv.fields.filter(f=>['number','text','groupPath','kind','choiceGroup','changeNumber','qty','unit'].includes(f.key)).map(f=>field(f.label,input(f,candidate[f.key] ?? ''))).join('')}${field('Begründung / Mengen- und Preisbasis', '<textarea name="reason" required></textarea>')}<p class="field-span">Menge, Leistungsart und Text anhand des Originals prüfen. Preis- und Zeitansätze anschließend im LV ergänzen. Die neue Position bleibt auf Prüfung.</p><button class="button button-primary" type="submit">Geprüfte Wandlung speichern</button></form>`));
+      }
       if(action==='contract-finding'){
         const f=db.contractChecks().find(f=>f.positionId+'/'+f.code===id);
         if(!f)throw Error('Befund nicht mehr vorhanden. Bitte neu prüfen.');
@@ -324,7 +350,7 @@
       if(action==='use-quote'){const [supplierId,quoteId]=id.split('/');mutate('useQuote',[supplierId,quoteId,state.currentUser],()=>{notice('Preisquelle freigegeben und Artikelhistorie aktualisiert.');openModule(current);});}
       if(action==='cancel-schedule'){const [employeeId,assignmentId]=id.split('/');mutate('cancelSchedule',[employeeId,assignmentId],()=>{notice('Einsatz storniert und im Logbuch erhalten.');openModule(current);});}
       if(action==='signature')signatureView(id);
-      if(action==='clear-signature'){const canvas=main.querySelector('#dwp-signature');canvas.getContext('2d').clearRect(0,0,640,240);signatureStrokes=[];}
+      if(action==='clear-signature'){const canvas=main.querySelector('#dwp-signature');canvas.getContext('2d').clearRect(0,0,640,240);signatureStrokes=[], importPreview=null;}
       if(action==='search-open'){const r=db.get(id);if(r.projectId)selectProject(r.projectId);openModule(r.module);if(core.definitions[r.module].fields.length && r.module!=='imports'){editing=r.id;records(core.definitions[r.module]);}}
       if(action==='server-reload')window.DWPRemote.reload().catch(showError);
       if(action==='operating-rate')mutate('applyOperatingCosts',[],()=>{notice('Vollkostensatz übernommen; AGK auf 0 gesetzt.');openModule('calculation');});
@@ -336,8 +362,14 @@
       }
       if(action==='closing-csv')csvExport('DachWerkPro_Belege.csv',[['Modul','Nummer','Datum','Netto','Brutto','Status'],...db.data.records.filter(r=>r.projectId===db.data.selectedProject && ['incoming','invoices','payments','times','subcontracts'].includes(r.module)).map(r=>[core.definitions[r.module].name,r.data.number || r.data.invoiceNumber || r.data.title,r.data.date || r.createdAt,r.data.net ?? r.data.cost ?? '',r.data.gross ?? r.data.amount ?? '',r.status])]);
       if(action==='preview-import') {
-        const rows=csvRows(document.querySelector('#dwp-csv').value);let staged=db.backup();new core.Store({getItem:()=>staged,setItem:(_k,v)=>{staged=v;}}).importPositions(rows);
-        document.querySelector('#dwp-import-preview').innerHTML=table(['Position','Leistung','Menge','Einheit','Leistungsart','Wahlgruppe'],rows.map(r=>[esc(r.number),esc(r.text),esc(r.qty),esc(r.unit),esc(r.kind || 'Hauptleistung'),esc(r.choiceGroup)]));
+        importPreview=null;
+        document.querySelector('#dwp-import-preview').textContent='';
+        const input=importInput(),report=parsedImport(input),rows=report.rows;
+        let raw=db.backup();
+        const staging=new core.Store({getItem:()=>raw,setItem:(_key,value)=>{raw=value;}});
+        staging.importPositions(rows,{source:input.source || input.format,format:input.format,findings:report.findings,originalText:input.format==='GAEB XML'?input.text:''});
+        document.querySelector('#dwp-import-preview').innerHTML=`<p>${rows.length} LV-Positionen und ${report.findings.length} gesperrte Prüfvorgänge für ${esc(db.project().data.name)} geprüft. Übernahme setzt keine Fachfreigabe.</p>`+table(['Position','Gliederung','Leistung','Menge','Einheit','Leistungsart','Wahlgruppe'],rows.map(r=>[esc(r.number),esc(r.groupPath || ''),esc(r.text),esc(r.qty),esc(r.unit),esc(r.kind || 'Hauptleistung'),esc(r.choiceGroup)]))+table(['Sonderposition / Hinweis','Originalinhalt','Wandlungsvorschlag'],report.findings.map(f=>[esc(f.number),esc(f.text),esc(f.suggestion)]));
+        importPreview=input;
       }
       if(action==='price-preview') {
         const rows=csvRows(document.querySelector('#dwp-price-csv').value,['name','unit','price']);
@@ -394,13 +426,25 @@
         if(state.unsavedChanges&&!confirm('Ungespeicherte Eingaben verwerfen und Projekt wechseln?')){event.target.value=db.data.selectedProject;return;}
         selectProject(event.target.value);state.unsavedChanges=false;openModule(current);
       }
-      if(event.target.id==='dwp-import-file')document.querySelector('#dwp-csv').value=await event.target.files[0].text();
+      if(event.target.id==='dwp-import-file') {
+        const file=event.target.files[0];if(!file)return;
+        if(file.size>1_000_000)throw Error('LV-Datei höchstens 1 MB.');
+        if(!/\.(csv|xml|x83)$/i.test(file.name))throw Error('Bitte CSV oder GAEB X83 / XML wählen.');
+        const form=main.querySelector('#dwp-import'),projectId=db.data.selectedProject;
+        const text=await file.text();
+        if(!form.isConnected || db.data.selectedProject!==projectId)return;
+        form.querySelector('#dwp-csv').value=text;
+        form.querySelector('#dwp-import-format').value=/\.(xml|x83)$/i.test(file.name)?'GAEB XML':'CSV';
+        form.querySelector('#dwp-import-source').value=file.name;
+        importPreview=null;state.unsavedChanges=true;
+        main.querySelector('#dwp-import-preview').textContent='Datei eingelesen. Bitte Vorschau prüfen.';
+      }
       if(event.target.id==='dwp-price-file') {const file=event.target.files[0];if(file){document.querySelector('#dwp-price-csv').value=await file.text();document.querySelector('#dwp-price-import [name="source"]').value=file.name;}}
       if(event.target.id==='dwp-restore') {
         const text=await event.target.files[0].text();
         if(confirm('Aktuellen lokalen Arbeitsbestand durch diese Sicherung ersetzen?')){mutate('restore',[text],()=>{state.unsavedChanges=false;openModule('dashboard');});}
       }
-      if(event.target.closest('#dwp-record'))state.unsavedChanges=true;
+      if(event.target.closest('#dwp-record, #dwp-import'))state.unsavedChanges=true;
     }catch(e){showError(e);}
   });
   // Keep the established navigation while routing each section to the shared model.

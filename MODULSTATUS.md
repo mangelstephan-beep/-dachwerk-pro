@@ -36,7 +36,7 @@ Kunde → Projekt → LV → Material-/Zeitansätze → Kalkulation → freigege
 | 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Abgenommen 13.10.2026: Mitgliedschaften, Ansicht/Logbuch, erlaubter Schreibzugriff 200 und Fremdzugriff 403 live geprüft. |
 | 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Abgenommen 13.10.2026: Produktivstunden, Feiertage, Ausfalltage und FTE; Kostenübernahme, AGK-Vermeidung und Angebotsbezug live geprüft. |
 | 04 | Leistungsverzeichnisse | Positionen, Mengen, Kostenbestandteile; Gliederung bis fünf Ebenen mit Zwischensummen; getrennte Nachtragsangebote und unveränderliche Versionen | Prüfung dieser Erweiterung in der veröffentlichten App offen; bleibt rot. |
-| 05 | Importmanager | CSV-Prüfung, Übernahme, Altbestandskopie | GAEB-Varianten, PDF/OCR/Excel validieren |
+| 05 | Importmanager | CSV-Prüfung und atomare Übernahme; GAEB X83 XML 3.3, Originaljournal, Sonderpositions-Prüfung und dokumentierte Wandlung | Live-Abnahme; weitere GAEB-Phasen/Versionen, PDF/OCR/Excel validieren |
 | 06 | LV- und Vertragsprüfung | Position, Quelle, Befund, Rückfrage | Regelbasierte Prüfungen |
 | 07 | Kalkulation und Zielpreis | Komponenten, EP/GP, Zuschläge, Zielpreis und Deckungsbeitrag | Rabatte, weitere Sonderpositionen |
 | 08 | EFB und Kalkulationsblätter | Komponentenübersicht | EFB 221/222/223 mit Feldmapping |
@@ -145,6 +145,18 @@ Ergänzungen in 04, 06, 07, 13 und 14:
 `test-commercial-completion.cjs` prüft zentrale Dienstübergaben, Wiederabruf, Rabatt-/Wiederherstellungsgrenzen, Bedarfspositionen, Angebotsversionen, Auftragsbestätigung, beauftragten Rabatt bis zur Rechnung, Rückfragen und DOM-/Druckausgabe. Die vollständige Regression wird über `npm test` ausgeführt.
 
 Keine zusätzliche Grünfreigabe allein aus diesen lokalen Prüfungen. Die produktive Anmeldung und Live-Abnahme der neuen Funktionen sind noch erforderlich. Importmanager, EFB, E-Rechnung, externe Versand-/Bank-/DATEV-Anbindungen und übrige Spezialfunktionen bleiben offen.
+
+## Work-Bereich: GAEB-Import und Sonderpositionswandlung – 13.10.2026
+
+- Zentraler Import ergänzt GAEB X83 / XML 3.3 (UTF-8, derzeit bis 1 MB; maximal 5000 Positionen und Prüfvorgänge). OZ mit führenden Nullen, Titelhierarchie, Mengen, Einheiten sowie Kurz-/Langtexte bleiben erhalten. Das eingelesene XML wird im Importjournal unverändert gespeichert und kann dort angezeigt werden. Keine vollständige XSD-Konformitätsprüfung.
+- Sonderpositionen und Hinweise werden nicht verworfen: Freie Mengen, Pauschalen, Bedarf, Alternativen, Referenzen, Zuschläge, Vorbemerkungen und unbekannte Positionsmerkmale erzeugen projektbezogene Prüfvorgänge mit Originalinhalt und Wandlungsvorschlag. Offene Prüfvorgänge sperren Angebot und Auftrag.
+- Unter LV-/Vertragsprüfung führt „Wandlung prüfen“ zu einer eigenen Eingabe. Ein berechtigter Prüfer bestätigt Leistungsart, OZ, Menge, Einheit, vollständigen Text und Begründung. Die Wandlung erzeugt atomar eine LV-Position auf Prüfung und verknüpft den erledigten Prüfvorgang. Originalquelle und ursprünglicher Vorschlag bleiben erhalten. Doppelte Wandlung und fremde Projektzuordnung werden verhindert. Reine Hinweise können mit dokumentierter Entscheidung als Vertragsprüfung erledigt werden.
+- Freie Mengen, Pauschalmengen, Zuschlagsbeträge und Alternativentscheidungen werden nicht erfunden. Vorschläge beschreiben den nötigen Rechen-/Entscheidungsweg; dessen Werte müssen bestätigt werden. Bedarfspositionen mit Gesamtbetrag benötigen eine ausdrückliche Entscheidung, da das bisherige Bedarfsmodell sie aus der Hauptsumme ausschließt.
+- Vorschau prüft auch die gemeinsame Modellvalidierung (z. B. Doppel-OZ). Änderungen an Quelle, Dateiinhalt, Format, ausgewähltem Projekt oder Bestandsversion erfordern neue Vorschau. Positionen, Originalquelle und Sonderprüfungen werden gemeinsam gespeichert; Fehler erzeugen keinen Teilimport.
+- `npm test`: 18 Testgruppen bestanden; `npm run check` und `git diff --check` bestanden. Neue Tests prüfen Normal-/Sonderpositionen, Originalerhalt, Wandlung, Sperren, Rollen, gefälschte Prüfernamen, Doppelwandlung, Projekttrennung, Angebotsbezug und DOM-Bedienung.
+- Kein neuer authentifizierter Live-Import und kein iPhone-/HP-Test in dieser Sitzung. Modul 05 bleibt rot; bisheriger Abnahmestand unverändert 3/36. PDF/OCR, Excel, GAEB 90/2000 und andere XML-Phasen/-Versionen bleiben offen.
+
+Strukturreferenz: [GAEB DA XML 3.3, Fachdokumentation 2021-05](https://www.gaeb.de/wp-content/uploads/2021/07/Fachdokumentation_GAEB-DA-XML_3.3_2021-05.pdf).
 
 ## Work-Bereich: Sonderpositionen und Angebotsvarianten 13.10.2026
 
