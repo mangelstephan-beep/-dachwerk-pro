@@ -201,6 +201,8 @@
         this.assertClear(['contract','technical']);
         const offer=this.get(data.offerId);
         if(this.list('offers').some(r=>r.data.supersedesOfferId===offer.id))throw Error('Diese Angebotsfassung wurde durch eine neue Version ersetzt.');
+        const assigned=new Set(this.list('orders').filter(r=>r.id!==options.id && r.status==='Freigegeben').flatMap(r=>this.get(r.data.offerId).data.positions.map(p=>p.id)));
+        if(offer.data.positions.some(p=>assigned.has(p.id)))throw Error('Mindestens eine Angebotsposition ist bereits in einem anderen Auftrag beauftragt.');
         if(offer.data.baseOfferId && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===offer.data.baseOfferId))throw Error('Hauptangebot vor dem Nachtrag beauftragen.');
       }
       if(module==='incoming' && data.subcontractId && this.get(data.subcontractId).data.contractor.trim().toLocaleLowerCase('de')!==data.supplier.trim().toLocaleLowerCase('de'))throw Error('Rechnungssteller stimmt nicht mit dem NU-Kostenvorgang überein.');
@@ -342,6 +344,7 @@
       let positions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],tax=this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
       this.assertClear(['contract','technical']);
       if(kind==='offers') {
+        const assigned=new Set(this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions.map(p=>p.id)));
         let candidates=this.list('lv').filter(r=>options.offerType==='Nachtragsangebot'?r.data.kind==='Nachtrag':r.data.kind!=='Nachtrag' && r.data.kind!=='Bedarfsposition');
         if(options.offerType==='Nachtragsangebot') {
           const numbers=[...new Set(candidates.map(r=>r.data.changeNumber || ''))];
@@ -351,7 +354,13 @@
           const prior=this.list('offers').filter(r=>r.data.baseOfferId===options.baseOfferId && (r.data.changeNumber || '')===changeNumber).at(-1);
           version=(prior?.data.version || (prior?1:0))+1;
           if(prior && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===prior.id))supersedesOfferId=prior.id;
+        } else {
+          const prior=this.list('offers').filter(r=>!r.data.baseOfferId).at(-1);
+          version=(prior?.data.version || (prior?1:0))+1;
+          if(prior && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===prior.id))supersedesOfferId=prior.id;
         }
+        candidates=candidates.filter(r=>!assigned.has(r.id));
+        if(!candidates.length && assigned.size)throw Error('Diese LV-Positionen sind bereits beauftragt.');
         if(!candidates.length)throw Error('Mindestens eine passende LV-Position erforderlich.');
         if(candidates.some(r=>r.status!=='Freigegeben'))throw Error('Alle LV-Positionen dieser Angebotsfassung müssen zuerst freigegeben werden.');
         if(options.offerType==='Nachtragsangebot') {
@@ -359,7 +368,6 @@
           if(base?.module!=='offers' || base.projectId!==project.id || base.data.baseOfferId)throw Error('Hauptangebot für den Nachtrag auswählen.');
           baseOfferId=base.id;
           tax=base.data.tax;
-          const assigned=new Set(this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId)?.data.positions.map(p=>p.id) || []));
           positions=candidates.filter(r=>!assigned.has(r.id)).map(r=>this.position(r));
         } else positions=candidates.map(r=>this.position(r));
         if(!positions.length)throw Error('Diese Nachtragspositionen sind bereits beauftragt.');

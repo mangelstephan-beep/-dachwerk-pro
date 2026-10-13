@@ -125,3 +125,10 @@ Die sieben vorbereiteten Originaldateien von Anita Langer, Tufan Uysal, Christia
 - Neue unbeauftragte Fassungen erhalten eine fortlaufende Version und einen Bezug auf die ersetzte Fassung. Die ursprünglichen Dokumente bleiben unverändert; ersetzte Fassungen können nicht mehr beauftragt werden. Bereits beauftragte Positionen werden nicht erneut angeboten.
 - `test-lv-structure.cjs` prüft den zentralen Dienst, Wiedereinlesen des Projektmodells, Zwischensummen, Nachtragsauswahl, Versionierung, ungültige Gliederungen, Bestellung alter Fassungen und Aufmaß-/Rechnungsbezug; DOM-Prüfung der neuen Eingaben und Versionsanzeige.
 - Keine neue produktive Modulfreigabe. Die Farblogik ist unverändert; Modul 04 bleibt bis zur Live-Abnahme rot. Module 05–36 haben weiter die oben aufgeführten offenen Funktionen.
+
+## LV-Sicherung gegen Doppelbeauftragung – 13.10.2026
+
+- Hauptangebote erhalten wie Nachträge fortlaufende Versionen. Eine neue unbeauftragte Fassung ersetzt die vorherige; das Original bleibt unverändert und kann nicht mehr beauftragt werden.
+- Bereits beauftragte Positionen werden aus neuen Hauptangeboten ausgeschlossen. Auch ältere gespeicherte Angebotsfassungen ohne Versionsbezug werden bei überlappenden Positionen durch den zentralen Auftragsdienst abgelehnt. Dies verhindert doppelte Beauftragung und spätere doppelte Abrechnung über mehrere Hauptaufträge.
+- Alle 16 lokalen Testgruppen und Syntaxprüfungen bestanden; der LV-Test prüft zusätzlich Hauptangebotsversionen, gesperrte Altversionen und unveränderten Bestand bei abgelehnter Doppelbeauftragung.
+- Live: aktuelle Produktionsfassung erreichbar, unauthentifiziertes Fach-API liefert 401. Die automatische Freigabeprüfung lehnte die Anmeldung mit früher mitgeteilten Zugangsdaten mangels ausdrücklicher Erlaubnis ab. Kein erfolgreicher authentifizierter Live-LV-Test dieser Sitzung; daher bleibt Modul 04 rot und der Abnahmestand bei 3/36 grün.
