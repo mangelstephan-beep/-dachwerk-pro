@@ -2,6 +2,7 @@
   // The main application uses authenticated, authoritative server writes.
   // The separate server-rendered modultest page explicitly retains local test mode.
   if(document.querySelector('meta[name="dwp-local-preview"]'))return;
+  if(new URLSearchParams(location.search).get('start')==='app' || window.navigator.standalone || window.matchMedia?.('(display-mode: standalone)').matches)showLogin();
   let active=false,busy=false,revision=0;
   async function responseJson(response) {
     const body=await response.json();

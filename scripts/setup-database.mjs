@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
 const {getAuth}=require('../lib/auth.cjs');
-const {getMigrations}=await import('better-auth/db');
+const {getMigrations}=await import('better-auth/db/migration');
 const auth=await getAuth();
 const migration=await getMigrations(auth.options);
 await migration.runMigrations();
