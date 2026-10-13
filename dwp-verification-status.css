@@ -17,3 +17,7 @@
 .dwp-workspace .module-card button[data-dwp-verified="true"]:hover {
  background:#127345!important;border-color:#127345!important;
 }
+.dwp-module-unverified,.dwp-module-verified{display:inline-block;padding:5px 10px;border-radius:8px;color:#fff}
+.dwp-module-unverified{background:#cf202a}
+.dwp-module-verified{background:#168554}
+.dwp-workspace button[data-dwp-verified="true"]{background:#168554!important;border-color:#127345!important;color:#fff!important}

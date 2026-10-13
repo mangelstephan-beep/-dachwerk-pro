@@ -71,6 +71,17 @@
     const n=Number(s);if(!Number.isFinite(n))throw Error('Ungültige Zahl.');return n;
   };
   const round = n => {if(!Number.isFinite(n) || Math.abs(n)>Number.MAX_SAFE_INTEGER/100)throw Error('Betrag oder Menge außerhalb des sicheren Zahlenbereichs.');return Math.round((n + Math.sign(n)*Number.EPSILON)*100)/100;};
+  const capacity=values=>{
+    const v=Object.fromEntries(['year','headcount','weeklyHours','leaveDays','sickDays','trainingDays','nonproductivePercent'].map(k=>[k,num(values[k])]));
+    if(!Number.isInteger(v.year)||v.year<2000||v.year>2100||v.headcount<=0||v.headcount>10000||v.weeklyHours<=0||v.weeklyHours>120||['leaveDays','sickDays','trainingDays'].some(k=>v[k]<0)||v.nonproductivePercent<0||v.nonproductivePercent>=100)throw Error('Produktivstundenmodell enthält ungültige Werte.');
+    const holidays=[...new Set(String(values.holidayDates || '').split(/[\s,;]+/).filter(Boolean))];
+    for(const date of holidays)if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date.slice(0,4)!==String(v.year)||Number.isNaN(Date.parse(date))||new Date(date).toISOString().slice(0,10)!==date)throw Error('Feiertage müssen gültige Daten des gewählten Jahres sein.');
+    let weekdays=0;for(let day=new Date(Date.UTC(v.year,0,1));day.getUTCFullYear()===v.year;day.setUTCDate(day.getUTCDate()+1))if(day.getUTCDay()!==0&&day.getUTCDay()!==6)weekdays++;
+    const holidayDays=holidays.filter(d=>![0,6].includes(new Date(d).getUTCDay())).length;
+    const availableDays=weekdays-holidayDays-v.leaveDays-v.sickDays-v.trainingDays;
+    if(availableDays<=0)throw Error('Ausfalltage überschreiten die verfügbaren Arbeitstage.');
+    return {...v,holidayDates:holidays.sort().join('\n'),weekdays,holidayDays,availableDays,productiveHours:round(availableDays*(v.weeklyHours/5)*v.headcount*(1-v.nonproductivePercent/100))};
+  };
   const empty = () => ({schema:1, revision:0, selectedProject:null, settings:{wage:55,agk:0,profit:10,tax:19,company:'DachWerk Pro',address:''}, records:[], audit:[]});
   const uid = () => root.crypto?.randomUUID?.() || `dwp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   class Store {
@@ -113,6 +124,7 @@
       }
       if(data.selectedProject && !data.records.some(p=>p.module==='projects' && p.id===data.selectedProject)) throw Error('Ausgewähltes Projekt fehlt.');
       for(const k of ['wage','agk','profit','tax'])if(typeof data.settings[k]!=='number' || !Number.isFinite(data.settings[k]) || data.settings[k]<0)throw Error('Kalkulationsbasis ungültig.');
+      if(data.settings.capacity)capacity(data.settings.capacity);
     }
     transaction(action, module, recordId, change) {
       const raw=this.storage.getItem(this.key);
@@ -219,6 +231,7 @@
     }
     settings(values) {
       const clean={...this.data.settings, ...values};
+      if(values.capacity)clean.capacity=capacity(values.capacity);
       for(const k of ['wage','agk','profit','tax']) { clean[k]=num(clean[k]); if(clean[k]<0 || (k==='tax' && clean[k]>100)) throw Error('Ungültige Kalkulationswerte.'); }
       return this.transaction('Einstellungen gespeichert','operating',null,d=>{d.settings=clean;});
     }
@@ -405,7 +418,8 @@
     applyOperatingCosts() {
       const costs=this.list('operating').filter(r=>r.status==='Freigegeben');
       if(!costs.length)throw Error('Kostenansätze zuerst prüfen und freigeben.');
-      const rate=round(costs.reduce((n,r)=>n+r.data.annualCost/r.data.productiveHours,0));
+      const hours=this.data.settings.capacity?capacity(this.data.settings.capacity).productiveHours:null;
+      const rate=round(hours?costs.reduce((n,r)=>n+r.data.annualCost,0)/hours:costs.reduce((n,r)=>n+r.data.annualCost/r.data.productiveHours,0));
       if(rate<=0)throw Error('Kostenansatz muss größer als null sein.');
       return this.settings({wage:rate,agk:0});
     }
@@ -530,7 +544,7 @@
       });
     }
   }
-  const api={Store,modules,definitions,statuses,stages,num,round,empty};
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

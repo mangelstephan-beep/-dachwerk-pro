@@ -4,7 +4,9 @@
   let db, current='dashboard', editing=null, search='', signatureStrokes=[];
   const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const money=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v||0);
-  const btn=(label,action,id='',primary=false)=>`<button type="button" class="button button-${primary?'primary':'secondary'}" data-dwp="${action}" data-id="${esc(id)}">${esc(label)}</button>`;
+  const verified=id=>window.DWPRemote?.active===true&&window.DWPVerification?.isVerified(id)===true;
+  const verificationBadge=id=>verified(id)?'<strong class="dwp-module-verified">GRÜN · Fertig und geprüft</strong>':'<strong class="dwp-module-unverified">ROT · Nicht freigegeben</strong>';
+  const btn=(label,action,id='',primary=false)=>`<button type="button" class="button button-${primary?'primary':'secondary'}" data-dwp="${action}" data-id="${esc(id)}" ${action==='open'&&verified(id)?'data-dwp-verified="true"':''}>${esc(label)}</button>`;
   const field=(label,control)=>`<div><label>${esc(label)}${control}</label></div>`;
   const panel=(title,body)=>`<section class="panel panel-pad dwp-panel"><h2>${esc(title)}</h2>${body}</section>`;
   const names=id=>{const r=db.get(id);return r ? (r.data.number?`${r.data.number} · `:'')+(r.data.name || r.data.title || r.data.text || '') : '';};
@@ -62,7 +64,7 @@
   }
   function dashboard() {
     const p=db.project(), stats=p?db.controlling():null;
-    shell('Alle Arbeitsmodule',`${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p><strong class="dwp-module-unverified" style="display:inline-block;padding:5px 10px;border-radius:8px;background:#cf202a;color:#fff" aria-label="Nicht vollständig geprüft und freigegeben">ROT · Nicht freigegeben</strong></p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
+    shell('Alle Arbeitsmodule',`${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
     filterModules();
   }
   function searchRecords(query) {
@@ -93,7 +95,7 @@
     return `<input ${attr} type="${f.type==='number'?'text':f.type}" ${f.type==='number'?'inputmode="decimal"':''} value="${esc(value ?? '')}">`;
   }
   function defaults(module) {
-    return {date:new Date().toISOString().slice(0,10),unit:'m²',qty:1,length:1,width:1,factor:1,consumption:1,tax:19,rate:db.data.settings.wage,phase:'Erfassung',productiveHours:1};
+    return {date:new Date().toISOString().slice(0,10),unit:'m²',qty:1,length:1,width:1,factor:1,consumption:1,tax:19,rate:db.data.settings.wage,phase:'Erfassung',productiveHours:db.data.settings.capacity?.productiveHours || 1};
   }
   function recordForm(mod) {
     const r=editing?db.get(editing):null, values=r?.pendingPrice?.data || r?.data || defaults(mod.id);
@@ -109,6 +111,10 @@
     let summary='';
     if(mod.id==='measurements') summary=panel('Freigegebenes Aufmaß und Abweichung',table(['Position','LV-Menge','Aufmaß','Differenz'],db.list('lv').map(r=>[esc(r.data.number),`${r.data.qty} ${esc(r.data.unit)}`,`${db.measured(r.id)} ${esc(r.data.unit)}`,esc(core.round(db.measured(r.id)-r.data.qty))])));
     if(mod.id==='operating') summary=panel('Kosten je produktiver Stunde',table(['Kostenansatz','€/h'],list.map(r=>[esc(r.data.title),money(r.data.annualCost/r.data.productiveHours)])));
+    if(mod.id==='operating') {
+      const c=db.data.settings.capacity || {year:new Date().getFullYear(),headcount:1,weeklyHours:40,leaveDays:30,sickDays:0,trainingDays:0,nonproductivePercent:0,holidayDates:''};
+      summary+=panel('Jährliche Produktivstunden',`<p>Fünftagewoche Montag–Freitag. Urlaub, Krankheit und Schulung je Vollzeitkraft; Personalanzahl als Vollzeitäquivalente. Feiertage des jeweiligen Standorts ausdrücklich eintragen. Wochenenden und doppelte Feiertage werden nicht mehrfach abgezogen.</p><form id="dwp-capacity" class="quick-form">${[['year','Jahr'],['headcount','Vollzeitäquivalente'],['weeklyHours','Wochenstunden'],['leaveDays','Urlaubstage'],['sickDays','Krankheitstage'],['trainingDays','Schulungstage'],['nonproductivePercent','Sonstiger unproduktiver Anteil %']].map(([key,label])=>field(label,`<input name="${key}" inputmode="decimal" value="${esc(c[key])}" required>`)).join('')}${field('Feiertage YYYY-MM-DD (eine Zeile je Datum)',`<textarea name="holidayDates" rows="5">${esc(c.holidayDates)}</textarea>`)}<button class="button button-primary" type="submit">Produktivstundenmodell speichern</button></form>${c.productiveHours?`<p>Kalenderwerktage ${c.weekdays} · Feiertage an Werktagen ${c.holidayDays} · verfügbare Arbeitstage je Kraft ${c.availableDays} · <strong>${c.productiveHours} produktive Stunden gesamt</strong></p>`:''}`);
+    }
     if(mod.id==='operating')summary+=panel('Kalkulationsbasis übernehmen',`<p>Freigegebene Kosten je produktiver Stunde werden addiert und als Vollkostensatz übernommen. Der AGK-Zuschlag wird dabei auf 0 gesetzt. Dieselben Kosten nicht mehrfach erfassen.</p>${btn('Vollkostensatz übernehmen','operating-rate')}`);
     if(mod.id==='materials') summary=panel('Preishistorie',table(['Artikel','Aktuell','Vorherige Preisstände'],list.map(r=>[esc(r.data.name),money(r.data.price),esc((r.history || []).slice(-2).map(p=>`${p.priceDate}: ${money(p.price)}`).join(' · '))])));
     if(mod.id==='energy') summary=panel('Variantenvergleich',table(['Bauteil','ΔU × Fläche (W/K)'],list.map(r=>[esc(r.data.component),esc(core.round((r.data.uBefore-r.data.uAfter)*r.data.area))]))+'<p>Dies ist ein Bauteilvergleich, kein Energieausweis und kein Förderfähigkeitsnachweis.</p>');
@@ -257,6 +263,7 @@
         command=['save',mod,values,{id:editing,status:values.status,owner:values.owner,due:values.due}];
       }
       if(['dwp-settings','dwp-company'].includes(form.id))command=['settings',values];
+      if(form.id==='dwp-capacity')command=['settings',{capacity:core.capacity(values)}];
       if(form.id==='dwp-import')command=['importPositions',csvRows(values.csv)];
       if(form.id==='dwp-quote')command=['quote',values.supplierId,values];
       if(form.id==='dwp-schedule')command=['schedule',values.employeeId,values];
