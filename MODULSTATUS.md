@@ -36,7 +36,7 @@ Kunde → Projekt → LV → Material-/Zeitansätze → Kalkulation → freigege
 | 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Abgenommen 13.10.2026: Mitgliedschaften, Ansicht/Logbuch, erlaubter Schreibzugriff 200 und Fremdzugriff 403 live geprüft. |
 | 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Abgenommen 13.10.2026: Produktivstunden, Feiertage, Ausfalltage und FTE; Kostenübernahme, AGK-Vermeidung und Angebotsbezug live geprüft. |
 | 04 | Leistungsverzeichnisse | Positionen, Mengen, Kostenbestandteile; Gliederung bis fünf Ebenen mit Zwischensummen; getrennte Nachtragsangebote und unveränderliche Versionen | Prüfung dieser Erweiterung in der veröffentlichten App offen; bleibt rot. |
-| 05 | Importmanager | CSV-Prüfung und atomare Übernahme; GAEB X83 XML 3.3, Originaljournal, Sonderpositions-Prüfung und dokumentierte Wandlung | Live-Abnahme; weitere GAEB-Phasen/Versionen, PDF/OCR/Excel validieren |
+| 05 | Importmanager | CSV-Prüfung und atomare Übernahme; GAEB X83 XML 3.3 und XLSX mit Blatt-/Spaltenzuordnung, Originaljournal, Sonderpositions-Prüfung und dokumentierter Wandlung | Live-Abnahme; weitere GAEB-Phasen/Versionen, PDF/OCR und XLS validieren |
 | 06 | LV- und Vertragsprüfung | Position, Quelle, Befund, Rückfrage | Regelbasierte Prüfungen |
 | 07 | Kalkulation und Zielpreis | Komponenten, EP/GP, Zuschläge, Zielpreis und Deckungsbeitrag | Rabatte, weitere Sonderpositionen |
 | 08 | EFB und Kalkulationsblätter | Komponentenübersicht | EFB 221/222/223 mit Feldmapping |
@@ -157,6 +157,17 @@ Keine zusätzliche Grünfreigabe allein aus diesen lokalen Prüfungen. Die produ
 - Kein neuer authentifizierter Live-Import und kein iPhone-/HP-Test in dieser Sitzung. Modul 05 bleibt rot; bisheriger Abnahmestand unverändert 3/36. PDF/OCR, Excel, GAEB 90/2000 und andere XML-Phasen/-Versionen bleiben offen.
 
 Strukturreferenz: [GAEB DA XML 3.3, Fachdokumentation 2021-05](https://www.gaeb.de/wp-content/uploads/2021/07/Fachdokumentation_GAEB-DA-XML_3.3_2021-05.pdf).
+
+## Work-Bereich: Excel-XLSX-Import – 13.10.2026
+
+- XLSX-Datei auswählen, Arbeitsblatt und Überschriftenzeile bestimmen, Spalten den LV-Feldern zuordnen. Pflichtzuordnung: Position, Leistung, Menge und Einheit. Optional Titel, Leistungsart, Nachtragsnummer und Kosten-/Zeitansätze. Zielpreiszuordnung aktiviert ausdrücklich den Zielpreis. Nach jeder Zuordnungsänderung neue Vorschau erforderlich.
+- Textnummern und einfache führende-Nullen-Formate bleiben erhalten. Zahlen gelangen unverändert in die gemeinsame Zahlenvalidierung. Formel-Caches werden nicht als bestätigte Werte übernommen, und Excel-Formeln werden nicht ausgeführt.
+- Formel-/Fehler-/Datumszellen, unklare Leistungsarten, ausgeblendete Zeilen/Blätter, verbundene Zellen, Vortexte und Summenzeilen erzeugen gesperrte Prüfvorgänge mit Originaldaten und Wandlungsvorschlag. Die bestehende dokumentierte Sonderpositionswandlung wird auch für Excel verwendet.
+- Die Original-XLSX-Bytes und alle eingelesenen Blattdaten bleiben zentral im Importjournal erhalten. Blattwahl, Überschriftenzeile und Spaltenzuordnung werden mitgespeichert. Rohbytes fehlen in normalen zentralen Lese-/Schreibantworten und Audit-Abbildern. Der Originaldownload läuft über den bestehenden Eigentümer-/Geräteexportschutz.
+- Kleine mitgelieferte ZIP-Bibliothek (fflate 0.8.2, MIT) lädt von derselben Domain; keine CDN-Ausnahmen oder neuen externen Dienste. ExcelJS 4.4.0 wird ausschließlich in Tests zum Erzeugen echter XLSX-Dateien verwendet.
+- Grenzen: derzeit XLSX bis 1 MB, entpacktes Archiv maximal 12 MB, 30 Blätter, 10000 Zeilen/80 Spalten, 100000 Zellen; Übernahme bis 5000 Daten-/Prüfzeilen, Originaldaten-JSON maximal 1 MB. Verschlüsselte oder nicht unterstützte Archive/OOXML-Schemata werden abgewiesen; kein vollständiger Excel-Parser und keine XSD-Validierung. Ältere XLS-Dateien benötigen zunächst Export als XLSX oder CSV.
+- `npm test`: 20 Testgruppen; `npm run check` und `git diff --check`. Neue Prüfung nutzt echte XLSX-Dateien und die tatsächlich ausgelieferte Browserbibliothek, zentrale atomare Speicherung, bytegleiches Original, Formeln/Prüfung/Wandlung, aktuelle Zuordnungsvorschau und geschützten Originalexport.
+- Keine zusätzliche Grünfreigabe: produktiver Import mit Benutzeranmeldung, iPhone-/HP-Abnahme sowie PDF/OCR und weitere GAEB-Varianten bleiben offen. Abnahmestand weiterhin 3/36.
 
 ## Work-Bereich: Sonderpositionen und Angebotsvarianten 13.10.2026
 
