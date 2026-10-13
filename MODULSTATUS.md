@@ -34,7 +34,7 @@ Kunde → Projekt → LV → Material-/Zeitansätze → Kalkulation → freigege
 |---|---|---|---|
 | 01 | Kunden und Kontakte | Stammdaten, E-Mail, Käuferreferenz, zentrale API | Abgenommen 13.10.2026: Kontaktrollen, mehrere Kontakte, unveränderliche Angebotsfassung und zentraler Wiederabruf geprüft. |
 | 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Abgenommen 13.10.2026: Mitgliedschaften, Ansicht/Logbuch, erlaubter Schreibzugriff 200 und Fremdzugriff 403 live geprüft. |
-| 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Produktivstundenmodell mit Kalenderwerktagen, Feiertagen, Urlaub, Krankheit, Schulung und FTE umgesetzt; Live-Abnahme noch offen. |
+| 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Abgenommen 13.10.2026: Produktivstunden, Feiertage, Ausfalltage und FTE; Kostenübernahme, AGK-Vermeidung und Angebotsbezug live geprüft. |
 | 04 | Leistungsverzeichnisse | Positionen, Einheit, Menge, Kostenbestandteile | Hierarchie, Nachtragsversionen |
 | 05 | Importmanager | CSV-Prüfung, Übernahme, Altbestandskopie | GAEB-Varianten, PDF/OCR/Excel validieren |
 | 06 | LV- und Vertragsprüfung | Position, Quelle, Befund, Rückfrage | Regelbasierte Prüfungen |
@@ -108,3 +108,11 @@ Eigentümer-/Geräteexportschutz, Anmeldeprotokoll, Modulhäufigkeit und einmali
 Prüfung: bisherige Regressionen plus `test-workflow-integration.cjs`, `test-access-security.cjs` und `test-access-client.cjs`. Sie prüfen den projektübergreifenden Verbund, Übergabesicherungen, technische Sperren, Kostenersatz, Abschluss/Wiederöffnung, Eigentümer-/Geräte-/Mandantentrennung, tatsächliche SQL-Migrationen, atomaren Einmalabruf, Audit-Snapshot-Bereinigung, alle 36 Modulzähler, Login-Hook und API-/DOM-Interaktion.
 
 Dieser Stand bedeutet weiterhin **nicht**, dass alle 36 Spezialfunktionen oder produktive Schnittstellen vollständig fertiggestellt sind. Die vorherige Modulabnahmetabelle bleibt maßgeblich für GAEB/PDF/DATANORM, EFB/E-Rechnung, OCR, Fachberechnungen und externe Integrationen. Eine neue funktionierende Live-Anmeldung, Gerätefreigabe, iPhone-/HP-Abnahme oder Umstellung der Hauptdomain ist noch nicht bestätigt.
+
+## Aktueller Abnahmestand 13.10.2026
+
+Module 01–03 sind nach lokalen und Live-HTTP-Integrationsprüfungen grün. Module 04–36 bleiben rot. Die erste Fünfergruppe ist noch nicht vollständig abgenommen. Keine Behauptung, dass alle 36 Module produktiv abgeschlossen sind.
+
+Originaldateiablage bis 64 MB ist umgesetzt und durch SQL-/API-Tests auf Teilupload, Prüfsumme und Berechtigung getestet. Scanner/OCR/Barcode und weitere DMS-Spezialfunktionen sind noch offen; Modul 32 bleibt rot.
+
+Die sieben vorbereiteten Originaldateien von Anita Langer, Tufan Uysal, Christian Bani und Wanke wurden nicht übertragen. Die automatische Freigabeprüfung hat ihre Übernahme in die Produktions-App mangels eindeutiger Freigabe der konkreten privaten Dokumente abgelehnt. Eine genaue Dateiliste wurde zur Bestätigung erstellt.
