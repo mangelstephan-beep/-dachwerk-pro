@@ -145,3 +145,15 @@ Ergänzungen in 04, 06, 07, 13 und 14:
 `test-commercial-completion.cjs` prüft zentrale Dienstübergaben, Wiederabruf, Rabatt-/Wiederherstellungsgrenzen, Bedarfspositionen, Angebotsversionen, Auftragsbestätigung, beauftragten Rabatt bis zur Rechnung, Rückfragen und DOM-/Druckausgabe. Die vollständige Regression wird über `npm test` ausgeführt.
 
 Keine zusätzliche Grünfreigabe allein aus diesen lokalen Prüfungen. Die produktive Anmeldung und Live-Abnahme der neuen Funktionen sind noch erforderlich. Importmanager, EFB, E-Rechnung, externe Versand-/Bank-/DATEV-Anbindungen und übrige Spezialfunktionen bleiben offen.
+
+## Work-Bereich: Sonderpositionen und Angebotsvarianten 13.10.2026
+
+- Grund- und Alternativpositionen mit gemeinsamer Wahlgruppe; genau eine Grundposition und genau eine ausgewählte Ausführung pro noch unbeauftragter Gruppe. Explizite Auswahl vor Angebotsfreigabe, einschließlich separat wählbarer Bedarfspositionen.
+- Kalkulation, Gliederung und vorläufiger Materialbedarf addieren die Grundausführung; Alternativen und Bedarf bleiben separat. Die Angebotsmaske zeigt den gewählten Gesamtpreis sofort.
+- Nicht gewählte Ausführungen und Bedarfspositionen werden als unveränderliche separate Angebotsbestandteile mit EP/GP gespeichert, gedruckt und im CSV mit Summenkennzeichen ausgegeben. Sie erhöhen den Auftragswert nicht.
+- Auftrag, Materialbedarf, Sollkosten und aufmaßbasierte Rechnung verwenden ausschließlich die gewählte, eingefrorene Variante. Weitere Aufträge für dieselbe Wahlgruppe werden abgelehnt. Änderungen vor Beauftragung erfolgen über eine neue Angebotsfassung.
+- Zentraler CSV-Import erhält Leistungsart, Wahlgruppe, Rabatt und Zielpreis. Vorschau validiert den gesamten Batch vor Übernahme. Unbekannte Sonderarten werden abgelehnt, statt unbemerkt als Hauptleistung übernommen. CSV-Wert false aktiviert keinen Zielpreis mehr.
+- Lokale Altbestandsübernahme erhält Sonderpositionsfelder. Sie ist weiterhin nur im getrennten Modultest verfügbar.
+- `test-special-positions.cjs`: zentrale Speicherung/Wiederabruf, Variantenpreis 105 → 195, unveränderliche Fassung, Doppelbeauftragungsverbot, gewählter Materialbedarf, Preisbindung trotz geänderter Kalkulation, Schlussrechnung 225, atomarer Import, ungültige Auswahl/Wiederherstellung und DOM-/Druckprüfung.
+
+Die vorhandenen Modulfarben bleiben unverändert. Für 04, 05, 07, 13 und 14 fehlen weiterhin die authentifizierte produktive Abnahme und die übrigen Spezialfunktionen der Abnahmetabelle. Keine Fertigmeldung für alle 36 Module.
