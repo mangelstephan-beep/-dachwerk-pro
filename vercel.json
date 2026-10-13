@@ -30,6 +30,10 @@
   ],
   "rewrites": [
     {
+      "source": "/reset-password",
+      "destination": "/index.html"
+    },
+    {
       "source": "/api/auth/:path*",
       "destination": "/api/auth?authPath=:path*"
     },
