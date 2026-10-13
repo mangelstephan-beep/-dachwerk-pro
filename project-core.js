@@ -12,7 +12,7 @@
     ['customers', 'Kunden und Kontakte', 'customers', [f('name','Firma / Name','text',true),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Anschrift'),f('location','Ort'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
     ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('memberIds','Freigegebene Benutzer-IDs (kommagetrennt; Administratoren haben Zugriff)','textarea'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
     ['operating','Betriebs- und Lohnkosten','prices',[title,f('annualCost','Jahreskosten netto','number',true),f('productiveHours','Produktive Stunden','number',true),note]],
-    ['lv','Leistungsverzeichnisse','calculation',[f('number','Positionsnummer','text',true),f('text','Leistungsbeschreibung','textarea',true),f('groupPath','Gliederung: Gewerk / Titel / Abschnitt'),f('kind','Leistungsart','select',false,['Hauptleistung','Nachtrag','Bedarfsposition']),f('changeNumber','Nachtragsnummer'),f('qty','LV-Menge','number',true),f('unit','Einheit','text',true),f('material','Material je Einheit','number'),f('minutes','Minuten je Einheit','number'),f('equipment','Geräte je Einheit','number'),f('subcontract','NU je Einheit','number'),f('materialId','Freigegebener Materialartikel','material'),f('consumption','Materialverbrauch je Einheit','number'),f('useTargetPrice','Zielpreis verwenden','checkbox'),f('targetEp','Zielpreis netto je Einheit vor Rabatt','number'),f('discountPercent','Positionsrabatt %','number')]],
+    ['lv','Leistungsverzeichnisse','calculation',[f('number','Positionsnummer','text',true),f('text','Leistungsbeschreibung','textarea',true),f('groupPath','Gliederung: Gewerk / Titel / Abschnitt'),f('kind','Leistungsart','select',false,['Hauptleistung','Nachtrag','Bedarfsposition','Grundposition','Alternativposition']),f('choiceGroup','Wahlgruppe (Grund-/Alternativposition)'),f('changeNumber','Nachtragsnummer'),f('qty','LV-Menge','number',true),f('unit','Einheit','text',true),f('material','Material je Einheit','number'),f('minutes','Minuten je Einheit','number'),f('equipment','Geräte je Einheit','number'),f('subcontract','NU je Einheit','number'),f('materialId','Freigegebener Materialartikel','material'),f('consumption','Materialverbrauch je Einheit','number'),f('useTargetPrice','Zielpreis verwenden','checkbox'),f('targetEp','Zielpreis netto je Einheit vor Rabatt','number'),f('discountPercent','Positionsrabatt %','number')]],
     ['imports','Importmanager','gaeb',[title,f('source','Quelle / Dateiname'),f('format','Format','select',false,['CSV','GAEB XML','PDF Prüfquelle','Excel Prüfquelle','Sonstige']),note]],
     ['contract','LV- und Vertragsprüfung','rules',[title,f('positionId','LV-Position','position'),f('finding','Feststellung','textarea',true),f('question','Rückfrage','textarea'),f('source','Vertrag / Quelle / Fassung'),blocking,note]],
     ['calculation','Kalkulation und Zielpreis','calculation',[]],
@@ -112,6 +112,8 @@
             if(!ref || (ref.projectId && ref.projectId!==r.projectId) || ref?.id===r.id) throw Error('Sicherung: ungültiger Querverweis.');
           }
         }
+        if(r.module==='lv' && r.data.kind && !definitions.lv.fields.find(f=>f.key==='kind').options.includes(r.data.kind))throw Error('Sicherung: Leistungsart unbekannt.');
+        if(r.module==='lv' && (['Grundposition','Alternativposition'].includes(r.data.kind) ? !r.data.choiceGroup : r.data.choiceGroup))throw Error('Sicherung: Wahlgruppe und Leistungsart passen nicht zusammen.');
         if(r.module==='lv' && (r.data.discountPercent || 0)>100)throw Error('Sicherung: Positionsrabatt höchstens 100 %.');
         if(['offers','invoices'].includes(r.module) && (!Array.isArray(r.data.positions) || ['net','gross','tax','taxAmount'].some(k=>typeof r.data[k]!=='number' || !Number.isFinite(r.data[k])))) throw Error('Sicherung: Dokumentfassung ungültig.');
         for(const q of r.quotes || []) {
@@ -163,7 +165,7 @@
       for(const field of def.fields) {
         const value=values[field.key];
         if(field.required && (value===undefined || value===null || String(value).trim()==='')) throw Error(`${field.label} fehlt.`);
-        data[field.key]=field.type==='contacts' ? parseContacts(value) : field.type==='number' ? num(value) : field.type==='checkbox' ? Boolean(value) : String(value ?? '').trim();
+        data[field.key]=field.type==='contacts' ? parseContacts(value) : field.type==='number' ? num(value) : field.type==='checkbox' ? (field.key==='useTargetPrice' && typeof value==='string' ? /^(true|1|ja)$/i.test(value.trim()) : Boolean(value)) : String(value ?? '').trim();
         if(field.type==='email' && data[field.key] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[field.key]))throw Error(`${field.label} ist ungültig.`);
         if(field.type==='number' && data[field.key]>Number.MAX_SAFE_INTEGER/100)throw Error(`${field.label} außerhalb des sicheren Zahlenbereichs.`);
         if(field.type==='number' && data[field.key]<0) throw Error(`${field.label} darf nicht negativ sein.`);
@@ -181,7 +183,10 @@
         const selected=this.data.selectedProject;this.data.selectedProject=before.id;
         try{this.assertPhase(data.phase);}finally{this.data.selectedProject=selected;}
       }
+      if(module==='lv' && values.useTargetPrice!==undefined && typeof values.useTargetPrice==='string' && !/^(true|false|1|0|ja|nein|)$/i.test(values.useTargetPrice.trim()))throw Error('Zielpreis verwenden: true/false, 1/0 oder ja/nein angeben.');
       if(module==='lv' && data.discountPercent>100)throw Error('Positionsrabatt höchstens 100 %.');
+      if(module==='lv' && ['Grundposition','Alternativposition'].includes(data.kind) && !data.choiceGroup)throw Error('Grund- und Alternativposition benötigen eine gemeinsame Wahlgruppe.');
+      if(module==='lv' && data.choiceGroup && !['Grundposition','Alternativposition'].includes(data.kind))throw Error('Wahlgruppe nur für Grund- und Alternativposition verwenden.');
       if(module==='lv' && data.groupPath) {
         const parts=data.groupPath.split('/').map(x=>x.trim());
         if(parts.length>5 || parts.some(x=>!x || x.length>120))throw Error('LV-Gliederung: 1 bis 5 nicht leere Ebenen, höchstens 120 Zeichen je Ebene.');
@@ -205,6 +210,8 @@
         if(this.list('offers').some(r=>r.data.supersedesOfferId===offer.id))throw Error('Diese Angebotsfassung wurde durch eine neue Version ersetzt.');
         const assigned=new Set(this.list('orders').filter(r=>r.id!==options.id && r.status==='Freigegeben').flatMap(r=>this.get(r.data.offerId).data.positions.map(p=>p.id)));
         if(offer.data.positions.some(p=>assigned.has(p.id)))throw Error('Mindestens eine Angebotsposition ist bereits in einem anderen Auftrag beauftragt.');
+        const assignedGroups=new Set(this.list('orders').filter(r=>r.id!==options.id && r.status==='Freigegeben').flatMap(r=>this.get(r.data.offerId).data.positions.map(p=>p.choiceGroup).filter(Boolean)));
+        if(offer.data.positions.some(p=>p.choiceGroup && assignedGroups.has(p.choiceGroup)))throw Error('Diese Wahlgruppe ist bereits in einem anderen Auftrag beauftragt.');
         if(offer.data.baseOfferId && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===offer.data.baseOfferId))throw Error('Hauptangebot vor dem Nachtrag beauftragen.');
       }
       if(module==='incoming' && data.subcontractId && this.get(data.subcontractId).data.contractor.trim().toLocaleLowerCase('de')!==data.supplier.trim().toLocaleLowerCase('de'))throw Error('Rechnungssteller stimmt nicht mit dem NU-Kostenvorgang überein.');
@@ -327,7 +334,7 @@
     }
     calculation() {
       const positions=this.list('lv').map(r=>this.position(r));
-      const included=positions.filter(p=>p.kind!=='Bedarfsposition');
+      const included=positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
       const sum=k=>round(included.reduce((n,p)=>n+p.qty*p[k],0));
       return {positions,optionalNet:round(positions.filter(p=>p.kind==='Bedarfsposition').reduce((n,p)=>n+p.gp,0)),net:round(included.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),direct:sum('direct')};
     }
@@ -338,7 +345,7 @@
         for(let level=1;level<=parts.length;level++) {
           const path=parts.slice(0,level).join(' / ');
           if(!groups.has(path))groups.set(path,{path,level,net:0,positions:0});
-          const group=groups.get(path);if(position.kind!=='Bedarfsposition')group.net=round(group.net+position.gp);group.positions++;
+          const group=groups.get(path);if(!['Bedarfsposition','Alternativposition'].includes(position.kind))group.net=round(group.net+position.gp);group.positions++;
         }
       }
       return [...groups.values()].sort((a,b)=>a.path.localeCompare(b.path,'de',{numeric:true}));
@@ -368,11 +375,32 @@
       if(!['offers','invoices'].includes(kind)) throw Error('Ausgabeart ungültig.');
       const project=this.project(); if(!project) throw Error('Projekt auswählen.');
       const customer=this.get(project.data.customerId);
-      let positions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],tax=this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
+      let positions=[],optionalPositions=[],alternativePositions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],tax=this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
       this.assertClear(['contract','technical']);
       if(kind==='offers') {
         const assigned=new Set(this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions.map(p=>p.id)));
-        let candidates=this.list('lv').filter(r=>options.offerType==='Nachtragsangebot'?r.data.kind==='Nachtrag':r.data.kind!=='Nachtrag' && r.data.kind!=='Bedarfsposition');
+        let candidates=this.list('lv').filter(r=>options.offerType==='Nachtragsangebot'?r.data.kind==='Nachtrag':r.data.kind!=='Nachtrag');
+        if(options.offerType!=='Nachtragsangebot') {
+          const groups=new Map();
+          for(const r of candidates.filter(r=>['Grundposition','Alternativposition'].includes(r.data.kind))) {
+            if(!r.data.choiceGroup)throw Error('Wahlgruppe fehlt.');
+            if(!groups.has(r.data.choiceGroup))groups.set(r.data.choiceGroup,[]);
+            groups.get(r.data.choiceGroup).push(r);
+          }
+          const selections=options.selectedPositionIds;
+          if(selections!==undefined && (!Array.isArray(selections) || new Set(selections).size!==selections.length || selections.some(id=>!candidates.some(r=>r.id===id && ['Grundposition','Alternativposition','Bedarfsposition'].includes(r.data.kind)))))throw Error('Sonderpositionsauswahl ungültig.');
+          const selected=new Set(selections || candidates.filter(r=>r.data.kind==='Grundposition').map(r=>r.id));
+          const assignedGroups=new Set(this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions.map(p=>p.choiceGroup).filter(Boolean)));
+          for(const [group,rows] of groups) {
+            if(rows.filter(r=>r.data.kind==='Grundposition').length!==1)throw Error('Jede Wahlgruppe benötigt genau eine Grundposition.');
+            if(!assignedGroups.has(group) && rows.filter(r=>selected.has(r.id)).length!==1)throw Error('Je Wahlgruppe genau eine Position auswählen.');
+          }
+          const available=candidates.filter(r=>!assigned.has(r.id) && !assignedGroups.has(r.data.choiceGroup));
+          optionalPositions=available.filter(r=>r.data.kind==='Bedarfsposition' && !selected.has(r.id)).map(r=>this.position(r));
+          alternativePositions=available.filter(r=>r.data.choiceGroup && !selected.has(r.id)).map(r=>this.position(r));
+          if(available.filter(r=>['Bedarfsposition','Grundposition','Alternativposition'].includes(r.data.kind)).some(r=>r.status!=='Freigegeben'))throw Error('Sonderpositionen vor der Angebotsausgabe freigeben.');
+          candidates=available.filter(r=>!['Bedarfsposition','Grundposition','Alternativposition'].includes(r.data.kind) || selected.has(r.id));
+        }
         if(options.offerType==='Nachtragsangebot') {
           const numbers=[...new Set(candidates.map(r=>r.data.changeNumber || ''))];
           if(options.changeNumber===undefined && numbers.length>1)throw Error('Mehrere Nachträge vorhanden. Bitte eine Nachtragsnummer auswählen.');
@@ -430,7 +458,7 @@
       const net=round(positions.reduce((n,p)=>n+p.gp,0));
       const previouslyNet=round(previous.reduce((n,r)=>n+r.data.net,0)),previouslyTax=round(previous.reduce((n,r)=>n+r.data.taxAmount,0));
       const taxAmount=round(round((previouslyNet+net)*tax/100)-previouslyTax);
-      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:`${kind==='offers'?'AN':'RE'}-${new Date().getFullYear()}-${String(this.data.records.filter(r=>r.module===kind).length+1).padStart(4,'0')}`,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount)}};
+      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:`${kind==='offers'?'AN':'RE'}-${new Date().getFullYear()}-${String(this.data.records.filter(r=>r.module===kind).length+1).padStart(4,'0')}`,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount)}};
       return this.transaction('Dokumentfassung freigegeben',kind,record.id,d=>{d.records.push(record);return record;});
     }
     stornoInvoice(id, options={}) {
@@ -464,7 +492,7 @@
     materialDemand() {
       const demand=new Map();
       const contracted=this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions);
-      const positions=contracted.length?contracted:this.list('lv').filter(r=>r.data.kind!=='Bedarfsposition').map(r=>r.data);
+      const positions=contracted.length?contracted:this.list('lv').filter(r=>!['Bedarfsposition','Alternativposition'].includes(r.data.kind)).map(r=>r.data);
       for(const p of positions) {
         if(!p.materialId)continue;
         const material=this.get(p.materialId), item=demand.get(material.id) || {materialId:material.id,name:material.data.name,unit:material.data.unit,supplier:material.data.supplier,unitPrice:material.data.price,quantity:0,ordered:0,delivered:0};

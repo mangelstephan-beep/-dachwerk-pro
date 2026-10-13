@@ -157,3 +157,15 @@ Keine zusätzliche Grünfreigabe allein aus diesen lokalen Prüfungen. Die produ
 - Kein neuer authentifizierter Live-Import und kein iPhone-/HP-Test in dieser Sitzung. Modul 05 bleibt rot; bisheriger Abnahmestand unverändert 3/36. PDF/OCR, Excel, GAEB 90/2000 und andere XML-Phasen/-Versionen bleiben offen.
 
 Strukturreferenz: [GAEB DA XML 3.3, Fachdokumentation 2021-05](https://www.gaeb.de/wp-content/uploads/2021/07/Fachdokumentation_GAEB-DA-XML_3.3_2021-05.pdf).
+
+## Work-Bereich: Sonderpositionen und Angebotsvarianten 13.10.2026
+
+- Grund- und Alternativpositionen mit gemeinsamer Wahlgruppe; genau eine Grundposition und genau eine ausgewählte Ausführung pro noch unbeauftragter Gruppe. Explizite Auswahl vor Angebotsfreigabe, einschließlich separat wählbarer Bedarfspositionen.
+- Kalkulation, Gliederung und vorläufiger Materialbedarf addieren die Grundausführung; Alternativen und Bedarf bleiben separat. Die Angebotsmaske zeigt den gewählten Gesamtpreis sofort.
+- Nicht gewählte Ausführungen und Bedarfspositionen werden als unveränderliche separate Angebotsbestandteile mit EP/GP gespeichert, gedruckt und im CSV mit Summenkennzeichen ausgegeben. Sie erhöhen den Auftragswert nicht.
+- Auftrag, Materialbedarf, Sollkosten und aufmaßbasierte Rechnung verwenden ausschließlich die gewählte, eingefrorene Variante. Weitere Aufträge für dieselbe Wahlgruppe werden abgelehnt. Änderungen vor Beauftragung erfolgen über eine neue Angebotsfassung.
+- Zentraler CSV-Import erhält Leistungsart, Wahlgruppe, Rabatt und Zielpreis. Vorschau validiert den gesamten Batch vor Übernahme. Unbekannte Sonderarten werden abgelehnt, statt unbemerkt als Hauptleistung übernommen. CSV-Wert false aktiviert keinen Zielpreis mehr.
+- Lokale Altbestandsübernahme erhält Sonderpositionsfelder. Sie ist weiterhin nur im getrennten Modultest verfügbar.
+- `test-special-positions.cjs`: zentrale Speicherung/Wiederabruf, Variantenpreis 105 → 195, unveränderliche Fassung, Doppelbeauftragungsverbot, gewählter Materialbedarf, Preisbindung trotz geänderter Kalkulation, Schlussrechnung 225, atomarer Import, ungültige Auswahl/Wiederherstellung und DOM-/Druckprüfung.
+
+Die vorhandenen Modulfarben bleiben unverändert. Für 04, 05, 07, 13 und 14 fehlen weiterhin die authentifizierte produktive Abnahme und die übrigen Spezialfunktionen der Abnahmetabelle. Keine Fertigmeldung für alle 36 Module.

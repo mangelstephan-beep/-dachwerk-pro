@@ -159,7 +159,22 @@
   }
   function calculation() {
     const c=db.calculation(),s=db.data.settings;
-    return panel('Kalkulationsbasis',`<form id="dwp-settings" class="quick-form">${[['wage','Stundenkostensatz'],['agk','AGK %'],['profit','Wagnis / Gewinn %'],['tax','USt %']].map(([k,l])=>field(l,`<input name="${k}" inputmode="decimal" value="${s[k]}" required>`)).join('')}<p class="field-span">Bei einem Vollkostensatz inklusive Gemeinkosten AGK auf 0 setzen, um doppelte Zuschläge zu vermeiden.</p><button class="button button-primary" type="submit">Basis speichern</button></form>`)+panel('LV und Preisermittlung',`${btn('LV bearbeiten','open','lv')}${btn('LV importieren','open','imports')}${btn('CSV exportieren','calc-csv')}${table(['Position','Leistung','Menge','Material / E','Lohn / E','Gerät / E','NU / E','Kalkulierter EP','Rabatt %','Ziel-/Angebots-EP','GP netto','Deckungsbeitrag'],c.positions.map(p=>[esc(p.number),esc(p.text),`${p.qty} ${esc(p.unit)}`,money(p.material),money(p.labor),money(p.equipment),money(p.subcontract),money(p.calculatedEp),esc(p.discountPercent || 0),money(p.ep),money(p.gp),money(p.contribution)]))}<h3>Summe netto ohne Bedarfspositionen ${money(c.net)}</h3><p>Bedarfspositionen separat: ${money(c.optionalNet)}</p><p>Material ${money(c.material)} · Lohn ${money(c.labor)} · Geräte ${money(c.equipment)} · NU ${money(c.subcontract)}</p>`);
+    return panel('Kalkulationsbasis',`<form id="dwp-settings" class="quick-form">${[['wage','Stundenkostensatz'],['agk','AGK %'],['profit','Wagnis / Gewinn %'],['tax','USt %']].map(([k,l])=>field(l,`<input name="${k}" inputmode="decimal" value="${s[k]}" required>`)).join('')}<p class="field-span">Bei einem Vollkostensatz inklusive Gemeinkosten AGK auf 0 setzen, um doppelte Zuschläge zu vermeiden.</p><button class="button button-primary" type="submit">Basis speichern</button></form>`)+panel('LV und Preisermittlung',`${btn('LV bearbeiten','open','lv')}${btn('LV importieren','open','imports')}${btn('CSV exportieren','calc-csv')}${table(['Position','Leistung','Menge','Material / E','Lohn / E','Gerät / E','NU / E','Kalkulierter EP','Rabatt %','Ziel-/Angebots-EP','GP netto','Deckungsbeitrag'],c.positions.map(p=>[esc(p.number),esc(p.text),`${p.qty} ${esc(p.unit)}`,money(p.material),money(p.labor),money(p.equipment),money(p.subcontract),money(p.calculatedEp),esc(p.discountPercent || 0),money(p.ep),money(p.gp),money(p.contribution)]))}<h3>Summe netto ohne Bedarfspositionen ${money(c.net)}</h3><p>Alternativpositionen werden separat ohne Addition kalkuliert. Variantenwahl im Angebot.</p><p>Bedarfspositionen separat: ${money(c.optionalNet)}</p><p>Material ${money(c.material)} · Lohn ${money(c.labor)} · Geräte ${money(c.equipment)} · NU ${money(c.subcontract)}</p>`);
+  }
+  function offerChoices() {
+    const assigned=db.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>db.get(o.data.offerId).data.positions);
+    const ids=new Set(assigned.map(p=>p.id)),groups=new Set(assigned.map(p=>p.choiceGroup).filter(Boolean));
+    return db.calculation().positions.filter(p=>p.kind!=='Nachtrag' && !ids.has(p.id) && !groups.has(p.choiceGroup));
+  }
+  function specialOfferFields() {
+    const rows=offerChoices(),groups=[...new Set(rows.map(p=>p.choiceGroup).filter(Boolean))];
+    return `<div id="dwp-offer-options">${groups.map((g,i)=>`<fieldset><legend>Wahlgruppe ${esc(g)}</legend>${rows.filter(p=>p.choiceGroup===g).map(p=>`<label><input type="radio" name="choice-${i}" data-offer-position value="${esc(p.id)}" ${p.kind==='Grundposition'?'checked':''}>${esc(p.number)} · ${esc(p.text)} · ${money(p.gp)} (${esc(p.kind)})</label>`).join('')}</fieldset>`).join('')}${rows.filter(p=>p.kind==='Bedarfsposition').map(p=>`<label><input type="checkbox" data-offer-position value="${esc(p.id)}">Bedarfsposition aufnehmen: ${esc(p.number)} · ${esc(p.text)} · ${money(p.gp)}</label>`).join('')}<p>Je Wahlgruppe eine Ausführung wählen. Nicht gewählte Bedarfs- und Alternativpositionen werden im Angebot separat ohne Addition ausgewiesen. Zur späteren Beauftragung vor Auftragserteilung eine neue Angebotsfassung mit der gewünschten Auswahl freigeben.</p><strong id="dwp-choice-total"></strong></div>`;
+  }
+  function updateChoiceTotal() {
+    const target=main.querySelector('#dwp-choice-total');if(!target)return;
+    const selected=new Set([...main.querySelectorAll('[data-offer-position]:checked')].map(el=>el.value));
+    const rows=offerChoices(),total=core.round(rows.filter(p=>!['Grundposition','Alternativposition','Bedarfsposition'].includes(p.kind) || selected.has(p.id)).reduce((sum,p)=>sum+p.gp,0));
+    target.textContent='Gewählte Angebotsvariante netto: '+money(total);
   }
   function snapshots(kind) {
     const originals=db.list('offers').filter(r=>!r.data.baseOfferId);
@@ -168,7 +183,7 @@
     const options=rows=>rows.map(r=>`<option value="${esc(r.id)}">${esc(names(r.id))}</option>`).join('');
     const invoiceFields=kind==='invoices'?`<div id="dwp-invoice-options" class="quick-form">${field('Hauptauftrag',`<select name="orderId"><option value="">Letzter freigegebener Hauptauftrag</option>${options(orders)}</select>`)}${field('Rechnungsart',`<select name="invoiceType"><option>Schlussrechnung</option><option>Abschlagsrechnung</option><option>Teilrechnung</option></select>`)}${field('Kumulativer Anteil des freigegebenen Aufmaßes %',`<input name="percentage" inputmode="decimal" value="100">`)}</div><p>Bei Abschlägen/Teilrechnungen den kumulativen Leistungsanteil angeben. Bereits berechnete Mengen werden abgezogen. Schlussrechnungen rechnen den verbleibenden freigegebenen Leistungsstand ab. XRechnung und ZUGFeRD sind noch nicht freigegeben.</p>`:'';
     const extra=kind==='offers'?panel('Nachtragsangebot zum Hauptauftrag',`<p>Nachtragspositionen im LV als Nachtrag kennzeichnen, technisch prüfen und freigeben. Ein Nachtragsangebot wird nach seiner Beauftragung in die Abrechnung des Hauptauftrags übernommen.</p><form id="dwp-change-offer" class="quick-form">${field('Hauptangebot',`<select name="baseOfferId" required><option value="">Bitte auswählen</option>${options(originals)}</select>`)}${field('Nachtragsnummer',`<select name="changeNumber">${[...new Set(db.list('lv').filter(r=>r.data.kind==='Nachtrag').map(r=>r.data.changeNumber || ''))].map(n=>`<option value="${esc(n)}">${esc(n || 'Ohne Nachtragsnummer')}</option>`).join('')}</select>`)}<button class="button button-primary" type="submit">Nachtragsangebot freigeben</button></form>`):panel('Rechnung stornieren',`<p>Das Original bleibt erhalten. Die Stornorechnung führt die Gegenbuchung mit eigenem Beleg und Begründung. Bereits erhaltene Zahlungen bleiben bestehen; Rückzahlungen werden separat auf den Stornobeleg gebucht.</p><form id="dwp-storno" class="quick-form">${field('Rechnung',`<select name="invoiceId" required><option value="">Bitte auswählen</option>${options(originalInvoices)}</select>`)}${field('Stornogrund',`<input name="reason" required>`)}<button class="button button-primary" type="submit">Stornorechnung erzeugen</button></form>`);
-    return panel(kind==='offers'?'Angebotsfassungen':'Rechnungsfassungen',`<p>Jede Ausgabe speichert Kunde, Projekt, Leistungspositionen, Preise und Steuer als feste Fassung. Rechnungen übernehmen beauftragte Preise und freigegebene Aufmaßmengen.</p>${invoiceFields}${btn(kind==='offers'?'Angebot freigeben':'Rechnung freigeben','issue',kind,true)}${table(['Nummer','Art','Netto','USt','Brutto','Ausgabe'],db.list(kind).map(r=>[esc(r.data.number),esc(r.data.title)+(r.module==='offers'?` · ${esc(r.data.changeNumber || 'Hauptangebot')} · Version ${esc(r.data.version || 1)}${db.list('offers').some(next=>next.data.supersedesOfferId===r.id)?' · Ersetzt':''}`:''),money(r.data.net),money(r.data.taxAmount),money(r.data.gross),`${btn('Drucken / PDF','print',r.id)}${btn('CSV','snapshot-csv',r.id)}`]))}`)+extra;
+    return panel(kind==='offers'?'Angebotsfassungen':'Rechnungsfassungen',`<p>Jede Ausgabe speichert Kunde, Projekt, Leistungspositionen, Preise und Steuer als feste Fassung. Rechnungen übernehmen beauftragte Preise und freigegebene Aufmaßmengen.</p>${invoiceFields}${kind==='offers'?specialOfferFields():''}${btn(kind==='offers'?'Angebot freigeben':'Rechnung freigeben','issue',kind,true)}${table(['Nummer','Art','Netto','USt','Brutto','Ausgabe'],db.list(kind).map(r=>[esc(r.data.number),esc(r.data.title)+(r.module==='offers'?` · ${esc(r.data.changeNumber || 'Hauptangebot')} · Version ${esc(r.data.version || 1)}${db.list('offers').some(next=>next.data.supersedesOfferId===r.id)?' · Ersetzt':''}`:''),money(r.data.net),money(r.data.taxAmount),money(r.data.gross),`${btn('Drucken / PDF','print',r.id)}${btn('CSV','snapshot-csv',r.id)}`]))}`)+extra;
   }
   function controlling() {
     const c=db.controlling();
@@ -234,6 +249,7 @@
     if(id==='closing')body=panel('Projektbezogenes Belegpaket',`<p>JSON enthält die Projektakte, CSV die Rechnungen und Kostenbelege. DATEV-Importformate und automatischer Monatsabschluss sind noch nicht freigegeben.</p>${btn('Projektakte JSON','project-json')}${btn('Belegübersicht CSV','closing-csv')}`);
     if(id==='imports')body=importView()+importJournal();
     shell(mod.name,body);
+    if(id==='offers')updateChoiceTotal();
   }
   function download(name,text,type='application/json') {
     const url=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
@@ -249,7 +265,7 @@
     let body='';
     if(['offers','invoices'].includes(r.module) || r.module==='orders' && r.confirmation) {
       const d=r.confirmation || r.data;
-      body=`<h1>${esc(d.title)} ${esc(d.number)}</h1>${r.confirmation?`<p>Bezug: Angebot ${esc(d.offerNumber)} · AG-Auftrag ${esc(d.orderNumber || 'ohne Nummer')} · Datum ${esc(d.date)}</p>`:''}${r.module==='offers'?`<p>Version ${esc(d.version || 1)}</p>`:''}${d.baseOfferId?`<p>Nachtrag ${esc(d.changeNumber || 'Ohne Nummer')} · Version ${esc(d.version || 1)}</p>`:''}<p>${esc(d.customer.name)}<br>${esc(d.customer.address)}</p><h2>${esc(d.project.name)}</h2><p>${esc(d.project.address)}</p>${d.buyerReference?`<p>Käuferreferenz: ${esc(d.buyerReference)}</p>`:''}${table(['Pos.','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto'],d.positions.map(p=>[esc(p.number),esc(p.groupPath || ''),esc(p.text),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}<p>Netto: ${money(d.net)}<br>USt ${d.tax}%: ${money(d.taxAmount)}<br><strong>Brutto: ${money(d.gross)}</strong></p>`;
+      body=`<h1>${esc(d.title)} ${esc(d.number)}</h1>${r.confirmation?`<p>Bezug: Angebot ${esc(d.offerNumber)} · AG-Auftrag ${esc(d.orderNumber || 'ohne Nummer')} · Datum ${esc(d.date)}</p>`:''}${r.module==='offers'?`<p>Version ${esc(d.version || 1)}</p>`:''}${d.baseOfferId?`<p>Nachtrag ${esc(d.changeNumber || 'Ohne Nummer')} · Version ${esc(d.version || 1)}</p>`:''}<p>${esc(d.customer.name)}<br>${esc(d.customer.address)}</p><h2>${esc(d.project.name)}</h2><p>${esc(d.project.address)}</p>${d.buyerReference?`<p>Käuferreferenz: ${esc(d.buyerReference)}</p>`:''}${table(['Pos.','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto'],d.positions.map(p=>[esc(p.number),esc(p.groupPath || ''),esc(p.text),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}${r.module==='offers'?[['Bedarfspositionen – nicht in Summe',d.optionalPositions || []],['Nicht gewählte Ausführungen – nicht in Summe',d.alternativePositions || []]].filter(([,rows])=>rows.length).map(([label,rows])=>`<h2>${esc(label)}</h2>${table(['Pos.','Leistung','Wahlgruppe','Menge','Einheit','EP netto','GP separat'],rows.map(p=>[esc(p.number),esc(p.text),esc(p.choiceGroup),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}`).join(''):''}<p>Netto: ${money(d.net)}<br>USt ${d.tax}%: ${money(d.taxAmount)}<br><strong>Brutto: ${money(d.gross)}</strong></p>`;
       if(d.stornoOf)body+=`<p>Storno zu ${esc(d.originalNumber)} · Grund: ${esc(d.reason)}</p>`;
       else if(d.previouslyNet)body+=`<p>Zuvor berechnet netto: ${money(d.previouslyNet)}<br>Kumulativ einschließlich dieser Rechnung netto: ${money(core.round(d.previouslyNet+d.net))}</p>`;
     } else {
@@ -304,7 +320,7 @@
         const kind={backup:'backup','project-json':'project','calc-csv':'calculation','snapshot-csv':'positions','closing-csv':'closing',print:'record'}[action];
         const output=await window.DWPRemote.export({kind,projectId:db.data.selectedProject,recordId:id});
         if(action==='print')printRecord(output.record);
-        else if(['calc-csv','snapshot-csv'].includes(action)){const rows=output.positions || output.record.data.positions;csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto'],...rows.map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp])]);}
+        else if(['calc-csv','snapshot-csv'].includes(action)){const rows=output.positions || output.record.data.positions;csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto','Leistungsart','Wahlgruppe','In Summe'],...[...rows,...(output.record?.module==='offers'?[...(output.record.data.optionalPositions || []),...(output.record.data.alternativePositions || [])]:[])].map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp,p.kind || 'Hauptleistung',p.choiceGroup || '',output.positions?(!['Bedarfsposition','Alternativposition'].includes(p.kind)?'Ja':'Nein'):(rows.includes(p)?'Ja':'Nein')])]);}
         else download(output.name,output.text,output.type);
         return;
       }
@@ -317,7 +333,7 @@
       if(action==='convert-import') {
         const r=db.get(id);if(!r?.importFinding || r.projectId!==db.data.selectedProject)throw Error('Prüfvorgang nicht gefunden.');
         const candidate=r.importFinding.candidate;
-        shell('Sonderposition wandeln',panel(r.data.title,`<p>${esc(r.data.finding)}</p><p><strong>Vorschlag:</strong> ${esc(r.data.question)}</p><form id="dwp-convert-import" class="quick-form"><input type="hidden" name="findingId" value="${esc(id)}">${core.definitions.lv.fields.filter(f=>['number','text','groupPath','kind','changeNumber','qty','unit'].includes(f.key)).map(f=>field(f.label,input(f,candidate[f.key] ?? ''))).join('')}${field('Begründung / Mengen- und Preisbasis', '<textarea name="reason" required></textarea>')}<p class="field-span">Menge, Leistungsart und Text anhand des Originals prüfen. Preis- und Zeitansätze anschließend im LV ergänzen. Die neue Position bleibt auf Prüfung.</p><button class="button button-primary" type="submit">Geprüfte Wandlung speichern</button></form>`));
+        shell('Sonderposition wandeln',panel(r.data.title,`<p>${esc(r.data.finding)}</p><p><strong>Vorschlag:</strong> ${esc(r.data.question)}</p><form id="dwp-convert-import" class="quick-form"><input type="hidden" name="findingId" value="${esc(id)}">${core.definitions.lv.fields.filter(f=>['number','text','groupPath','kind','choiceGroup','changeNumber','qty','unit'].includes(f.key)).map(f=>field(f.label,input(f,candidate[f.key] ?? ''))).join('')}${field('Begründung / Mengen- und Preisbasis', '<textarea name="reason" required></textarea>')}<p class="field-span">Menge, Leistungsart und Text anhand des Originals prüfen. Preis- und Zeitansätze anschließend im LV ergänzen. Die neue Position bleibt auf Prüfung.</p><button class="button button-primary" type="submit">Geprüfte Wandlung speichern</button></form>`));
       }
       if(action==='contract-finding'){
         const f=db.contractChecks().find(f=>f.positionId+'/'+f.code===id);
@@ -328,7 +344,7 @@
       }
       if(action==='edit') {if(state.unsavedChanges&&!confirm('Ungespeicherte Eingaben verwerfen?'))return;editing=id;records(core.definitions[current]);}
       if(action==='cancel'){state.unsavedChanges=false;openModule(current);}
-      if(action==='issue'){const fields=main.querySelector('#dwp-invoice-options');mutate('issue',[id,{owner:state.currentUser,...(fields?Object.fromEntries([...fields.querySelectorAll('[name]')].map(el=>[el.name,el.value])):{})}],()=>{state.unsavedChanges=false;notice('Dokumentfassung gespeichert.');openModule(id);});}
+      if(action==='issue'){const fields=main.querySelector('#dwp-invoice-options');const selectedPositionIds=id==='offers'?[...main.querySelectorAll('[data-offer-position]:checked')].map(el=>el.value):undefined;mutate('issue',[id,{owner:state.currentUser,...(selectedPositionIds?{selectedPositionIds}:{}),...(fields?Object.fromEntries([...fields.querySelectorAll('[name]')].map(el=>[el.name,el.value])):{})}],()=>{state.unsavedChanges=false;notice('Dokumentfassung gespeichert.');openModule(id);});}
       if(action==='print')printRecord(db.get(id));
       if(action==='demand-purchase'){mutate('createPurchase',[id,{owner:state.currentUser}],()=>{notice('Bestellentwurf aus dem offenen Bedarf angelegt.');openModule('purchase');});}
       if(action==='use-quote'){const [supplierId,quoteId]=id.split('/');mutate('useQuote',[supplierId,quoteId,state.currentUser],()=>{notice('Preisquelle freigegeben und Artikelhistorie aktualisiert.');openModule(current);});}
@@ -342,7 +358,7 @@
       if(action==='project-json')download('DachWerkPro_Projektakte.json',JSON.stringify({project:db.project(),customer:db.get(db.project().data.customerId),records:db.data.records.filter(r=>r.projectId===db.data.selectedProject)},null,2));
       if(action==='calc-csv' || action==='snapshot-csv') {
         const positions=action==='calc-csv'?db.calculation().positions:db.get(id).data.positions;
-        csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto'],...positions.map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp])]);
+        csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto','Leistungsart','Wahlgruppe','In Summe'],...[...positions,...(action==='snapshot-csv'&&db.get(id).module==='offers'?[...(db.get(id).data.optionalPositions || []),...(db.get(id).data.alternativePositions || [])]:[])].map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp,p.kind || 'Hauptleistung',p.choiceGroup || '',action==='calc-csv'?(!['Bedarfsposition','Alternativposition'].includes(p.kind)?'Ja':'Nein'):(positions.includes(p)?'Ja':'Nein')])]);
       }
       if(action==='closing-csv')csvExport('DachWerkPro_Belege.csv',[['Modul','Nummer','Datum','Netto','Brutto','Status'],...db.data.records.filter(r=>r.projectId===db.data.selectedProject && ['incoming','invoices','payments','times','subcontracts'].includes(r.module)).map(r=>[core.definitions[r.module].name,r.data.number || r.data.invoiceNumber || r.data.title,r.data.date || r.createdAt,r.data.net ?? r.data.cost ?? '',r.data.gross ?? r.data.amount ?? '',r.status])]);
       if(action==='preview-import') {
@@ -352,7 +368,7 @@
         let raw=db.backup();
         const staging=new core.Store({getItem:()=>raw,setItem:(_key,value)=>{raw=value;}});
         staging.importPositions(rows,{source:input.source || input.format,format:input.format,findings:report.findings,originalText:input.format==='GAEB XML'?input.text:''});
-        document.querySelector('#dwp-import-preview').innerHTML=`<p>${rows.length} LV-Positionen und ${report.findings.length} gesperrte Prüfvorgänge für ${esc(db.project().data.name)} geprüft. Übernahme setzt keine Fachfreigabe.</p>`+table(['Position','Gliederung','Leistung','Menge','Einheit'],rows.map(r=>[esc(r.number),esc(r.groupPath || ''),esc(r.text),esc(r.qty),esc(r.unit)]))+table(['Sonderposition / Hinweis','Originalinhalt','Wandlungsvorschlag'],report.findings.map(f=>[esc(f.number),esc(f.text),esc(f.suggestion)]));
+        document.querySelector('#dwp-import-preview').innerHTML=`<p>${rows.length} LV-Positionen und ${report.findings.length} gesperrte Prüfvorgänge für ${esc(db.project().data.name)} geprüft. Übernahme setzt keine Fachfreigabe.</p>`+table(['Position','Gliederung','Leistung','Menge','Einheit','Leistungsart','Wahlgruppe'],rows.map(r=>[esc(r.number),esc(r.groupPath || ''),esc(r.text),esc(r.qty),esc(r.unit),esc(r.kind || 'Hauptleistung'),esc(r.choiceGroup)]))+table(['Sonderposition / Hinweis','Originalinhalt','Wandlungsvorschlag'],report.findings.map(f=>[esc(f.number),esc(f.text),esc(f.suggestion)]));
         importPreview=input;
       }
       if(action==='price-preview') {
@@ -393,7 +409,7 @@
       if(action==='legacy-copy') {
         const work=JSON.parse(localStorage.getItem('dwp-lv-import-v1') || '{}').workingCopies?.find(w=>w.id===id);
         if(!work)throw Error('Arbeitskopie nicht gefunden.');
-        mutate('importPositions',[work.positions.map(p=>({number:p.nr || p.number || p.id,text:p.text || p.title,qty:p.qty,unit:p.unit || 'm²',material:p.material || 0,minutes:p.minutes ?? p.time ?? 0,equipment:p.equipment || 0,subcontract:p.subcontract || 0}))],()=>{notice('Arbeitskopie übernommen. Originalbestand bleibt erhalten.');openModule('lv');});
+        mutate('importPositions',[work.positions.map(p=>({...p,kind:p.kind || p.positionType || 'Hauptleistung',choiceGroup:p.choiceGroup || '',number:p.nr || p.number || p.id,text:p.text || p.title,qty:p.qty,unit:p.unit || 'm²',material:p.material || 0,minutes:p.minutes ?? p.time ?? 0,equipment:p.equipment || 0,subcontract:p.subcontract || 0}))],()=>{notice('Arbeitskopie übernommen. Originalbestand bleibt erhalten.');openModule('lv');});
       }
       if(action==='legacy-import'){if(window.DWPRemote?.active)throw Error('Der alte lokale Importmanager ist ausschließlich im Modultest verfügbar. Für zentrale Daten den geprüften CSV-Import verwenden.');current='legacy';main.innerHTML=calculationView();bindDynamicInteractions();}
     }catch(e){showError(e);}
@@ -404,6 +420,7 @@
   });
   main.addEventListener('change',async event=>{
     try {
+      if(event.target.matches('[data-offer-position]')){updateChoiceTotal();state.unsavedChanges=true;}
       if(event.target.id==='dwp-project') {
         if(!event.target.value)return;
         if(state.unsavedChanges&&!confirm('Ungespeicherte Eingaben verwerfen und Projekt wechseln?')){event.target.value=db.data.selectedProject;return;}
