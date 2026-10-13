@@ -1,6 +1,6 @@
 const state = {
   currentView: localStorage.getItem("dwp-current-view") || "dashboard",
-  currentUser: "Stephan Mangel",
+  currentUser: "Nicht angemeldet",
   viewHistory: [],
   historyIndex: -1,
   unsavedChanges: false,
@@ -938,15 +938,7 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
     error.textContent = "Bitte Benutzername und Passwort eingeben.";
     return;
   }
-  const credentialHash = await sha256(`${username}:${password}`);
-  const masterCredentialHash = "69758e6c949a2ffde4a268f3c7dba007c1840246336a2b2fc666dcc9fa67ba38";
-  if (credentialHash !== masterCredentialHash) {
-    error.textContent = "Zugangsdaten nicht gültig oder noch nicht freigeschaltet.";
-    return;
-  }
-  error.textContent = "";
-  sessionStorage.setItem("dwp-test-session", "master");
-  startApp();
+  error.textContent = "Bitte die serverseitige Anmeldung verwenden. Der Anmeldedienst ist noch nicht verfügbar.";
 });
 
 document.querySelector("#toggle-password").addEventListener("click", (event) => {
@@ -1037,7 +1029,7 @@ document.querySelector("#notification-button").addEventListener("click", () => {
 });
 
 document.querySelector("#profile-button").addEventListener("click", () => {
-  showToast("Stephan Mangel", "Administrator · DachWerk Pro Testbetrieb");
+  showToast(state.currentUser, state.currentRole || "Lokaler Testbetrieb");
 });
 
 document.addEventListener("click", (event) => {
@@ -1070,4 +1062,4 @@ window.addEventListener("beforeunload", (event) => {
   event.returnValue = "";
 });
 
-if (sessionStorage.getItem("dwp-test-session") === "master") startApp();
+// A local sessionStorage flag is not an authentication signal.

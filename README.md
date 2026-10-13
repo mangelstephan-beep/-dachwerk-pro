@@ -18,7 +18,9 @@ Online-Testfassung: https://dachwerk-pro-test.vercel.app
 
 ## Technischer Status
 
-Dies ist weiterhin eine Frontend-Testfassung. Anmeldung, Benutzerfreigabe, Datenbank, Dateiablage, Cloud-Schnittstellen und zahlreiche Fachfunktionen benötigen noch ein produktives Backend. Es dürfen keine echten Kunden- oder Projektdaten verwendet werden.
+Ausbau vom 12.10.2026: Ein gemeinsames Projektmodell verbindet 36 Arbeitsbereiche. Die Hauptanwendung ist auf serverseitige Anmeldung und bestätigte zentrale Speicherung umgestellt; PostgreSQL muss noch bereitgestellt und die Betriebsfassung live abgenommen werden. Abschläge, Teil-/Schlussrechnungen, Storno, Rückzahlungen und beauftragte Nachträge sind ergänzt. Der tatsächliche Fertigstellungsstand steht in [MODULSTATUS.md](MODULSTATUS.md), die zentrale Einrichtung in [BACKEND_SETUP.md](BACKEND_SETUP.md). **Dieser Stand ist keine produktive Gesamtfreigabe.**
+
+Die serverseitige Grundlage ist implementiert, aber noch nicht mit einer Live-Datenbank eingerichtet und abgenommen. Zentrale Dateiablage, weitere Fachschnittstellen und produktive Gesamtfreigabe bleiben offen. Bis dahin ausschließlich Musterangaben verwenden.
 
 ## Dateien
 
