@@ -12,7 +12,7 @@
     ['customers', 'Kunden und Kontakte', 'customers', [f('name','Firma / Name','text',true),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Anschrift'),f('location','Ort'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
     ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('memberIds','Freigegebene Benutzer-IDs (kommagetrennt; Administratoren haben Zugriff)','textarea'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
     ['operating','Betriebs- und Lohnkosten','prices',[title,f('annualCost','Jahreskosten netto','number',true),f('productiveHours','Produktive Stunden','number',true),note]],
-    ['lv','Leistungsverzeichnisse','calculation',[f('number','Positionsnummer','text',true),f('text','Leistungsbeschreibung','textarea',true),f('groupPath','Gliederung: Gewerk / Titel / Abschnitt'),f('kind','Leistungsart','select',false,['Hauptleistung','Nachtrag','Bedarfsposition']),f('changeNumber','Nachtragsnummer'),f('qty','LV-Menge','number',true),f('unit','Einheit','text',true),f('material','Material je Einheit','number'),f('minutes','Minuten je Einheit','number'),f('equipment','Geräte je Einheit','number'),f('subcontract','NU je Einheit','number'),f('materialId','Freigegebener Materialartikel','material'),f('consumption','Materialverbrauch je Einheit','number'),f('useTargetPrice','Zielpreis verwenden','checkbox'),f('targetEp','Zielpreis netto je Einheit','number')]],
+    ['lv','Leistungsverzeichnisse','calculation',[f('number','Positionsnummer','text',true),f('text','Leistungsbeschreibung','textarea',true),f('groupPath','Gliederung: Gewerk / Titel / Abschnitt'),f('kind','Leistungsart','select',false,['Hauptleistung','Nachtrag','Bedarfsposition']),f('changeNumber','Nachtragsnummer'),f('qty','LV-Menge','number',true),f('unit','Einheit','text',true),f('material','Material je Einheit','number'),f('minutes','Minuten je Einheit','number'),f('equipment','Geräte je Einheit','number'),f('subcontract','NU je Einheit','number'),f('materialId','Freigegebener Materialartikel','material'),f('consumption','Materialverbrauch je Einheit','number'),f('useTargetPrice','Zielpreis verwenden','checkbox'),f('targetEp','Zielpreis netto je Einheit vor Rabatt','number'),f('discountPercent','Positionsrabatt %','number')]],
     ['imports','Importmanager','gaeb',[title,f('source','Quelle / Dateiname'),f('format','Format','select',false,['CSV','GAEB XML','PDF Prüfquelle','Excel Prüfquelle','Sonstige']),note]],
     ['contract','LV- und Vertragsprüfung','rules',[title,f('positionId','LV-Position','position'),f('finding','Feststellung','textarea',true),f('question','Rückfrage','textarea'),f('source','Vertrag / Quelle / Fassung'),blocking,note]],
     ['calculation','Kalkulation und Zielpreis','calculation',[]],
@@ -112,6 +112,7 @@
             if(!ref || (ref.projectId && ref.projectId!==r.projectId) || ref?.id===r.id) throw Error('Sicherung: ungültiger Querverweis.');
           }
         }
+        if(r.module==='lv' && (r.data.discountPercent || 0)>100)throw Error('Sicherung: Positionsrabatt höchstens 100 %.');
         if(['offers','invoices'].includes(r.module) && (!Array.isArray(r.data.positions) || ['net','gross','tax','taxAmount'].some(k=>typeof r.data[k]!=='number' || !Number.isFinite(r.data[k])))) throw Error('Sicherung: Dokumentfassung ungültig.');
         for(const q of r.quotes || []) {
           if(r.module!=='suppliers' || !data.records.some(m=>m.module==='materials' && m.id===q.materialId) || ['price','discount','freight'].some(k=>typeof q[k]!=='number' || !Number.isFinite(q[k]) || q[k]<0) || q.discount>100) throw Error('Sicherung: Lieferantenpreis ungültig.');
@@ -180,6 +181,7 @@
         const selected=this.data.selectedProject;this.data.selectedProject=before.id;
         try{this.assertPhase(data.phase);}finally{this.data.selectedProject=selected;}
       }
+      if(module==='lv' && data.discountPercent>100)throw Error('Positionsrabatt höchstens 100 %.');
       if(module==='lv' && data.groupPath) {
         const parts=data.groupPath.split('/').map(x=>x.trim());
         if(parts.length>5 || parts.some(x=>!x || x.length>120))throw Error('LV-Gliederung: 1 bis 5 nicht leere Ebenen, höchstens 120 Zeichen je Ebene.');
@@ -228,6 +230,10 @@
       if(options.due && (!/^\d{4}-\d{2}-\d{2}$/.test(options.due) || Number.isNaN(Date.parse(options.due)) || new Date(options.due).toISOString().slice(0,10)!==options.due))throw Error('Rückmeldefrist ungültig.');
       const record={...(before || {}),id:before?.id || uid(),module,projectId,data,status,owner:options.owner || '',due:options.due || '',createdAt:before?.createdAt || new Date().toISOString(),updatedAt:new Date().toISOString()};
       if(module==='materials')delete record.pendingPrice;
+      if(module==='orders' && status==='Freigegeben') {
+        const offer=this.get(data.offerId);
+        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
+      }
       return this.transaction(before?'Geändert':'Angelegt',module,record.id,d=>{
         if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,source:before.data.source}] : [])].slice(-3);
         const i=d.records.findIndex(r=>r.id===record.id);
@@ -313,13 +319,17 @@
       const labor=p.minutes/60*s.wage;
       const direct=material+labor+p.equipment+p.subcontract;
       const calculatedEp=round(direct*(1+s.agk/100)*(1+s.profit/100));
-      const ep=p.useTargetPrice?round(p.targetEp || 0):calculatedEp;
-      return {...p,id:record.id,material,labor,direct,calculatedEp,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
+      const undiscountedEp=p.useTargetPrice?round(p.targetEp || 0):calculatedEp;
+      const discountPercent=num(p.discountPercent || 0);
+      if(discountPercent<0 || discountPercent>100)throw Error('Positionsrabatt zwischen 0 und 100 %.');
+      const ep=round(undiscountedEp*(1-discountPercent/100));
+      return {...p,id:record.id,material,labor,direct,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
     }
     calculation() {
       const positions=this.list('lv').map(r=>this.position(r));
-      const sum=k=>round(positions.reduce((n,p)=>n+p.qty*p[k],0));
-      return {positions,net:round(positions.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),direct:sum('direct')};
+      const included=positions.filter(p=>p.kind!=='Bedarfsposition');
+      const sum=k=>round(included.reduce((n,p)=>n+p.qty*p[k],0));
+      return {positions,optionalNet:round(positions.filter(p=>p.kind==='Bedarfsposition').reduce((n,p)=>n+p.gp,0)),net:round(included.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),direct:sum('direct')};
     }
     lvGroups() {
       const groups=new Map();
@@ -328,10 +338,27 @@
         for(let level=1;level<=parts.length;level++) {
           const path=parts.slice(0,level).join(' / ');
           if(!groups.has(path))groups.set(path,{path,level,net:0,positions:0});
-          const group=groups.get(path);group.net=round(group.net+position.gp);group.positions++;
+          const group=groups.get(path);if(position.kind!=='Bedarfsposition')group.net=round(group.net+position.gp);group.positions++;
         }
       }
       return [...groups.values()].sort((a,b)=>a.path.localeCompare(b.path,'de',{numeric:true}));
+    }
+    contractChecks() {
+      if(!this.project())throw Error('Projekt auswählen.');
+      const findings=[];
+      const add=(r,code,finding,question)=>findings.push({positionId:r.id,number:r.data.number,code,finding,question});
+      for(const r of this.list('lv')) {
+        const p=r.data;
+        if(p.qty===0)add(r,'quantity','LV-Menge ist null.','Ist diese Leistung erforderlich oder nur optional?');
+        if(p.kind==='Nachtrag' && !p.changeNumber)add(r,'change-number','Nachtragsnummer fehlt.','Welchem Nachtrag ist die Leistung zugeordnet?');
+        if(!p.groupPath)add(r,'group','Gliederung fehlt.','Welchem Gewerk und Titel gehört die Position an?');
+        try {
+          const priced=this.position(r);
+          if(priced.direct===0)add(r,'costs','Keine Einzelkosten angesetzt.','Material, Zeit, Gerät oder Fremdleistung prüfen.');
+          if(priced.ep<priced.direct)add(r,'margin','Angebots-EP liegt unter den Einzelkosten.','Zielpreis und Rabatt fachlich prüfen und begründen.');
+        } catch(e) { add(r,'material',e.message,'Materialquelle und Preisfreigabe prüfen.'); }
+      }
+      return findings;
     }
     measured(positionId) {
       return round(this.list('measurements').filter(r=>r.status==='Freigegeben' && r.data.positionId===positionId).reduce((sum,r)=>sum+r.data.length*r.data.width*r.data.factor-r.data.deduction,0));

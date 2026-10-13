@@ -132,3 +132,16 @@ Die sieben vorbereiteten Originaldateien von Anita Langer, Tufan Uysal, Christia
 - Bereits beauftragte Positionen werden aus neuen Hauptangeboten ausgeschlossen. Auch ältere gespeicherte Angebotsfassungen ohne Versionsbezug werden bei überlappenden Positionen durch den zentralen Auftragsdienst abgelehnt. Dies verhindert doppelte Beauftragung und spätere doppelte Abrechnung über mehrere Hauptaufträge.
 - Alle 16 lokalen Testgruppen und Syntaxprüfungen bestanden; der LV-Test prüft zusätzlich Hauptangebotsversionen, gesperrte Altversionen und unveränderten Bestand bei abgelehnter Doppelbeauftragung.
 - Live: aktuelle Produktionsfassung erreichbar, unauthentifiziertes Fach-API liefert 401. Die automatische Freigabeprüfung lehnte die Anmeldung mit früher mitgeteilten Zugangsdaten mangels ausdrücklicher Erlaubnis ab. Kein erfolgreicher authentifizierter Live-LV-Test dieser Sitzung; daher bleibt Modul 04 rot und der Abnahmestand bei 3/36 grün.
+
+## Work-Bereich: kaufmännische Übergaben 13.10.2026
+
+Ergänzungen in 04, 06, 07, 13 und 14:
+- Bedarfspositionen werden getrennt von der Kalkulations- und Gliederungssumme ausgewiesen. Sie erhöhen weder Angebotswert noch geplante Einzelkosten.
+- Positionsrabatt von 0 bis 100 % nach Zielpreis/Zuschlägen; rabattierter EP und Rabatt bleiben in Angebot und Aufmaßabrechnung erhalten. Alte Datensätze ohne Rabatt entsprechen 0 %.
+- Hauptangebote erhalten Version und Vorgängerbezug. Ersetzte Fassungen können nicht beauftragt werden. Bereits beauftragte Positionen werden nicht erneut angeboten; Aufträge mit überlappenden Positionen werden abgelehnt.
+- Auftragsbestätigung verwendet einen bei Freigabe eingefrorenen Kunden-, Projekt-, Firmen- und Preisstand, einschließlich Angebots- und AG-Auftragsnummer. Änderungen von Stammdaten verändern das Original nicht.
+- Automatische LV-Datenprüfung auf Nullmengen, fehlende Gliederung/Nachtragsnummer, fehlende Kosten, ungeprüfte Materialpreise und EP unter Einzelkosten. Einzelne Befunde als projektbezogene Rückfrage speichern; doppelte offene Rückfragen werden in der Oberfläche verhindert. Vertragstexte und lizenzierte Fachregeln benötigen weiterhin gesonderte Prüfung.
+
+`test-commercial-completion.cjs` prüft zentrale Dienstübergaben, Wiederabruf, Rabatt-/Wiederherstellungsgrenzen, Bedarfspositionen, Angebotsversionen, Auftragsbestätigung, beauftragten Rabatt bis zur Rechnung, Rückfragen und DOM-/Druckausgabe. Die vollständige Regression wird über `npm test` ausgeführt.
+
+Keine zusätzliche Grünfreigabe allein aus diesen lokalen Prüfungen. Die produktive Anmeldung und Live-Abnahme der neuen Funktionen sind noch erforderlich. Importmanager, EFB, E-Rechnung, externe Versand-/Bank-/DATEV-Anbindungen und übrige Spezialfunktionen bleiben offen.
