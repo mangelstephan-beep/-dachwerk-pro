@@ -350,6 +350,27 @@
       }
       return [...groups.values()].sort((a,b)=>a.path.localeCompare(b.path,'de',{numeric:true}));
     }
+    lvTree() {
+      // A real hierarchy for navigation/export; parent totals are informative, not extra billable lines.
+      const roots=[], nodes=new Map();
+      for(const position of this.calculation().positions) {
+        const parts=(position.groupPath || 'Ohne Gliederung').split(' / ');
+        let parent=null;
+        for(let i=0;i<parts.length;i++) {
+          const path=parts.slice(0,i+1).join(' / ');
+          let node=nodes.get(path);
+          if(!node) {
+            node={label:parts[i],path,level:i+1,children:[],positions:[],net:0};
+            nodes.set(path,node);
+            (parent?parent.children:roots).push(node);
+          }
+          if(!['Bedarfsposition','Alternativposition'].includes(position.kind)) node.net=round(node.net+position.gp);
+          parent=node;
+        }
+        parent.positions.push({...position});
+      }
+      return roots;
+    }
     contractChecks() {
       if(!this.project())throw Error('Projekt auswählen.');
       const findings=[];
