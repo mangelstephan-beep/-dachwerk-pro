@@ -32,9 +32,9 @@ Kunde → Projekt → LV → Material-/Zeitansätze → Kalkulation → freigege
 
 | Nr. | Bereich | In diesem Ausbau | Vor produktiver Fertigstellung offen |
 |---|---|---|---|
-| 01 | Kunden und Kontakte | Stammdaten, E-Mail, Käuferreferenz, zentrale API | Kontaktrollen und mehrere Ansprechpartner umgesetzt; abschließende Live-Abnahme dieses Ausbaus folgt. |
-| 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Projektmitgliedschaften und Sperren für fremde Datensätze umgesetzt; abschließende Live-Abnahme dieses Ausbaus folgt. |
-| 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Vollständiges Kostenmodell, Feiertage |
+| 01 | Kunden und Kontakte | Stammdaten, E-Mail, Käuferreferenz, zentrale API | Abgenommen 13.10.2026: Kontaktrollen, mehrere Kontakte, unveränderliche Angebotsfassung und zentraler Wiederabruf geprüft. |
+| 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Abgenommen 13.10.2026: Mitgliedschaften, Ansicht/Logbuch, erlaubter Schreibzugriff 200 und Fremdzugriff 403 live geprüft. |
+| 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Produktivstundenmodell mit Kalenderwerktagen, Feiertagen, Urlaub, Krankheit, Schulung und FTE umgesetzt; Live-Abnahme noch offen. |
 | 04 | Leistungsverzeichnisse | Positionen, Einheit, Menge, Kostenbestandteile | Hierarchie, Nachtragsversionen |
 | 05 | Importmanager | CSV-Prüfung, Übernahme, Altbestandskopie | GAEB-Varianten, PDF/OCR/Excel validieren |
 | 06 | LV- und Vertragsprüfung | Position, Quelle, Befund, Rückfrage | Regelbasierte Prüfungen |
