@@ -33,6 +33,19 @@ for(const m of w.DWPProject.modules) {
   if(m.fields.length && m.id!=='imports')for(const f of m.fields)assert(query(`[name="${f.key}"]`),`${m.id}: ${f.key}`);
 }
 open('dashboard');assert.equal(w.document.querySelectorAll('[data-dwp-card]').length,36);
+for(const m of w.DWPProject.modules) {
+  query(`[data-dwp="open"][data-id="${m.id}"]`).click();
+  assert.equal(query('h1').textContent,m.name,`${m.id} card opens its module`);
+  query('[data-dwp="open"][data-id="dashboard"]').click();
+}
+query('[data-dwp="open"][data-id="workflow"]').click();
+assert.equal(query('h1').textContent,'Gemeinsamer Projektworkflow');
+query('[data-dwp="open"][data-id="access"]').click();
+assert.equal(query('h1').textContent,'Zugriff und Modulnutzung');
+query('[data-dwp="open"][data-id="audit"]').click();
+assert.equal(query('h1').textContent,'Projektlogbuch');
+query('[data-dwp="open"][data-id="dashboard"]').click();
+assert.equal(query('h1').textContent,'Alle Arbeitsmodule');
 query('#dwp-module-search').value='Aufmaß';query('#dwp-module-search').dispatchEvent(new w.Event('input',{bubbles:true}));
 assert.equal([...w.document.querySelectorAll('[data-dwp-card]')].filter(c=>!c.hidden).length,1);
 open('imports');query('#dwp-csv').value='number;text;qty;unit\n020;"Detail; Anschluss";1,5;m';query('[data-dwp="preview-import"]').click();
