@@ -9,8 +9,8 @@
   const cost = f('cost', 'Kosten netto', 'number');
   const blocking = f('blocking','Sperrt nächsten Arbeitsschritt bis Erledigung','checkbox');
   const modules = [
-    ['customers', 'Kunden und Kontakte', 'customers', [f('name','Firma / Name','text',true),f('contact','Ansprechpartner'),f('email','E-Mail','email'),f('address','Anschrift'),f('location','Ort'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
-    ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
+    ['customers', 'Kunden und Kontakte', 'customers', [f('name','Firma / Name','text',true),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Anschrift'),f('location','Ort'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
+    ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('memberIds','Freigegebene Benutzer-IDs (kommagetrennt; Administratoren haben Zugriff)','textarea'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
     ['operating','Betriebs- und Lohnkosten','prices',[title,f('annualCost','Jahreskosten netto','number',true),f('productiveHours','Produktive Stunden','number',true),note]],
     ['lv','Leistungsverzeichnisse','calculation',[f('number','Positionsnummer','text',true),f('text','Leistungsbeschreibung','textarea',true),f('kind','Leistungsart','select',false,['Hauptleistung','Nachtrag','Bedarfsposition']),f('changeNumber','Nachtragsnummer'),f('qty','LV-Menge','number',true),f('unit','Einheit','text',true),f('material','Material je Einheit','number'),f('minutes','Minuten je Einheit','number'),f('equipment','Geräte je Einheit','number'),f('subcontract','NU je Einheit','number'),f('materialId','Freigegebener Materialartikel','material'),f('consumption','Materialverbrauch je Einheit','number'),f('useTargetPrice','Zielpreis verwenden','checkbox'),f('targetEp','Zielpreis netto je Einheit','number')]],
     ['imports','Importmanager','gaeb',[title,f('source','Quelle / Dateiname'),f('format','Format','select',false,['CSV','GAEB XML','PDF Prüfquelle','Excel Prüfquelle','Sonstige']),note]],
@@ -57,6 +57,11 @@
     {id:'closing',name:'Abschluss und Nachkalkulation',modules:['closing','controlling']}
   ];
   const definitions = Object.fromEntries(modules.map(m=>[m.id,m]));
+  const parseContacts=value=>{
+    const rows=Array.isArray(value)?value:String(value || '').split('\n').filter(s=>s.trim()).map(s=>{const [name,role,email,phone,...extra]=s.split('|').map(x=>x.trim());if(extra.length)throw Error('Kontaktzeile enthält mehr als vier Felder.');return {name,role,email,phone};});
+    if(rows.length>50)throw Error('Maximal 50 zusätzliche Kontakte.');
+    return rows.map(c=>{const clean=Object.fromEntries(['name','role','email','phone'].map(k=>[k,String(c[k] || '').trim()]));if(!clean.name || Object.values(clean).some(v=>v.length>300)||clean.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean.email))throw Error('Kontaktname oder E-Mail ungültig.');return clean;});
+  };
   const num = value => {
     if (typeof value === 'number') { if (!Number.isFinite(value)) throw Error('Ungültige Zahl.'); return value; }
     let s=String(value ?? '').trim().replace(/\s/g,'');
@@ -87,6 +92,7 @@
         if(r.module==='projects' && !data.records.some(c=>c.module==='customers' && c.id===r.data.customerId)) throw Error('Kundenzuordnung fehlt.');
         for(const field of definitions[r.module].fields) {
           const value=r.data[field.key];
+          if(field.type==='contacts' && value!==undefined)parseContacts(value);
           if(field.required && (value===undefined || value===null || value==='')) throw Error(`Sicherung: ${field.label} fehlt.`);
           if(field.type==='number' && value!==undefined && (typeof value!=='number' || !Number.isFinite(value) || value<0 || value>Number.MAX_SAFE_INTEGER/100)) throw Error(`Sicherung: ${field.label} ist ungültig.`);
           const target={customer:'customers',position:'lv',material:'materials',employee:'personnel',offer:'offers',purchase:'purchase',invoice:'invoices',subcontract:'subcontracts'}[field.type];
@@ -144,7 +150,8 @@
       for(const field of def.fields) {
         const value=values[field.key];
         if(field.required && (value===undefined || value===null || String(value).trim()==='')) throw Error(`${field.label} fehlt.`);
-        data[field.key]=field.type==='number' ? num(value) : field.type==='checkbox' ? Boolean(value) : String(value ?? '').trim();
+        data[field.key]=field.type==='contacts' ? parseContacts(value) : field.type==='number' ? num(value) : field.type==='checkbox' ? Boolean(value) : String(value ?? '').trim();
+        if(field.type==='email' && data[field.key] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[field.key]))throw Error(`${field.label} ist ungültig.`);
         if(field.type==='number' && data[field.key]>Number.MAX_SAFE_INTEGER/100)throw Error(`${field.label} außerhalb des sicheren Zahlenbereichs.`);
         if(field.type==='number' && data[field.key]<0) throw Error(`${field.label} darf nicht negativ sein.`);
         if(field.type==='select' && data[field.key] && !field.options.includes(data[field.key])) throw Error(`${field.label} ist ungültig.`);
@@ -471,6 +478,10 @@
       if(this.project()?.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
       const record=this.get(id);
       if(!record || record.projectId!==this.data.selectedProject || !['documents','defects','expert','acceptance','diary'].includes(record.module)) throw Error('Dateizuordnung ungültig.');
+      if(file?.storageId) {
+        if(typeof file.name!=='string'||file.name.length>240||!Number.isInteger(file.size)||file.size<1||file.size>67108864||!['application/pdf','image/jpeg','image/png','image/webp'].includes(file.mime)||! /^[a-f0-9]{64}$/.test(file.sha256 || '')||typeof file.storageId!=='string')throw Error('Gespeicherte Dateimetadaten ungültig.');
+        return this.transaction('Originaldatei zentral zugeordnet',record.module,id,d=>{const r=d.records.find(x=>x.id===id);if(!r.attachments?.some(a=>a.storageId===file.storageId))r.attachments=[...(r.attachments || []),{...file,id:file.storageId}];});
+      }
       if(!file || typeof file.name!=='string' || typeof file.dataUrl!=='string' || !/^data:(image\/(png|jpeg|webp)|application\/pdf);base64,/.test(file.dataUrl)) throw Error('Bitte JPG, PNG, WebP oder PDF wählen.');
       if(file.dataUrl.length>2_800_000) throw Error('Datei zu groß für den lokalen Testbestand (max. 2 MB).');
       return this.transaction('Datei zugeordnet',record.module,id,d=>{const r=d.records.find(x=>x.id===id);r.attachments=[...(r.attachments || []),{...file,id:uid()}];});

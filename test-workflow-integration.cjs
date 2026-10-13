@@ -62,7 +62,7 @@ db.select(project.id);assert.equal(new Store({getItem:()=>raw,setItem:(_k,v)=>ra
 (async()=>{
  const repo=memoryRepository(),admin={id:'admin',name:'Stephan',role:'admin',tenantId:'test'};
  async function run(actor,method,args,projectId){return execute(repo,actor,{method,args,projectId,revision:(await repo.read('test')).state.revision});}
- const c=await run(admin,'save',['customers',{name:'AG'}]);const p=await run(admin,'save',['projects',{name:'Dach',customerId:c.recordId,phase:'Erfassung'}]);
+ const c=await run(admin,'save',['customers',{name:'AG'}]);const p=await run(admin,'save',['projects',{name:'Dach',customerId:c.recordId,memberIds:'admin',phase:'Erfassung'}]);
  await assert.rejects(run({...admin,role:'editor'},'advancePhase',['Kalkulation'],p.recordId),/Freigabeberechtigung/);
  await run(admin,'advancePhase',['Kalkulation'],p.recordId);
  const b=await run(admin,'save',['technical',{title:'Sperre',finding:'Prüfen',blocking:true}],p.recordId);

@@ -3,8 +3,8 @@
   "version": "0.4.0",
   "private": true,
   "scripts": {
-    "test": "node test-project-core.cjs && node test-project-execution.cjs && node test-project-workflows.cjs && node test-billing.cjs && node test-workspace-auth.cjs && node test-project-server.cjs && node test-central-client.cjs && node test-project-postgres.cjs && node test-workflow-integration.cjs && node test-access-security.cjs && node test-access-client.cjs",
-    "check": "node --check project-core.js && node --check project-workflows.js && node --check central-entry.js && node --check api/auth.js && node --check api/projects.js && node --check lib/auth.cjs && node --check lib/project-service.cjs && node --check lib/project-repository.cjs && node --check api/access.js && node --check lib/access-security.cjs",
+    "test": "node test-project-core.cjs && node test-project-execution.cjs && node test-project-workflows.cjs && node test-billing.cjs && node test-workspace-auth.cjs && node test-project-server.cjs && node test-central-client.cjs && node test-project-postgres.cjs && node test-workflow-integration.cjs && node test-access-security.cjs && node test-access-client.cjs && node test-file-store.cjs && node test-customer-project-access.cjs",
+    "check": "node --check project-core.js && node --check project-workflows.js && node --check central-entry.js && node --check api/auth.js && node --check api/projects.js && node --check lib/auth.cjs && node --check lib/project-service.cjs && node --check lib/project-repository.cjs && node --check api/access.js && node --check lib/access-security.cjs && node --check api/files.js && node --check lib/file-store.cjs",
     "db:setup": "node scripts/setup-database.mjs",
     "admin:create": "node scripts/create-admin.mjs",
     "build:workspace": "node scripts/build-workspace-page.cjs",

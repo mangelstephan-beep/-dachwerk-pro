@@ -1,6 +1,7 @@
 const security=require('../lib/access-security.cjs');
 const {sessionFromRequest}=require('../lib/auth.cjs');
 const {repository}=require('../lib/project-repository.cjs');
+const {projectAccess}=require('../lib/project-service.cjs');
 function createHandler(deps={sessionFromRequest,repository,accessRepository:security.accessRepository}) {
  return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Vary','Cookie');
@@ -14,7 +15,7 @@ function createHandler(deps={sessionFromRequest,repository,accessRepository:secu
    if(!body || JSON.stringify(body).length>12000)throw Object.assign(Error('Anfrage ungültig.'),{status:413});
    if(body.action==='module') {
     if(!security.definitions[body.module])throw Object.assign(Error('Modul ungültig.'),{status:422});
-    if(body.projectId && !(await deps.repository().read(actor.tenantId)).state.records.some(r=>r.module==='projects' && r.id===body.projectId))throw Object.assign(Error('Projekt fehlt.'),{status:403});
+    if(body.projectId && !projectAccess(actor,(await deps.repository().read(actor.tenantId)).state.records.find(r=>r.module==='projects' && r.id===body.projectId)))throw Object.assign(Error('Projektmitgliedschaft fehlt.'),{status:403});
     await audit.event(actor,'module_open',{module:body.module,projectId:body.projectId,userAgent:req.headers['user-agent']});return res.status(200).json({ok:true});
    }
    if(body.action==='pair') {
@@ -34,6 +35,7 @@ function createHandler(deps={sessionFromRequest,repository,accessRepository:secu
    }
    if(body.action==='file') {
     const {state}=await deps.repository().read(actor.tenantId),record=state.records.find(r=>r.id===body.recordId && r.projectId===body.projectId);
+    if(!projectAccess(actor,state.records.find(r=>r.module==='projects'&&r.id===body.projectId)))throw Object.assign(Error('Projektmitgliedschaft fehlt.'),{status:403});
     const file=record?.attachments?.find(f=>f.id===body.fileId);
     if(file && !file.dataUrl.startsWith('data:image/'))throw Object.assign(Error('Dokumente ausschließlich über Eigentümerexport abrufen.'),{status:403});
     if(!file)throw Object.assign(Error('Datei nicht verfügbar.'),{status:404});
