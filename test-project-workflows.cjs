@@ -29,7 +29,11 @@ open('invoices');query('[data-dwp="issue"]').click();
 assert.equal(w.DWPWorkspace.store.list('invoices')[0].data.net,3569.5);
 assert(query('.data-table').textContent.includes('4.247,71'));
 for(const m of w.DWPProject.modules) {
-  open(m.id);assert.equal(query('h1').textContent,m.name);
+  open('dashboard');
+  const card=[...w.document.querySelectorAll('[data-dwp-card]')].find(c=>c.querySelector('h3').textContent===m.name);
+  assert(card,`${m.name} has a dashboard card`);
+  card.querySelector('[data-dwp="open"]').click();
+  assert.equal(query('h1').textContent,m.name,`${m.name} opens from its dashboard card`);
   if(m.fields.length && m.id!=='imports')for(const f of m.fields)assert(query(`[name="${f.key}"]`),`${m.id}: ${f.key}`);
 }
 open('dashboard');assert.equal(w.document.querySelectorAll('[data-dwp-card]').length,36);
@@ -75,6 +79,26 @@ assert(query('.data-table').textContent.includes('Dach A'));
 query('[data-dwp="search-open"]').click();
 assert.equal(query('#dwp-record [name="name"]').value,'Dach A');
 async function checkLegacyObserver() {
+  const tabs=[['workflow','Gemeinsamer Projektworkflow'],['access','Zugriff und Modulnutzung'],['audit','Projektlogbuch'],['dashboard','Alle Arbeitsmodule']];
+  for(const [id,title] of tabs) {
+    query(`.header-actions button[data-id="${id}"]`).click();
+    assert.equal(query('h1').textContent,title,`${title} header tab navigates`);
+  }
+  query('.header-actions button[data-id="workflow"]').click();
+  const nested=query('.data-table button[data-dwp="open"]');
+  const nestedTitle=w.DWPProject.definitions[nested.dataset.id].name;
+  nested.click();
+  assert.equal(query('h1').textContent,nestedTitle,'workflow submenu opens its module');
+  query('.header-actions button[data-id="dashboard"]').click();
+  assert.equal(query('h1').textContent,'Alle Arbeitsmodule','Alle Module returns from a nested module');
+  let backupName='';
+  w.URL.createObjectURL=()=> 'blob:test';
+  w.URL.revokeObjectURL=()=>{};
+  const nativeAnchorClick=w.HTMLAnchorElement.prototype.click;
+  w.HTMLAnchorElement.prototype.click=function(){backupName=this.download;};
+  query('.header-actions button[data-dwp="backup"]').click();
+  w.HTMLAnchorElement.prototype.click=nativeAnchorClick;
+  assert.equal(backupName,'DachWerkPro_Sicherung.json','Sicherung tab downloads the local backup');
   open('offers');
   w.document.querySelector('.nav-item[data-view="dashboard"]').click();
   await new Promise(resolve=>w.setTimeout(resolve,10));
