@@ -35,7 +35,7 @@ Kunde → Projekt → LV → Material-/Zeitansätze → Kalkulation → freigege
 | 01 | Kunden und Kontakte | Stammdaten, E-Mail, Käuferreferenz, zentrale API | Abgenommen 13.10.2026: Kontaktrollen, mehrere Kontakte, unveränderliche Angebotsfassung und zentraler Wiederabruf geprüft. |
 | 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Abgenommen 13.10.2026: Mitgliedschaften, Ansicht/Logbuch, erlaubter Schreibzugriff 200 und Fremdzugriff 403 live geprüft. |
 | 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Abgenommen 13.10.2026: Produktivstunden, Feiertage, Ausfalltage und FTE; Kostenübernahme, AGK-Vermeidung und Angebotsbezug live geprüft. |
-| 04 | Leistungsverzeichnisse | Positionen, Einheit, Menge, Kostenbestandteile | Hierarchie, Nachtragsversionen |
+| 04 | Leistungsverzeichnisse | Positionen, Mengen, Kostenbestandteile; Gliederung bis fünf Ebenen mit Zwischensummen; getrennte Nachtragsangebote und unveränderliche Versionen | Prüfung dieser Erweiterung in der veröffentlichten App offen; bleibt rot. |
 | 05 | Importmanager | CSV-Prüfung, Übernahme, Altbestandskopie | GAEB-Varianten, PDF/OCR/Excel validieren |
 | 06 | LV- und Vertragsprüfung | Position, Quelle, Befund, Rückfrage | Regelbasierte Prüfungen |
 | 07 | Kalkulation und Zielpreis | Komponenten, EP/GP, Zuschläge, Zielpreis und Deckungsbeitrag | Rabatte, weitere Sonderpositionen |
@@ -116,3 +116,12 @@ Module 01–03 sind nach lokalen und Live-HTTP-Integrationsprüfungen grün. Mod
 Originaldateiablage bis 64 MB ist umgesetzt und durch SQL-/API-Tests auf Teilupload, Prüfsumme und Berechtigung getestet. Scanner/OCR/Barcode und weitere DMS-Spezialfunktionen sind noch offen; Modul 32 bleibt rot.
 
 Die sieben vorbereiteten Originaldateien von Anita Langer, Tufan Uysal, Christian Bani und Wanke wurden nicht übertragen. Die automatische Freigabeprüfung hat ihre Übernahme in die Produktions-App mangels eindeutiger Freigabe der konkreten privaten Dokumente abgelehnt. Eine genaue Dateiliste wurde zur Bestätigung erstellt.
+
+
+## Work-Bereich: LV-Erweiterung 13.10.2026
+
+- Gliederung je Position als Gewerk / Titel / Abschnitt (bis fünf Ebenen), über zentrale Speicherung, CSV-Import und Angebots-/Rechnungsfassungen erhalten. Zwischensummen werden separat angezeigt, ohne doppelte Addition.
+- Nachtragsangebote werden je Nachtragsnummer erstellt; bei mehreren Nachträgen ist die Auswahl zwingend. Andere Nachträge werden nicht versehentlich mit angeboten.
+- Neue unbeauftragte Fassungen erhalten eine fortlaufende Version und einen Bezug auf die ersetzte Fassung. Die ursprünglichen Dokumente bleiben unverändert; ersetzte Fassungen können nicht mehr beauftragt werden. Bereits beauftragte Positionen werden nicht erneut angeboten.
+- `test-lv-structure.cjs` prüft den zentralen Dienst, Wiedereinlesen des Projektmodells, Zwischensummen, Nachtragsauswahl, Versionierung, ungültige Gliederungen, Bestellung alter Fassungen und Aufmaß-/Rechnungsbezug; DOM-Prüfung der neuen Eingaben und Versionsanzeige.
+- Keine neue produktive Modulfreigabe. Die Farblogik ist unverändert; Modul 04 bleibt bis zur Live-Abnahme rot. Module 05–36 haben weiter die oben aufgeführten offenen Funktionen.
