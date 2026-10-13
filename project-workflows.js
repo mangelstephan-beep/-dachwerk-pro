@@ -80,6 +80,12 @@
   }
   function input(f,value) {
     const attr=`name="${f.key}" ${f.required?'required':''}`;
+    if(f.type==='contacts')return `<textarea ${attr} rows="4" placeholder="Max Muster | Bauleitung | max@example.de | 0421 123456">${esc(Array.isArray(value)?value.map(c=>[c.name,c.role,c.email,c.phone].join(' | ')).join('\n'):value || '')}</textarea>`;
+    if(f.key==='recipient') {
+      const customer=db.get(db.project()?.data.customerId)?.data;
+      const contacts=[...(customer?.email?[{name:customer.contact || customer.name,role:customer.contactRole,email:customer.email}]:[]),...(customer?.contacts || [])].filter(c=>c.email);
+      return `<input ${attr} type="email" list="dwp-contact-emails" value="${esc(value || '')}"><datalist id="dwp-contact-emails">${contacts.map(c=>`<option value="${esc(c.email)}">${esc(c.name)} · ${esc(c.role)}</option>`).join('')}</datalist>`;
+    }
     if(f.type==='checkbox') return `<input ${attr} type="checkbox" ${value?'checked':''}>`;
     if(f.type==='textarea') return `<textarea ${attr} rows="3">${esc(value)}</textarea>`;
     if(f.type==='select') return `<select ${attr}>${f.options.map(v=>`<option ${v===value?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
@@ -228,7 +234,7 @@
       if(d.stornoOf)body+=`<p>Storno zu ${esc(d.originalNumber)} · Grund: ${esc(d.reason)}</p>`;
       else if(d.previouslyNet)body+=`<p>Zuvor berechnet netto: ${money(d.previouslyNet)}<br>Kumulativ einschließlich dieser Rechnung netto: ${money(core.round(d.previouslyNet+d.net))}</p>`;
     } else {
-      body=`<h1>${esc(mod.name)}</h1><h2>${esc(names(r.id))}</h2><p>Projekt: ${esc(signed?.project?.name || db.get(r.projectId)?.data.name || 'Stammdaten')} · Status ${esc(r.status)}</p>${table(['Feld','Angabe'],mod.fields.map(f=>[esc(f.label),esc(signed?.labels?.[f.key] ?? (['customer','position','material','employee','offer','purchase','invoice','subcontract','record'].includes(f.type)?names(r.data[f.key]):r.data[f.key]))]))}<p>Verantwortlich: ${esc(r.owner)} · Frist ${esc(r.due)}</p>`;
+      body=`<h1>${esc(mod.name)}</h1><h2>${esc(names(r.id))}</h2><p>Projekt: ${esc(signed?.project?.name || db.get(r.projectId)?.data.name || 'Stammdaten')} · Status ${esc(r.status)}</p>${table(['Feld','Angabe'],mod.fields.map(f=>[esc(f.label),esc(signed?.labels?.[f.key] ?? (['customer','position','material','employee','offer','purchase','invoice','subcontract','record'].includes(f.type)?names(r.data[f.key]):f.type==='contacts'?(r.data[f.key] || []).map(c=>[c.name,c.role,c.email,c.phone].filter(Boolean).join(' · ')).join('\n'):r.data[f.key]))]))}<p>Verantwortlich: ${esc(r.owner)} · Frist ${esc(r.due)}</p>`;
       if(r.signatures?.length)body+=r.signatures.map(s=>`<p>${esc(s.role)}: ${esc(s.signer)} · ${esc(new Date(s.signedAt).toLocaleString('de-DE'))}</p>${signatureSvg(s)}`).join('');
       else if(r.module==='acceptance')body+='<p>Ort / Datum: __________________</p><p>Auftraggeber / Unterschrift: __________________</p><p>Auftragnehmer / Unterschrift: __________________</p>';
     }
@@ -311,10 +317,18 @@
       }
       if(action==='attach') {
         const input=document.createElement('input');input.type='file';input.accept='image/jpeg,image/png,image/webp,application/pdf';
-        input.onchange=async()=>{try{const file=input.files[0];if(!file)return;if(file.size>2_000_000)throw Error('Datei maximal 2 MB für lokalen Testbetrieb.');const reader=new FileReader();reader.onload=()=>{try{mutate('attach',[id,{name:file.name,dataUrl:reader.result}],()=>openModule(current));}catch(e){showError(e);}};reader.readAsDataURL(file);}catch(e){showError(e);}};input.click();
+        input.onchange=async()=>{try{const file=input.files[0];if(!file)return;if(window.DWPRemote?.active){notice('Originaldatei wird zentral gespeichert …');await window.DWPRemote.uploadFile(id,file);openModule(current);notice('Originaldatei gespeichert und geprüft.');return;}if(file.size>2_000_000)throw Error('Datei maximal 2 MB für lokalen Testbetrieb.');const reader=new FileReader();reader.onload=()=>{try{mutate('attach',[id,{name:file.name,dataUrl:reader.result}],()=>openModule(current));}catch(e){showError(e);}};reader.readAsDataURL(file);}catch(e){showError(e);}};input.click();
       }
       if(action==='file' && window.DWPRemote?.active) {
         const [recordId,fileId]=id.split('/');
+        const metadata=db.get(recordId)?.attachments?.find(a=>a.id===fileId);
+        if(metadata?.storageId){
+          const file=await window.DWPRemote.originalFile(recordId,metadata.storageId);
+          const url=URL.createObjectURL(file.blob),dialog=document.createElement('dialog');dialog.className='dwp-file-dialog';
+          dialog.innerHTML=`<h2>${esc(file.name)}</h2><p>Geprüfte Originaldatei · Eigentümer auf freigegebenem Gerät</p>${file.blob.type==='application/pdf'?'<iframe title="Originaldokument" style="width:100%;height:70vh;border:0"></iframe>':'<img alt="Originalbild" style="max-width:100%">'}<button type="button" class="button">Schließen</button>`;
+          document.body.append(dialog);dialog.querySelector('iframe,img').src=url;dialog.showModal();
+          const close=()=>{dialog.remove();URL.revokeObjectURL(url);};dialog.querySelector('button').onclick=close;dialog.addEventListener('cancel',e=>{e.preventDefault();close();});return;
+        }
         const file=await window.DWPRemote.file({recordId,fileId,projectId:db.data.selectedProject});
         const dialog=document.createElement('dialog');dialog.className='dwp-file-dialog';
         dialog.innerHTML=`<h2>${esc(file.name)}</h2><p>Einmalige Anzeige · schließt nach ${file.displaySeconds} Sekunden</p><div class="dwp-protected-image"><img alt="${esc(file.name)}" draggable="false"><span>${esc(file.watermark)}</span></div><button type="button" class="button">Schließen</button><p>Screenshots und externe Fotos können im Browser nicht sicher verhindert werden.</p>`;

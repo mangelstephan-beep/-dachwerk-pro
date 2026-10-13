@@ -14,7 +14,7 @@ function response(){return {statusCode:200,headers:{},status(n){this.statusCode=
   const audit=accessRepository({query}),repo=repository({query});
   const actor={id:'stephan',name:'Stephan Mangel',role:'admin',tenantId:'company'};
   async function cmd(method,args,projectId){return execute(repo,actor,{method,args,projectId,revision:(await repo.read(actor.tenantId)).state.revision});}
-  const c=await cmd('save',['customers',{name:'AG'}]);const p=await cmd('save',['projects',{name:'Dach',customerId:c.recordId,phase:'Erfassung'}]);
+  const c=await cmd('save',['customers',{name:'AG'}]);const p=await cmd('save',['projects',{name:'Dach',customerId:c.recordId,memberIds:'viewer',phase:'Erfassung'}]);
   const d=await cmd('save',['documents',{title:'Bild',category:'Foto'}],p.recordId);
   await cmd('attach',[d.recordId,{name:'dach.png',dataUrl:'data:image/png;base64,eA=='}],p.recordId);
   const state=(await repo.read(actor.tenantId)).state,file=state.records.find(r=>r.id===d.recordId).attachments[0];
@@ -40,7 +40,7 @@ function response(){return {statusCode:200,headers:{},status(n){this.statusCode=
   assert.equal(results.filter(r=>r.statusCode===200).length,1,'Concurrent image fetch delivers once');assert.equal(results.filter(r=>r.statusCode===410).length,1);
   assert(results.find(r=>r.statusCode===200).body.watermark.includes('Gast'));
   assert.equal((await request(viewer,body)).statusCode,410);
-  assert.equal((await request({...viewer,tenantId:'other'},body)).statusCode,404);
+  assert.equal((await request({...viewer,tenantId:'other'},body)).statusCode,403);
   for(const mod of modules)assert.equal((await request(viewer,{action:'module',module:mod.id,projectId:p.recordId})).statusCode,200);
   assert.equal((await request(viewer,{action:'module',module:'invented'})).statusCode,422);
   assert.equal((await request(viewer,{action:'module',module:'lv',projectId:'foreign'})).statusCode,403);

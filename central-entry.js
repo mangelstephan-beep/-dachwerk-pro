@@ -29,6 +29,34 @@
     export(options){return access({action:'export',...options});},
     file(options){return access({action:'file',...options});},
     get active(){return active;},
+    async uploadFile(recordId,file) {
+      if(!active)throw Error('Bitte zuerst anmelden.');
+      if(file.size<1 || file.size>67108864)throw Error('Originaldateien bis 64 MB möglich.');
+      const bytes=await file.arrayBuffer();
+      const sha256=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+      const projectId=window.DWPWorkspace.store.data.selectedProject;
+      const call=body=>fetch('/api/files',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({recordId,projectId,...body})}).then(responseJson);
+      const upload=await call({action:'start',file:{name:file.name,mime:file.type,size:file.size,sha256}});
+      for(let part=0;part<upload.parts;part++) {
+        const piece=new Uint8Array(bytes.slice(part*upload.chunkSize,(part+1)*upload.chunkSize));
+        let raw='';for(let i=0;i<piece.length;i+=8192)raw+=String.fromCharCode(...piece.subarray(i,i+8192));
+        await call({action:'chunk',fileId:upload.fileId,part,data:btoa(raw)});
+      }
+      await call({action:'finish',fileId:upload.fileId,revision});
+      await load();
+    },
+    async originalFile(recordId,fileId) {
+      const projectId=window.DWPWorkspace.store.data.selectedProject;
+      const call=part=>fetch('/api/files',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'download',recordId,projectId,fileId,part})}).then(responseJson);
+      const first=await call(0),parts=[];
+      const decode=data=>Uint8Array.from(atob(data.replace(/\s/g,'')),c=>c.charCodeAt(0));
+      parts.push(decode(first.data));
+      for(let part=1;part<first.parts;part++)parts.push(decode((await call(part)).data));
+      const blob=new Blob(parts,{type:first.mime});
+      const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer())),b=>b.toString(16).padStart(2,'0')).join('');
+      if(blob.size!==first.size || hash!==first.sha256)throw Error('Originaldatei ist unvollständig oder beschädigt.');
+      return {blob,name:first.name};
+    },
     async login(email,password) {
       await responseJson(await fetch('/api/auth/sign-in/email',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}));
       await load();

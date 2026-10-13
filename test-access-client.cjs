@@ -8,7 +8,7 @@ const {createHandler:access}=require('./api/access.js');
  const oldOwner=process.env.DWP_OWNER_USER_ID;process.env.DWP_OWNER_USER_ID='owner';
  const actor={id:'viewer',name:'Testbetrachter',role:'viewer',tenantId:'company'},repo=memoryRepository();
  let raw=null;const store=new Store({getItem:()=>raw,setItem:(_k,v)=>raw=v});
- const c=store.save('customers',{name:'AG'}),p=store.save('projects',{name:'Dach',customerId:c.id,phase:'Erfassung'}),d=store.save('documents',{title:'Dachfoto',category:'Foto'});
+ const c=store.save('customers',{name:'AG'}),p=store.save('projects',{name:'Dach',customerId:c.id,memberIds:'viewer',phase:'Erfassung'}),d=store.save('documents',{title:'Dachfoto',category:'Foto'});
  store.attach(d.id,{name:'test.png',dataUrl:'data:image/png;base64,eA=='});
  await repo.compareAndSwap('company',0,store.data,{hash:'test'});
  const seen=new Set(),events=[];

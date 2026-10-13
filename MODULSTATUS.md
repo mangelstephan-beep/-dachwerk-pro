@@ -1,8 +1,8 @@
-# DachWerk Pro – Arbeitsstand 12.10.2026
+# DachWerk Pro – Arbeitsstand 13.10.2026
 
 Dieser Ausbau ist **keine Fertigstellung aller produktiven Module**. Er ersetzt die isolierten Beispielmasken durch ein gemeinsames lokales Projektmodell mit fachbezogenen Eingaben. Grundlage sind die 34 Funktionsbereiche der Gesamtpräsentation vom 09.10.2026 sowie Sachverständigenwesen und Energieberatung. Bestehende Trainingsentwicklung bleibt auf ihrem eigenen Branch erhalten.
 
-Fortschritt an der Hauptanwendung: Die serverseitige Grundlage für Anmeldung, Mandanten, Freigaben und PostgreSQL-Speicherung ist implementiert und lokal geprüft. Eine Live-Datenbank ist noch nicht bereitgestellt. Einrichtung und Grenzen stehen in [BACKEND_SETUP.md](BACKEND_SETUP.md). Der `/workspace`-Modultest ist davon getrennt.
+Fortschritt an der Hauptanwendung: Die serverseitige Grundlage für Anmeldung, Mandanten, Freigaben und PostgreSQL-Speicherung ist implementiert und lokal geprüft. Die Live-Datenbank und das Eigentümerkonto sind seit 13.10.2026 eingerichtet; Anmeldung, Schreiben und erneute Anmeldung sind auf der Produktionsdomain geprüft. Einrichtung und Grenzen stehen in [BACKEND_SETUP.md](BACKEND_SETUP.md). Der `/workspace`-Modultest ist davon getrennt.
 
 ## Implementierter Verbund
 
@@ -32,8 +32,8 @@ Kunde → Projekt → LV → Material-/Zeitansätze → Kalkulation → freigege
 
 | Nr. | Bereich | In diesem Ausbau | Vor produktiver Fertigstellung offen |
 |---|---|---|---|
-| 01 | Kunden und Kontakte | Stammdaten, E-Mail, Käuferreferenz, zentrale API | Datenbank-Liveeinrichtung, Kontaktrollen |
-| 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Datenbank-Liveeinrichtung, Projektmitgliedschaften |
+| 01 | Kunden und Kontakte | Stammdaten, E-Mail, Käuferreferenz, zentrale API | Kontaktrollen und mehrere Ansprechpartner umgesetzt; abschließende Live-Abnahme dieses Ausbaus folgt. |
+| 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Projektmitgliedschaften und Sperren für fremde Datensätze umgesetzt; abschließende Live-Abnahme dieses Ausbaus folgt. |
 | 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Vollständiges Kostenmodell, Feiertage |
 | 04 | Leistungsverzeichnisse | Positionen, Einheit, Menge, Kostenbestandteile | Hierarchie, Nachtragsversionen |
 | 05 | Importmanager | CSV-Prüfung, Übernahme, Altbestandskopie | GAEB-Varianten, PDF/OCR/Excel validieren |
