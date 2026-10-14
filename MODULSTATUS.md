@@ -36,7 +36,7 @@ Kunde → Projekt → LV → Material-/Zeitansätze → Kalkulation → freigege
 | 02 | Projekte und Kostenstellen | Zuordnung, Phasen, zentrale Mandantentrennung und Grundrechte | Abgenommen 13.10.2026: Mitgliedschaften, Ansicht/Logbuch, erlaubter Schreibzugriff 200 und Fremdzugriff 403 live geprüft. |
 | 03 | Betriebs- und Lohnkosten | Kosten/Stunden-Auswertung, Vollkostensatz übernehmen | Abgenommen 13.10.2026: Produktivstunden, Feiertage, Ausfalltage und FTE; Kostenübernahme, AGK-Vermeidung und Angebotsbezug live geprüft. |
 | 04 | Leistungsverzeichnisse | Positionen, Mengen, Kostenbestandteile; Gliederung bis fünf Ebenen mit Zwischensummen; getrennte Nachtragsangebote und unveränderliche Versionen | Prüfung dieser Erweiterung in der veröffentlichten App offen; bleibt rot. |
-| 05 | Importmanager | CSV-Prüfung, Übernahme, Altbestandskopie | GAEB-Varianten, PDF/OCR/Excel validieren |
+| 05 | Importmanager | CSV-Prüfung und atomare Übernahme; GAEB X83 XML 3.3 und XLSX mit Blatt-/Spaltenzuordnung, Originaljournal, Sonderpositions-Prüfung und dokumentierter Wandlung | Live-Abnahme; weitere GAEB-Phasen/Versionen, PDF/OCR und XLS validieren |
 | 06 | LV- und Vertragsprüfung | Position, Quelle, Befund, Rückfrage | Regelbasierte Prüfungen |
 | 07 | Kalkulation und Zielpreis | Komponenten, EP/GP, Zuschläge, Zielpreis und Deckungsbeitrag | Rabatte, weitere Sonderpositionen |
 | 08 | EFB und Kalkulationsblätter | Komponentenübersicht | EFB 221/222/223 mit Feldmapping |
@@ -125,3 +125,58 @@ Die sieben vorbereiteten Originaldateien von Anita Langer, Tufan Uysal, Christia
 - Neue unbeauftragte Fassungen erhalten eine fortlaufende Version und einen Bezug auf die ersetzte Fassung. Die ursprünglichen Dokumente bleiben unverändert; ersetzte Fassungen können nicht mehr beauftragt werden. Bereits beauftragte Positionen werden nicht erneut angeboten.
 - `test-lv-structure.cjs` prüft den zentralen Dienst, Wiedereinlesen des Projektmodells, Zwischensummen, Nachtragsauswahl, Versionierung, ungültige Gliederungen, Bestellung alter Fassungen und Aufmaß-/Rechnungsbezug; DOM-Prüfung der neuen Eingaben und Versionsanzeige.
 - Keine neue produktive Modulfreigabe. Die Farblogik ist unverändert; Modul 04 bleibt bis zur Live-Abnahme rot. Module 05–36 haben weiter die oben aufgeführten offenen Funktionen.
+
+## LV-Sicherung gegen Doppelbeauftragung – 13.10.2026
+
+- Hauptangebote erhalten wie Nachträge fortlaufende Versionen. Eine neue unbeauftragte Fassung ersetzt die vorherige; das Original bleibt unverändert und kann nicht mehr beauftragt werden.
+- Bereits beauftragte Positionen werden aus neuen Hauptangeboten ausgeschlossen. Auch ältere gespeicherte Angebotsfassungen ohne Versionsbezug werden bei überlappenden Positionen durch den zentralen Auftragsdienst abgelehnt. Dies verhindert doppelte Beauftragung und spätere doppelte Abrechnung über mehrere Hauptaufträge.
+- Alle 16 lokalen Testgruppen und Syntaxprüfungen bestanden; der LV-Test prüft zusätzlich Hauptangebotsversionen, gesperrte Altversionen und unveränderten Bestand bei abgelehnter Doppelbeauftragung.
+- Live: aktuelle Produktionsfassung erreichbar, unauthentifiziertes Fach-API liefert 401. Die automatische Freigabeprüfung lehnte die Anmeldung mit früher mitgeteilten Zugangsdaten mangels ausdrücklicher Erlaubnis ab. Kein erfolgreicher authentifizierter Live-LV-Test dieser Sitzung; daher bleibt Modul 04 rot und der Abnahmestand bei 3/36 grün.
+
+## Work-Bereich: kaufmännische Übergaben 13.10.2026
+
+Ergänzungen in 04, 06, 07, 13 und 14:
+- Bedarfspositionen werden getrennt von der Kalkulations- und Gliederungssumme ausgewiesen. Sie erhöhen weder Angebotswert noch geplante Einzelkosten.
+- Positionsrabatt von 0 bis 100 % nach Zielpreis/Zuschlägen; rabattierter EP und Rabatt bleiben in Angebot und Aufmaßabrechnung erhalten. Alte Datensätze ohne Rabatt entsprechen 0 %.
+- Hauptangebote erhalten Version und Vorgängerbezug. Ersetzte Fassungen können nicht beauftragt werden. Bereits beauftragte Positionen werden nicht erneut angeboten; Aufträge mit überlappenden Positionen werden abgelehnt.
+- Auftragsbestätigung verwendet einen bei Freigabe eingefrorenen Kunden-, Projekt-, Firmen- und Preisstand, einschließlich Angebots- und AG-Auftragsnummer. Änderungen von Stammdaten verändern das Original nicht.
+- Automatische LV-Datenprüfung auf Nullmengen, fehlende Gliederung/Nachtragsnummer, fehlende Kosten, ungeprüfte Materialpreise und EP unter Einzelkosten. Einzelne Befunde als projektbezogene Rückfrage speichern; doppelte offene Rückfragen werden in der Oberfläche verhindert. Vertragstexte und lizenzierte Fachregeln benötigen weiterhin gesonderte Prüfung.
+
+`test-commercial-completion.cjs` prüft zentrale Dienstübergaben, Wiederabruf, Rabatt-/Wiederherstellungsgrenzen, Bedarfspositionen, Angebotsversionen, Auftragsbestätigung, beauftragten Rabatt bis zur Rechnung, Rückfragen und DOM-/Druckausgabe. Die vollständige Regression wird über `npm test` ausgeführt.
+
+Keine zusätzliche Grünfreigabe allein aus diesen lokalen Prüfungen. Die produktive Anmeldung und Live-Abnahme der neuen Funktionen sind noch erforderlich. Importmanager, EFB, E-Rechnung, externe Versand-/Bank-/DATEV-Anbindungen und übrige Spezialfunktionen bleiben offen.
+
+## Work-Bereich: GAEB-Import und Sonderpositionswandlung – 13.10.2026
+
+- Zentraler Import ergänzt GAEB X83 / XML 3.3 (UTF-8, derzeit bis 1 MB; maximal 5000 Positionen und Prüfvorgänge). OZ mit führenden Nullen, Titelhierarchie, Mengen, Einheiten sowie Kurz-/Langtexte bleiben erhalten. Das eingelesene XML wird im Importjournal unverändert gespeichert und kann dort angezeigt werden. Keine vollständige XSD-Konformitätsprüfung.
+- Sonderpositionen und Hinweise werden nicht verworfen: Freie Mengen, Pauschalen, Bedarf, Alternativen, Referenzen, Zuschläge, Vorbemerkungen und unbekannte Positionsmerkmale erzeugen projektbezogene Prüfvorgänge mit Originalinhalt und Wandlungsvorschlag. Offene Prüfvorgänge sperren Angebot und Auftrag.
+- Unter LV-/Vertragsprüfung führt „Wandlung prüfen“ zu einer eigenen Eingabe. Ein berechtigter Prüfer bestätigt Leistungsart, OZ, Menge, Einheit, vollständigen Text und Begründung. Die Wandlung erzeugt atomar eine LV-Position auf Prüfung und verknüpft den erledigten Prüfvorgang. Originalquelle und ursprünglicher Vorschlag bleiben erhalten. Doppelte Wandlung und fremde Projektzuordnung werden verhindert. Reine Hinweise können mit dokumentierter Entscheidung als Vertragsprüfung erledigt werden.
+- Freie Mengen, Pauschalmengen, Zuschlagsbeträge und Alternativentscheidungen werden nicht erfunden. Vorschläge beschreiben den nötigen Rechen-/Entscheidungsweg; dessen Werte müssen bestätigt werden. Bedarfspositionen mit Gesamtbetrag benötigen eine ausdrückliche Entscheidung, da das bisherige Bedarfsmodell sie aus der Hauptsumme ausschließt.
+- Vorschau prüft auch die gemeinsame Modellvalidierung (z. B. Doppel-OZ). Änderungen an Quelle, Dateiinhalt, Format, ausgewähltem Projekt oder Bestandsversion erfordern neue Vorschau. Positionen, Originalquelle und Sonderprüfungen werden gemeinsam gespeichert; Fehler erzeugen keinen Teilimport.
+- `npm test`: 18 Testgruppen bestanden; `npm run check` und `git diff --check` bestanden. Neue Tests prüfen Normal-/Sonderpositionen, Originalerhalt, Wandlung, Sperren, Rollen, gefälschte Prüfernamen, Doppelwandlung, Projekttrennung, Angebotsbezug und DOM-Bedienung.
+- Kein neuer authentifizierter Live-Import und kein iPhone-/HP-Test in dieser Sitzung. Modul 05 bleibt rot; bisheriger Abnahmestand unverändert 3/36. PDF/OCR, Excel, GAEB 90/2000 und andere XML-Phasen/-Versionen bleiben offen.
+
+Strukturreferenz: [GAEB DA XML 3.3, Fachdokumentation 2021-05](https://www.gaeb.de/wp-content/uploads/2021/07/Fachdokumentation_GAEB-DA-XML_3.3_2021-05.pdf).
+
+## Work-Bereich: Excel-XLSX-Import – 13.10.2026
+
+- XLSX-Datei auswählen, Arbeitsblatt und Überschriftenzeile bestimmen, Spalten den LV-Feldern zuordnen. Pflichtzuordnung: Position, Leistung, Menge und Einheit. Optional Titel, Leistungsart, Nachtragsnummer und Kosten-/Zeitansätze. Zielpreiszuordnung aktiviert ausdrücklich den Zielpreis. Nach jeder Zuordnungsänderung neue Vorschau erforderlich.
+- Textnummern und einfache führende-Nullen-Formate bleiben erhalten. Zahlen gelangen unverändert in die gemeinsame Zahlenvalidierung. Formel-Caches werden nicht als bestätigte Werte übernommen, und Excel-Formeln werden nicht ausgeführt.
+- Formel-/Fehler-/Datumszellen, unklare Leistungsarten, ausgeblendete Zeilen/Blätter, verbundene Zellen, Vortexte und Summenzeilen erzeugen gesperrte Prüfvorgänge mit Originaldaten und Wandlungsvorschlag. Die bestehende dokumentierte Sonderpositionswandlung wird auch für Excel verwendet.
+- Die Original-XLSX-Bytes und alle eingelesenen Blattdaten bleiben zentral im Importjournal erhalten. Blattwahl, Überschriftenzeile und Spaltenzuordnung werden mitgespeichert. Rohbytes fehlen in normalen zentralen Lese-/Schreibantworten und Audit-Abbildern. Der Originaldownload läuft über den bestehenden Eigentümer-/Geräteexportschutz.
+- Kleine mitgelieferte ZIP-Bibliothek (fflate 0.8.2, MIT) lädt von derselben Domain; keine CDN-Ausnahmen oder neuen externen Dienste. ExcelJS 4.4.0 wird ausschließlich in Tests zum Erzeugen echter XLSX-Dateien verwendet.
+- Grenzen: derzeit XLSX bis 1 MB, entpacktes Archiv maximal 12 MB, 30 Blätter, 10000 Zeilen/80 Spalten, 100000 Zellen; Übernahme bis 5000 Daten-/Prüfzeilen, Originaldaten-JSON maximal 1 MB. Verschlüsselte oder nicht unterstützte Archive/OOXML-Schemata werden abgewiesen; kein vollständiger Excel-Parser und keine XSD-Validierung. Ältere XLS-Dateien benötigen zunächst Export als XLSX oder CSV.
+- `npm test`: 20 Testgruppen; `npm run check` und `git diff --check`. Neue Prüfung nutzt echte XLSX-Dateien und die tatsächlich ausgelieferte Browserbibliothek, zentrale atomare Speicherung, bytegleiches Original, Formeln/Prüfung/Wandlung, aktuelle Zuordnungsvorschau und geschützten Originalexport.
+- Keine zusätzliche Grünfreigabe: produktiver Import mit Benutzeranmeldung, iPhone-/HP-Abnahme sowie PDF/OCR und weitere GAEB-Varianten bleiben offen. Abnahmestand weiterhin 3/36.
+
+## Work-Bereich: Sonderpositionen und Angebotsvarianten 13.10.2026
+
+- Grund- und Alternativpositionen mit gemeinsamer Wahlgruppe; genau eine Grundposition und genau eine ausgewählte Ausführung pro noch unbeauftragter Gruppe. Explizite Auswahl vor Angebotsfreigabe, einschließlich separat wählbarer Bedarfspositionen.
+- Kalkulation, Gliederung und vorläufiger Materialbedarf addieren die Grundausführung; Alternativen und Bedarf bleiben separat. Die Angebotsmaske zeigt den gewählten Gesamtpreis sofort.
+- Nicht gewählte Ausführungen und Bedarfspositionen werden als unveränderliche separate Angebotsbestandteile mit EP/GP gespeichert, gedruckt und im CSV mit Summenkennzeichen ausgegeben. Sie erhöhen den Auftragswert nicht.
+- Auftrag, Materialbedarf, Sollkosten und aufmaßbasierte Rechnung verwenden ausschließlich die gewählte, eingefrorene Variante. Weitere Aufträge für dieselbe Wahlgruppe werden abgelehnt. Änderungen vor Beauftragung erfolgen über eine neue Angebotsfassung.
+- Zentraler CSV-Import erhält Leistungsart, Wahlgruppe, Rabatt und Zielpreis. Vorschau validiert den gesamten Batch vor Übernahme. Unbekannte Sonderarten werden abgelehnt, statt unbemerkt als Hauptleistung übernommen. CSV-Wert false aktiviert keinen Zielpreis mehr.
+- Lokale Altbestandsübernahme erhält Sonderpositionsfelder. Sie ist weiterhin nur im getrennten Modultest verfügbar.
+- `test-special-positions.cjs`: zentrale Speicherung/Wiederabruf, Variantenpreis 105 → 195, unveränderliche Fassung, Doppelbeauftragungsverbot, gewählter Materialbedarf, Preisbindung trotz geänderter Kalkulation, Schlussrechnung 225, atomarer Import, ungültige Auswahl/Wiederherstellung und DOM-/Druckprüfung.
+
+Die vorhandenen Modulfarben bleiben unverändert. Für 04, 05, 07, 13 und 14 fehlen weiterhin die authentifizierte produktive Abnahme und die übrigen Spezialfunktionen der Abnahmetabelle. Keine Fertigmeldung für alle 36 Module.

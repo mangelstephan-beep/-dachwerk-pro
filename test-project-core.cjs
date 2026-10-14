@@ -48,8 +48,10 @@ assert.throws(()=>db.save('payments',{title:'Falsch',invoiceId:invoice.id,date:'
 const before=db.backup();
 assert.throws(()=>db.importPositions([{number:'001',text:'OK',qty:1,unit:'m²'},{number:'002',text:'Fehler',qty:'oops',unit:'m²'}]));
 assert.equal(db.backup(),before);
-db.importPositions([{number:'001',text:'Import',qty:'1,5',unit:'m²'}]);
+db.importPositions([{number:'001',section:'01 Dacharbeiten',subsection:'01.01 Steildach',text:'Import',qty:'1,5',unit:'m²'}]);
 assert.equal(db.list('lv')[0].data.qty,1.5);
+assert.equal(db.list('lv')[0].data.section,'01 Dacharbeiten');
+assert.equal(db.list('lv')[0].data.subsection,'01.01 Steildach');
 assert.throws(()=>db.save('lv',{number:'001',text:'Doppelt',qty:1,unit:'m²'}),/bereits vorhanden/);
 db.select(p1.id);
 assert.equal(db.list('lv').length,1);
