@@ -5,6 +5,7 @@ w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>tr
 for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
 const cards=()=>[...w.document.querySelectorAll('[data-dwp-card]')];
 w.DWPWorkspace.open('dashboard');assert.equal(cards().length,36);assert.equal(cards().filter(c=>c.querySelector('[data-dwp-verified="true"]')).length,0);
-w.DWPRemote={active:true,trackModule:async()=>{}};w.DWPWorkspace.open('dashboard');assert.equal(cards().filter(c=>c.querySelector('[data-dwp-verified="true"]')).length,3);assert.equal(cards().filter(c=>c.textContent.includes('GRÜN')).length,3);
+w.DWPRemote={active:true,trackModule:async()=>{}};w.DWPWorkspace.open('dashboard');assert.equal(cards().filter(c=>c.querySelector('[data-dwp-verified="true"]')).length,1);assert.equal(cards().filter(c=>c.textContent.includes('GRÜN')).length,1);
 w.DWPVerification=undefined;w.DWPWorkspace.open('dashboard');assert.equal(cards().filter(c=>c.querySelector('[data-dwp-verified="true"]')).length,0);assert.equal(cards().filter(c=>c.textContent.includes('ROT')).length,36);
 dom.window.close();console.log('Module status UI: 36 areas, only documented live-verified modules green; unknown, local-only and missing registry remain red.');
+
