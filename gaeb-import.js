@@ -33,6 +33,7 @@
     if(phase && phase!=='83')throw Error('GAEB: Austauschphase stimmt nicht mit X83 überein.');
     const boq=one(award,'BoQ'),body=boq && one(boq,'BoQBody');
     if(!body || children(award,'BoQ').length!==1)throw Error('GAEB: Genau ein Leistungsverzeichnis mit BoQBody erforderlich.');
+    if(!review && Array.from(award.children).some(n=>n.namespaceURI!==NS || !['DP','BoQ'].includes(n.localName)))throw Error('GAEB: Weitere Award-Elemente benötigen eine gesonderte Prüfung.');
     const rows=[],findings=[],numbers=new Set();let visitedItems=0;
     function preserve(node,number,groups,reasons) {
       const has=name=>Array.from(node.getElementsByTagNameNS(NS,name)).length>0;
@@ -102,6 +103,7 @@
     if(!rows.length && !findings.length)throw Error('GAEB: Keine Leistungspositionen gefunden.');
     if(review) {
       // Keep other BoQ/Award metadata in the original and require review instead of dropping it.
+      for(const node of Array.from(award.children).filter(n=>n.namespaceURI!==NS || !['DP','BoQ'].includes(n.localName)))preserve(node,'Award',[],[node.localName]);
       for(const node of children(boq).filter(n=>!['BoQBody','BoQInfo'].includes(n.localName)))preserve(node,'LV',[],[node.localName]);
       return {rows,findings};
     }
