@@ -68,11 +68,17 @@
     async run(method,args) {
       if(!active)throw Error('Bitte zuerst anmelden.');
       if(busy)throw Error('Der vorherige Vorgang wird noch gespeichert.');
-      busy=true;const shell=document.querySelector('#app-shell');shell.inert=true;
+      busy=true;const shell=document.querySelector('#app-shell');
+      shell.setAttribute('aria-busy','true');
+      const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),30000);
       try {
-        const payload=await responseJson(await fetch('/api/projects',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,args,revision,projectId:window.DWPWorkspace.store.data.selectedProject})}));
+        const payload=await responseJson(await fetch('/api/projects',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,args,revision,projectId:window.DWPWorkspace.store.data.selectedProject}),signal:controller.signal}));
         accept(payload);return payload.recordId?window.DWPWorkspace.store.get(payload.recordId):null;
-      }finally{busy=false;shell.inert=false;}
+      }catch(error){
+        if(error.name==='AbortError')throw Error('Die Serverantwort dauert zu lange. Der Speicherstand ist unklar. Bitte Serverbestand neu laden, bevor du erneut speicherst.');
+        throw error;
+      }finally{clearTimeout(timeout);busy=false;shell.inert=false;shell.removeAttribute('aria-busy');}
     },
     async reload(){await load();window.DWPWorkspace.open('dashboard');}
   };
