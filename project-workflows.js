@@ -360,7 +360,11 @@
         return;
       }
       if(action==='advance-phase')mutate('advancePhase',[id],()=>{notice('Projektübergabe geprüft und gespeichert.');openModule('workflow');});
-      if(action==='open')openModule(id);
+      if(action==='open'){
+        openModule(id);
+        // The dashboard button is already on the dashboard; reveal the module cards instead.
+        if(id==='dashboard')main.querySelector('#dwp-module-search')?.scrollIntoView({behavior:'smooth',block:'start'});
+      }
       if(action==='workbook-download')downloadWorkbook(db.get(id));
       if(action==='import-original') {
         const r=db.get(id);if(r?.module!=='imports' || r.projectId!==db.data.selectedProject)throw Error('Importquelle nicht gefunden.');
