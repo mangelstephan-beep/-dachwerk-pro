@@ -262,7 +262,7 @@
   }
   function openModule(id) {
     if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und Bereich wechseln?')) return;
-    current=id;editing=null;search='';importPreview=null;
+    current=id;editing=null;search='';importPreview=null;excelSource=null;
     const section=core.definitions[id]?.view || (['help','settings'].includes(id)?id:'dashboard');
     state.currentView=section;localStorage.setItem('dwp-current-view',section);
     document.querySelectorAll('.nav-item[data-view]').forEach(item=>item.classList.toggle('is-active',item.dataset.view===section));

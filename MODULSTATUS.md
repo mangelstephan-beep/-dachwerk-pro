@@ -180,3 +180,11 @@ Strukturreferenz: [GAEB DA XML 3.3, Fachdokumentation 2021-05](https://www.gaeb.
 - `test-special-positions.cjs`: zentrale Speicherung/Wiederabruf, Variantenpreis 105 → 195, unveränderliche Fassung, Doppelbeauftragungsverbot, gewählter Materialbedarf, Preisbindung trotz geänderter Kalkulation, Schlussrechnung 225, atomarer Import, ungültige Auswahl/Wiederherstellung und DOM-/Druckprüfung.
 
 Die vorhandenen Modulfarben bleiben unverändert. Für 04, 05, 07, 13 und 14 fehlen weiterhin die authentifizierte produktive Abnahme und die übrigen Spezialfunktionen der Abnahmetabelle. Keine Fertigmeldung für alle 36 Module.
+
+
+## Offene PR-19-Abnahmekriterien – 14.10.2026
+
+- GAEB: Unbekannte direkte `Award`-Unterelemente werden als sperrende Import-Prüfbefunde mit Originalinhalt geführt; keine stille Übernahme. Regressionstest in `test-gaeb-import.cjs`.
+- XLSX: Bei Modul-/Projekt-Navigation werden temporäre Arbeitsmappe und Vorschau gemeinsam gelöscht. Für neuen Import ist eine neue Dateiauswahl erforderlich; Regression in `test-spreadsheet-import.cjs`.
+- iPhone/Safari (#17): DOM-/jsdom-Tests sind **kein** Nachweis echter Produktionsabnahme. Noch offen: authentifizierter Aufruf der produktiven Startseite, 36 Modulwechsel und Zurücknavigation, Touch- und Viewport-Verhalten, Scrollen/Overlays, Dateiauswahl und Navigation nach erneuter Anmeldung auf einem realen iPhone mit Safari. Datum, Gerät/iOS/Safari, Produktiv-URL, Testkonto/Rolle, Screenshots und Ergebnis müssen dokumentiert werden. Issue #17 bleibt bis zu dieser Abnahme offen.
+- **Status ROT** für betroffene Module und mobile Workflows; keine neue Grünfreigabe durch diesen Patch und keine Behauptung ausgeführter Live-/Gerätetests.
