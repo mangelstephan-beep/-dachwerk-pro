@@ -32,7 +32,7 @@
     else db.select(id);
   }
   function projectBar() {
-    return `<div class="dwp-project-bar"><label>Aktuelles Projekt<select id="dwp-project"><option value="">Projekt auswählen</option>${db.list('projects').map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><span>${esc(db.project()?names(db.project().data.customerId):'Zuerst Kunde und Projekt anlegen')}</span>${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}</div>`;
+    return `<div class="dwp-project-bar"><label>Aktuelles Projekt<select id="dwp-project" ${db.list('projects').length?'':'disabled'}><option value="">${db.list('projects').length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${db.list('projects').map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><span>${esc(db.project()?names(db.project().data.customerId):'Zuerst Kunde und Projekt anlegen')}</span>${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}</div>`;
   }
   function header(name) {
     return `<header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.</p></div><div class="header-actions">${btn('Alle Module','open','dashboard')}${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${projectBar()}`;
@@ -364,6 +364,11 @@
         openModule(id);
         // The dashboard button is already on the dashboard; reveal the module cards instead.
         if(id==='dashboard')main.querySelector('#dwp-module-search')?.scrollIntoView({behavior:'smooth',block:'start'});
+        if(['customers','projects'].includes(id) && current===id){
+          // Put the opened form on screen without raising the mobile keyboard.
+          const form=main.querySelector('#dwp-record');
+          if(form){form.setAttribute('tabindex','-1');form.focus({preventScroll:true});form.scrollIntoView({block:'start'});}
+        }
       }
       if(action==='workbook-download')downloadWorkbook(db.get(id));
       if(action==='import-original') {
@@ -533,3 +538,4 @@
   window.addEventListener('storage',event=>{if(!window.DWPRemote?.active && event.key===db.key){try{db=new core.Store(localStorage);if(state.unsavedChanges)showError(Error('Änderung aus einem anderen Fenster. Eingaben vor dem Speichern prüfen.'));else openModule(current);}catch(e){showError(e);}}});
   if(!document.querySelector('#app-shell').classList.contains('is-hidden'))openModule(viewsToModule[state.currentView] || 'dashboard');
 })();
+
