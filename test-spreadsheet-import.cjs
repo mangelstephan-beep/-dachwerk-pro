@@ -55,7 +55,7 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
  w.DWPWorkspace.open('dashboard');w.DWPWorkspace.open('imports');
  q('#dwp-import-format').value='Excel Prüfquelle';q('#dwp-import-format').dispatchEvent(new w.Event('change',{bubbles:true}));
  assert.equal(q('#dwp-excel-controls').textContent,'','No old workbook mapping after navigation');
- assert.throws(()=>{q('[data-dwp="preview-import"]').click();if(!/Bitte zuerst eine XLSX-Datei/.test(q('#dwp-error').textContent))throw Error('XLSX guard absent');},/XLSX guard absent|^$/);
+ q('[data-dwp="preview-import"]').click();assert.match(q('#dwp-error').textContent,/Bitte zuerst eine XLSX-Datei/);
  // Select the file again to continue the existing end-to-end XLSX workflow.
  Object.defineProperty(q('#dwp-import-file'),'files',{value:[file],configurable:true});q('#dwp-import-file').dispatchEvent(new w.Event('change',{bubbles:true}));
  await new Promise(r=>setTimeout(r,10));
