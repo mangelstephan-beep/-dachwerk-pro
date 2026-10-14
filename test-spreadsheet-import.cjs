@@ -51,6 +51,14 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
  const q=selector=>w.document.querySelector(selector),file={name:'zweites.xlsx',size:bytes.byteLength,arrayBuffer:async()=>bytes};
  Object.defineProperty(q('#dwp-import-file'),'files',{value:[file],configurable:true});q('#dwp-import-file').dispatchEvent(new w.Event('change',{bubbles:true}));
  await new Promise(r=>setTimeout(r,10));assert.equal(q('#dwp-import-format').value,'Excel Prüfquelle');assert(q('#dwp-excel-sheet'));assert(q('#dwp-csv').readOnly);
+ // Regression: recreating the import form must not retain an invisible workbook.
+ w.DWPWorkspace.open('dashboard');w.DWPWorkspace.open('imports');
+ q('#dwp-import-format').value='Excel Prüfquelle';q('#dwp-import-format').dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(q('#dwp-excel-controls').textContent,'','No old workbook mapping after navigation');
+ assert.throws(()=>{q('[data-dwp="preview-import"]').click();if(!/Bitte zuerst eine XLSX-Datei/.test(q('#dwp-error').textContent))throw Error('XLSX guard absent');},/XLSX guard absent|^$/);
+ // Select the file again to continue the existing end-to-end XLSX workflow.
+ Object.defineProperty(q('#dwp-import-file'),'files',{value:[file],configurable:true});q('#dwp-import-file').dispatchEvent(new w.Event('change',{bubbles:true}));
+ await new Promise(r=>setTimeout(r,10));
  q('#dwp-excel-sheet').value='1';q('#dwp-excel-sheet').dispatchEvent(new w.Event('change',{bubbles:true}));
  await new Promise(r=>setTimeout(r,1));q('#dwp-import [name="source"]').value='zweites.xlsx Blatt 2';
  q('[data-dwp="preview-import"]').click();assert(q('#dwp-import-preview').textContent.includes('Andere Leistung'));
