@@ -360,7 +360,7 @@
         return;
       }
       if(action==='advance-phase')mutate('advancePhase',[id],()=>{notice('Projektübergabe geprüft und gespeichert.');openModule('workflow');});
-      if(action==='open')openModule(id);
+      if(action==='open'){openModule(id);if(id==='dashboard')main.querySelector('#dwp-module-search')?.scrollIntoView?.({block:'start',behavior:'smooth'});}
       if(action==='workbook-download')downloadWorkbook(db.get(id));
       if(action==='import-original') {
         const r=db.get(id);if(r?.module!=='imports' || r.projectId!==db.data.selectedProject)throw Error('Importquelle nicht gefunden.');
