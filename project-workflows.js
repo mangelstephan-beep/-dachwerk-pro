@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   const core=window.DWPProject, main=document.querySelector('#main-content');
-  let db, current='dashboard', editing=null, search='', signatureStrokes=[], importPreview=null, excelSource=null;
+  let db, current='dashboard', editing=null, search='', signatureStrokes=[], importPreview=null, excelSource=null, selectionKey=null;
   const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const money=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v||0);
   const verified=id=>window.DWPRemote?.active===true&&window.DWPVerification?.isVerified(id)===true;
@@ -16,12 +16,30 @@
     main.innerHTML=panel('Bestand kann nicht geöffnet werden',`<p>${esc(error.message)}</p><p>Der vorhandene Speicher wird nicht überschrieben.</p>`);return;
   }
   window.DWPWorkspace={get store(){return db;},open:openModule,acceptServerState(data,user){
-    const selected=data.selectedProject || db.data.selectedProject;
+    const key='dwp-selected-project:'+user.id;
+    let remembered=null;
+    try{remembered=sessionStorage.getItem(key);}catch(_error){/* Selection remains usable when storage is unavailable. */}
+    const selected=data.selectedProject || (selectionKey===key?db.data.selectedProject:null) || remembered;
     let raw=JSON.stringify(data);
     db=new core.Store({getItem:()=>raw,setItem:(_key,value)=>{raw=value;}});
     if(selected && db.get(selected)?.module==='projects')db.data.selectedProject=selected;
+    selectionKey=key;rememberProject();
     state.currentUser=user.name || user.id;
   }};
+  function rememberProject(){
+    if(!selectionKey)return;
+    try{
+      if(db.project())sessionStorage.setItem(selectionKey,db.data.selectedProject);
+      else sessionStorage.removeItem(selectionKey);
+    }catch(_error){/* Remembering a selection must never prevent server work. */}
+  }
+  function updateNavigationCounts(){
+    const counts={projects:db.list('projects').length,invoices:db.data.records.filter(r=>r.module==='incoming' && r.status!=='Erledigt').length};
+    for(const [view,count] of Object.entries(counts)){
+      const badge=document.querySelector(`.nav-item[data-view="${view}"] .nav-count, .nav-item[data-view="${view}"] .nav-alert`);
+      if(badge){badge.textContent=String(count);badge.hidden=count===0;}
+    }
+  }
   function mutate(method,args,after=()=>{}) {
     if(window.DWPRemote?.active)return window.DWPRemote.run(method,args).then(after).catch(showError);
     if(window.DWPRemote)throw Error('Bitte zuerst zentral anmelden.');
@@ -30,6 +48,7 @@
   function selectProject(id) {
     if(window.DWPRemote?.active){if(db.get(id)?.module!=='projects')throw Error('Projekt fehlt.');db.data.selectedProject=id;}
     else db.select(id);
+    rememberProject();
   }
   function projectBar() {
     const projects=db.list('projects'),central=window.DWPRemote?.active;
@@ -40,6 +59,7 @@
     return `<header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.</p></div><div class="header-actions">${btn('Alle Module','open','dashboard')}${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${projectBar()}`;
   }
   function shell(name,body) {
+    updateNavigationCounts();
     main.innerHTML=`<section class="page dwp-workspace">${header(name)}<p id="dwp-error" role="alert" class="dwp-error"></p>${body}</section>`;
     if(window.DWPRemote?.active)main.querySelector('.dwp-local-note').textContent='Zentrale Projektakte · Änderungen nach Serverspeicherung. Anmeldungen und Modulaufrufe werden protokolliert.';
     state.unsavedChanges=false;
