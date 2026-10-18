@@ -9,7 +9,7 @@
     "admin:create": "node scripts/create-admin.mjs",
     "build:workspace": "node scripts/build-workspace-page.cjs",
     "device:pair": "node scripts/pair-device.mjs",
-    "build": "node scripts/copy-pdf-assets.cjs && npm run build:workspace",
+    "build": "node scripts/copy-pdf-assets.cjs && npm run build:workspace && node scripts/build-public.cjs",
     "status:write": "node scripts/module-status.cjs"
   },
   "devDependencies": {
