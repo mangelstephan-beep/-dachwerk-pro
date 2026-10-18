@@ -627,7 +627,7 @@
       if(provenance){provenance.originalText=source.originalText || '';if(source.originalWorkbook){provenance.originalWorkbook=source.originalWorkbook;provenance.hasOriginalWorkbook=true;provenance.workbookName=String(source.workbookName || source.source || 'LV.xlsx');}if(source.mapping)provenance.importMapping=JSON.parse(JSON.stringify(source.mapping));}
       const reviews=findings.map(f=>{
         if(!f || typeof f.text!=='string' || typeof f.suggestion!=='string' || typeof f.reason!=='string' || !f.candidate || typeof f.candidate!=='object')throw Error('Sonderpositions-Prüfvorgang ungültig.');
-        const r=staged.save('contract',{title:(source.format==='Excel Prüfquelle'?'Excel-Prüfung ':'GAEB-Prüfung ')+String(f.number || f.type),finding:f.reason+'\nOriginalinhalt:\n'+f.text,question:f.suggestion,source:source.source || source.format || 'Import',blocking:true,relatedRecordId:provenance.id},{status:'Prüfung'});
+        const r=staged.save('contract',{title:(source.format==='Excel Prüfquelle'?'Excel-Prüfung ':source.format==='PDF Prüfquelle'?'PDF-Prüfung ':'GAEB-Prüfung ')+String(f.number || f.type),finding:f.reason+'\nOriginalinhalt:\n'+f.text,question:f.suggestion,source:source.source || source.format || 'Import',blocking:true,relatedRecordId:provenance.id},{status:'Prüfung'});
         r.importFinding=JSON.parse(JSON.stringify(f));return r;
       });
       return this.transaction(findings.length?'LV samt Sonderpositionen importiert':'LV importiert','lv',null,d=>{d.records.push(...imported);if(provenance)d.records.push(provenance);d.records.push(...reviews);return imported;});

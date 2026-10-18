@@ -1,33 +1,4 @@
 (() => {
-  const scripts = [
-    {
-      id: 'dwp-pdfjs',
-      src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs',
-      type: 'module'
-    },
-    {
-      id: 'dwp-xlsx',
-      src: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
-    },
-    {
-      id: 'dwp-tesseract',
-      src: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'
-    }
-  ];
-
-  function loadScript(def) {
-    return new Promise((resolve, reject) => {
-      if (document.getElementById(def.id)) return resolve();
-      const s = document.createElement('script');
-      s.id = def.id;
-      s.src = def.src;
-      if (def.type) s.type = def.type;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error(`Modul ${def.id} konnte nicht geladen werden.`));
-      document.head.appendChild(s);
-    });
-  }
-
   function loadGreenTheme() {
     if (document.getElementById('dwp-green-theme-loader')) return;
     const g = document.createElement('script');
@@ -64,15 +35,7 @@
   }
 
   async function boot() {
-    // Optional remote parsers must not prevent local workspaces from loading.
-    await Promise.allSettled([loadScript(scripts[1]), loadScript(scripts[2])]);
-    try {
-      const pdf = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs');
-      window.pdfjsLib = pdf;
-    } catch (err) {
-      console.warn('PDF.js konnte nicht vorgeladen werden', err);
-    }
-
+    // PDF is loaded on demand from this domain. No blocked CDN requests.
     if (!document.getElementById('dwp-lv-import-manager')) {
       const m = document.createElement('script');
       m.id = 'dwp-lv-import-manager';

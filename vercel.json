@@ -41,5 +41,6 @@
       "source": "/workspace",
       "destination": "/api/workspace"
     }
-  ]
+  ],
+  "buildCommand": "npm run build"
 }

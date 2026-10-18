@@ -1,4 +1,8 @@
-# DachWerk Pro – Arbeitsstand 13.10.2026
+# DachWerk Pro – Entwicklungsverlauf
+
+**Aktuell maßgeblich:** [ABNAHMESTAND.md](ABNAHMESTAND.md), aus `module-verification.js` erzeugt. Seit 14.10.2026 ist nur Modul 03 GRÜN (1/36); die Freigaben für 01 und 02 wurden zurückgezogen. Alle folgenden datierten Stände und Abnahmen sind historisch und ersetzen diesen aktuellen Stand nicht.
+
+## Arbeitsstand 13.10.2026
 
 Dieser Ausbau ist **keine Fertigstellung aller produktiven Module**. Er ersetzt die isolierten Beispielmasken durch ein gemeinsames lokales Projektmodell mit fachbezogenen Eingaben. Grundlage sind die 34 Funktionsbereiche der Gesamtpräsentation vom 09.10.2026 sowie Sachverständigenwesen und Energieberatung. Bestehende Trainingsentwicklung bleibt auf ihrem eigenen Branch erhalten.
 
