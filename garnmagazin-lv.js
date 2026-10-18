@@ -11,7 +11,7 @@
     if (document.getElementById('dwp-workflow-assistant')) { loadGreenTheme(); return; }
     const w = document.createElement('script');
     w.id = 'dwp-workflow-assistant';
-    w.src = '/workflow-assistant.js?v=1';
+    w.src = '/workflow-assistant.js?v=2';
     w.onload = loadGreenTheme;
     document.body.appendChild(w);
   }

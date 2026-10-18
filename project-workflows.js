@@ -32,13 +32,15 @@
     else db.select(id);
   }
   function projectBar() {
-    return `<div class="dwp-project-bar"><label>Aktuelles Projekt<select id="dwp-project" ${db.list('projects').length?'':'disabled'}><option value="">${db.list('projects').length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${db.list('projects').map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><span>${esc(db.project()?names(db.project().data.customerId):'Zuerst Kunde und Projekt anlegen')}</span>${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}</div>`;
+    const projects=db.list('projects'),central=window.DWPRemote?.active;
+    const hint=db.project()?names(db.project().data.customerId):projects.length?'Bitte ein vorhandenes Projekt auswählen.':central?'In diesem Benutzerbestand sind noch keine Projekte gespeichert.':'Zuerst Kunde und Projekt anlegen';
+    return `<div class="dwp-project-bar"><label>Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}</div></div>`;
   }
   function header(name) {
     return `<header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.</p></div><div class="header-actions">${btn('Alle Module','open','dashboard')}${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${projectBar()}`;
   }
   function shell(name,body) {
-    main.innerHTML=`<section class="page dwp-workspace">${header(name)}<p id="dwp-error" role="alert" class="dwp-error"></p>${window.DWPRemote?.active?btn('Serverbestand neu laden','server-reload'):''}${body}</section>`;
+    main.innerHTML=`<section class="page dwp-workspace">${header(name)}<p id="dwp-error" role="alert" class="dwp-error"></p>${body}</section>`;
     if(window.DWPRemote?.active)main.querySelector('.dwp-local-note').textContent='Zentrale Projektakte · Änderungen nach Serverspeicherung. Anmeldungen und Modulaufrufe werden protokolliert.';
     state.unsavedChanges=false;
     main.querySelector('h1')?.focus({preventScroll:true});
@@ -399,7 +401,12 @@
       if(action==='signature')signatureView(id);
       if(action==='clear-signature'){const canvas=main.querySelector('#dwp-signature');canvas.getContext('2d').clearRect(0,0,640,240);signatureStrokes=[], importPreview=null;}
       if(action==='search-open'){const r=db.get(id);if(r.projectId)selectProject(r.projectId);openModule(r.module);if(core.definitions[r.module].fields.length && r.module!=='imports'){editing=r.id;records(core.definitions[r.module]);}}
-      if(action==='server-reload')window.DWPRemote.reload().catch(showError);
+      if(action==='server-reload'){
+        if(!confirmPageChange())return;
+        target.disabled=true;target.textContent='Projekte werden geladen …';
+        try{await window.DWPRemote.reload();}
+        finally{target.disabled=false;target.textContent='Projekte neu laden';}
+      }
       if(action==='operating-rate')mutate('applyOperatingCosts',[],()=>{notice('Vollkostensatz übernommen; AGK auf 0 gesetzt.');openModule('calculation');});
       if(action==='backup')download('DachWerkPro_Sicherung.json',db.backup());
       if(action==='project-json')download('DachWerkPro_Projektakte.json',JSON.stringify({project:db.project(),customer:db.get(db.project().data.customerId),records:db.data.records.filter(r=>r.projectId===db.data.selectedProject)},null,2));
