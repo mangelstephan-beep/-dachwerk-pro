@@ -38,7 +38,7 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
  db=model();const findings=db.contractChecks();assert(findings.some(f=>f.number==='Z1' && f.code==='quantity'));assert(findings.some(f=>f.number==='Z1' && f.code==='change-number'));assert(findings.some(f=>f.number==='N1' && f.code==='margin'));
  const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'}),w=dom.window;
  w.localStorage.setItem('dwp-project-core-v1',db.backup());w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
- for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
+ for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','document-layout.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
  w.DWPWorkspace.open('calculation');assert(w.document.querySelector('#main-content').textContent.includes('Rabatt %'));assert(w.document.querySelector('#main-content').textContent.includes('ohne Bedarfspositionen'));
  w.DWPWorkspace.open('offers');assert(w.document.querySelector('#main-content').textContent.includes('Version 2'));assert(w.document.querySelector('#main-content').textContent.includes('Ersetzt'));
  w.DWPWorkspace.open('contract');const button=w.document.querySelector('[data-dwp="contract-finding"]');button.click();

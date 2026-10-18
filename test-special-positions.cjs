@@ -54,7 +54,7 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
  projectId=project.id;db=model();const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'}),w=dom.window;
  const snapshot=JSON.parse(db.backup());snapshot.records=snapshot.records.filter(r=>!['offers','orders','invoices','measurements'].includes(r.module));snapshot.settings.profit=0;
  w.localStorage.setItem('dwp-project-core-v1',JSON.stringify(snapshot));w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
- for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
+ for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','document-layout.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
  w.DWPWorkspace.open('offers');assert(w.document.querySelector('#dwp-choice-total').textContent.includes('105,00'));
  const radio=w.document.querySelector(`[data-offer-position][value="${alt.id}"]`);radio.checked=true;radio.dispatchEvent(new w.Event('change',{bubbles:true}));
  assert(w.document.querySelector('#dwp-choice-total').textContent.includes('155,00'));

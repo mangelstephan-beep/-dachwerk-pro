@@ -46,7 +46,7 @@
   function showError(e) {const el=main.querySelector('#dwp-error');if(el){el.textContent=e.message || String(e);el.scrollIntoView({block:'nearest'});}}
   function notice(text) {showToast('DachWerk Pro',text);}
   function table(headers,rows) {
-    return `<div class="data-table-wrap"><table class="data-table"><thead><tr>${headers.map(h=>`<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(cells=>`<tr>${cells.map(c=>`<td>${c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${headers.length}">Noch keine Einträge im aktuellen Bestand.</td></tr>`}</tbody></table></div>`;
+    return `<div class="data-table-wrap"><table class="data-table"><thead><tr>${headers.map(h=>`<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(cells=>`<tr>${cells.map((c,i)=>`<td${/^(Menge|Einheit|EP|GP|Netto|Brutto|Betrag|USt)( |$)/.test(headers[i])?' class="dwp-numeric"':''}>${c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${headers.length}">Noch keine Einträge im aktuellen Bestand.</td></tr>`}</tbody></table></div>`;
   }
   function workflowPanel() {
     const flow=db.workflow();
@@ -64,7 +64,7 @@
   }
   function dashboard() {
     const p=db.project(), stats=p?db.controlling():null;
-    shell('Alle Arbeitsmodule',`${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
+    shell('Alle Arbeitsmodule',`${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
     filterModules();
   }
   function searchRecords(query) {
@@ -199,7 +199,7 @@
   }
   function importView() {
     let legacy=[];try{legacy=JSON.parse(localStorage.getItem('dwp-lv-import-v1') || '{}').workingCopies || [];}catch{}
-    return panel('LV in das aktuelle Projekt übernehmen',`<p>CSV: Pflichtspalten number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;changeNumber;discountPercent. GAEB: X83 / XML 3.3 mit normalen Mengenpositionen und bis fünf Titelstufen. Sonderpositionen und Vorbemerkungen werden mit Originalinhalt und Wandlungsvorschlag in die LV-/Vertragsprüfung übernommen. Offene Prüfungen sperren Angebote und Aufträge.</p><label>LV-Datei<input id="dwp-import-file" type="file" accept=".csv,.xml,.x83,.xlsx,text/csv,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><form id="dwp-import"><label>Format<select name="format" id="dwp-import-format"><option value="CSV">CSV</option><option value="GAEB XML">GAEB X83 / XML 3.3</option><option value="Excel Prüfquelle">Excel XLSX</option></select></label><label>Quelle / Dateiname<input name="source" id="dwp-import-source" placeholder="Dateiname oder Herkunft"></label><div id="dwp-excel-controls"></div><label>Dateiinhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>GAEB-Texte werden als Klartext übernommen. Briefkopf, Textformatierung und PDF-Originale bleiben außerhalb dieser Positionsübernahme. Das eingelesene GAEB-XML bleibt im Importjournal erhalten. Alle Positionen bleiben ungeprüft; Preise und Zeitansätze anschließend ergänzen. Excel XLSX: Blatt und Spalten zuordnen, Formeln und unklare Zeilen gesondert prüfen. PDF/OCR, XLS, GAEB 90/2000 und weitere XML-Phasen sind noch offen.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
+    return panel('LV in das aktuelle Projekt übernehmen',`<p>CSV: Pflichtspalten number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;changeNumber;discountPercent. GAEB: X83 / XML 3.3 mit normalen Mengenpositionen und bis fünf Titelstufen. Sonderpositionen und Vorbemerkungen werden mit Originalinhalt und Wandlungsvorschlag in die LV-/Vertragsprüfung übernommen. Offene Prüfungen sperren Angebote und Aufträge.</p><label>LV-Datei<input id="dwp-import-file" type="file" accept=".csv,.xml,.x83,.xlsx,.pdf,application/pdf,text/csv,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><form id="dwp-import"><label>Format<select name="format" id="dwp-import-format"><option value="CSV">CSV</option><option value="GAEB XML">GAEB X83 / XML 3.3</option><option value="Excel Prüfquelle">Excel XLSX</option><option value="PDF Prüfquelle">PDF-Text zur Prüfung</option></select></label><label>Quelle / Dateiname<input name="source" id="dwp-import-source" placeholder="Dateiname oder Herkunft"></label><div id="dwp-excel-controls"></div><label>Dateiinhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>GAEB-Texte werden als Klartext übernommen. Briefkopf, Textformatierung und PDF-Originale bleiben außerhalb dieser Positionsübernahme. Das eingelesene GAEB-XML bleibt im Importjournal erhalten. Alle Positionen bleiben ungeprüft; Preise und Zeitansätze anschließend ergänzen. Excel XLSX: Blatt und Spalten zuordnen, Formeln und unklare Zeilen gesondert prüfen. PDF mit Textschicht: seitenweise Textprüfung ohne automatische Mengenübernahme. Im Importjournal wird der ausgelesene Text gespeichert; das Original-PDF bitte zusätzlich im DMS ablegen. Scan/OCR, XLS, GAEB 90/2000 und weitere XML-Phasen sind noch offen.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
   }
   function importJournal() {
     return panel('Importjournal',table(['Quelle','Format','Übernahme','Original'],db.list('imports').map(r=>[esc(r.data.source),esc(r.data.format),esc(r.data.notes),(r.originalText?btn('Originaldaten anzeigen','import-original',r.id):'')+(r.hasOriginalWorkbook?btn('Excel-Original herunterladen','workbook-download',r.id):'')])));
@@ -221,7 +221,7 @@
     download(record.workbookName || 'LV.xlsx',bytes,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   }
   function importSource(input,report) {
-    return {source:input.source || input.format,format:input.format,title:'LV-Import '+(input.source || input.format),findings:report.findings,originalText:input.format==='GAEB XML'?input.text:input.format==='Excel Prüfquelle'?JSON.stringify(excelSource.book):'',originalWorkbook:input.workbook,workbookName:excelSource?.name,mapping:input.format==='Excel Prüfquelle'?{sheet:input.sheet,header:input.header,columns:input.mapping}:undefined};
+    return {source:input.source || input.format,format:input.format,title:'LV-Import '+(input.source || input.format),findings:report.findings,originalText:['GAEB XML','PDF Prüfquelle'].includes(input.format)?input.text:input.format==='Excel Prüfquelle'?JSON.stringify(excelSource.book):'',originalWorkbook:input.workbook,workbookName:excelSource?.name,mapping:input.format==='Excel Prüfquelle'?{sheet:input.sheet,header:input.header,columns:input.mapping}:undefined};
   }
   function excelControls(sheetIndex=0,headerRow) {
     const sheet=excelSource.book.sheets[sheetIndex];
@@ -233,6 +233,7 @@
     document.querySelector('#dwp-excel-controls').innerHTML=`<p>Excel-Original bleibt erhalten. Ein Blatt pro Übernahme; Formeln werden als Prüfvorgang übernommen und nicht ausgeführt.</p>${field('Arbeitsblatt',`<select id="dwp-excel-sheet">${excelSource.book.sheets.map((b,i)=>`<option value="${i}" ${i===sheetIndex?'selected':''}>${esc(b.name)}${b.hidden?' (ausgeblendet)':''}</option>`).join('')}</select>`)}${field('Zeile mit Spaltenüberschriften',`<input id="dwp-excel-header" type="number" min="1" max="10000" value="${header}">`)}<div class="quick-form">${fields.map(f=>{const suggested=options.find(o=>aliases[f.key].includes(String(columns[o.i].value).trim().toLowerCase().replace(/[.:%]/g,'')));return field(f.label+(['number','text','qty','unit'].includes(f.key)?' *':''),`<select data-excel-map="${f.key}"><option value="-1">Nicht zugeordnet</option>${options.map(o=>`<option value="${o.i}" ${suggested?.i===o.i?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`);}).join('')}</div>`;
   }
   function parsedImport(input) {
+    if(input.format==='PDF Prüfquelle')return window.DWPPdfImport.report(input.text);
     if(input.format==='CSV')return {rows:csvRows(input.text),findings:[]};
     if(input.format==='Excel Prüfquelle')return window.DWPSpreadsheetImport.report(excelSource.book,input.sheet,input.header,input.mapping);
     if(!window.DWPGaebImport)throw Error('GAEB-Parser fehlt. Bitte die Anwendung neu laden.');
@@ -258,7 +259,7 @@
   }
   function settings() {
     const s=db.data.settings;
-    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address)}</textarea>`)}<button class="button button-primary" type="submit">Speichern</button></form>`)+panel('Sicherung und Wiederherstellung',`<p>Eine Sicherung enthält sämtliche lokalen Projektakten und zugeordneten Testdateien. Eine Wiederherstellung ersetzt den Arbeitsbestand nach ausdrücklicher Bestätigung; das aktuelle Logbuch bleibt erhalten.</p>${btn('Sicherung herunterladen','backup')}<label>Sicherung auswählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>`);
+    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}<p class="field-span">Original-DachWerkPro-Briefpapier mit Logo, roter Kopf- und Fußlinie. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+panel('Sicherung und Wiederherstellung',`<p>Eine Sicherung enthält sämtliche lokalen Projektakten und zugeordneten Testdateien. Eine Wiederherstellung ersetzt den Arbeitsbestand nach ausdrücklicher Bestätigung; das aktuelle Logbuch bleibt erhalten.</p>${btn('Sicherung herunterladen','backup')}<label>Sicherung auswählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>`);
   }
   function openModule(id) {
     if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und Bereich wechseln?')) return;
@@ -310,8 +311,9 @@
     const company=signed?.company || r.confirmation?.company || r.data.company || db.data.settings;
     const frame=document.createElement('iframe');frame.className='dwp-print-frame';frame.title='Druckansicht';document.body.append(frame);
     const doc=frame.contentDocument;
-    doc.open();doc.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${esc(r.data.number || mod.name)}</title><link rel="stylesheet" href="/project-print.css"></head><body><header><strong>${esc(company.company)}</strong><p>${esc(company.address)}</p></header><p class="test-note">TESTFASSUNG · Keine produktiv freigegebene Geschäftsunterlage</p>${body}<footer>Erstellt ${esc(new Date(r.createdAt).toLocaleString('de-DE'))} · Vorgangs-ID ${esc(r.id)}</footer></body></html>`);doc.close();
-    frame.onload=()=>{frame.contentWindow.focus();frame.contentWindow.print();};
+    if(!window.DWPDocument)throw Error('Original-Briefpapier konnte nicht geladen werden. Bitte Anwendung neu laden.');
+    frame.onload=()=>window.DWPDocument.ready(doc).then(()=>{frame.contentWindow.focus();frame.contentWindow.print();}).catch(showError);
+    doc.open();doc.write(window.DWPDocument.render({title:r.data.number || mod.name,body,company,recordId:r.id,createdAt:r.createdAt}));doc.close();
     setTimeout(()=>frame.remove(),60000);
   }
   main.addEventListener('submit',event=>{
@@ -477,27 +479,31 @@
       if(event.target.id==='dwp-import-format') {
         if(event.target.value==='Excel Prüfquelle' && excelSource)excelControls();
         else document.querySelector('#dwp-excel-controls').textContent='';
-        document.querySelector('#dwp-csv').readOnly=event.target.value==='Excel Prüfquelle';importPreview=null;
+        document.querySelector('#dwp-csv').readOnly=['Excel Prüfquelle','PDF Prüfquelle'].includes(event.target.value);importPreview=null;
       }
       if(event.target.id==='dwp-import-file') {
         const file=event.target.files[0];if(!file)return;
         importPreview=null;
         if(file.size>1_000_000)throw Error('LV-Datei höchstens 1 MB.');
-        if(!/\.(csv|xml|x83|xlsx)$/i.test(file.name))throw Error('Bitte CSV, XLSX oder GAEB X83 / XML wählen.');
+        if(!/\.(csv|xml|x83|xlsx|pdf)$/i.test(file.name))throw Error('Bitte PDF, CSV, XLSX oder GAEB X83 / XML wählen.');
         const form=main.querySelector('#dwp-import'),projectId=db.data.selectedProject;
         const fileInput=event.target;
-        const isExcel=/\.xlsx$/i.test(file.name);
+        const isExcel=/\.xlsx$/i.test(file.name),isPdf=/\.pdf$/i.test(file.name);
         let text='',excel;
         if(isExcel){
           const bytes=new Uint8Array(await file.arrayBuffer());
           const book=window.DWPSpreadsheetImport.parse(bytes);
           let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
           excel={book,base64:btoa(binary),name:file.name};text=JSON.stringify(book,null,2);
-        }else text=await file.text();
+        }else if(isPdf){
+          main.querySelector('#dwp-import-preview').textContent='PDF-Text wird ausgelesen …';
+          text=JSON.stringify(await window.DWPPdfImport.extract(file));
+        }
+        else text=await file.text();
         if(!form.isConnected || db.data.selectedProject!==projectId || fileInput.files[0]!==file)return;
         excelSource=excel || null;
-        form.querySelector('#dwp-csv').value=text;form.querySelector('#dwp-csv').readOnly=isExcel;
-        form.querySelector('#dwp-import-format').value=isExcel?'Excel Prüfquelle':/\.(xml|x83)$/i.test(file.name)?'GAEB XML':'CSV';
+        form.querySelector('#dwp-csv').value=text;form.querySelector('#dwp-csv').readOnly=isExcel || isPdf;
+        form.querySelector('#dwp-import-format').value=isExcel?'Excel Prüfquelle':isPdf?'PDF Prüfquelle':/\.(xml|x83)$/i.test(file.name)?'GAEB XML':'CSV';
         form.querySelector('#dwp-import-source').value=file.name;
         if(isExcel)excelControls();else document.querySelector('#dwp-excel-controls').textContent='';
         state.unsavedChanges=true;

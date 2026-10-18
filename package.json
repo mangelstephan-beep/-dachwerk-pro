@@ -1,14 +1,16 @@
 {
   "name": "dachwerk-pro",
-  "version": "0.4.0",
+  "version": "0.5.1",
   "private": true,
   "scripts": {
-    "test": "node test-project-entry.cjs && node test-central-pending-write.cjs && node test-project-core.cjs && node test-project-execution.cjs && node test-project-workflows.cjs && node test-billing.cjs && node test-workspace-auth.cjs && node test-project-server.cjs && node test-central-client.cjs && node test-project-postgres.cjs && node test-workflow-integration.cjs && node test-access-security.cjs && node test-access-client.cjs && node test-file-store.cjs && node test-customer-project-access.cjs && node test-operating-capacity.cjs && node test-module-verification.cjs && node test-lv-structure.cjs && node test-commercial-completion.cjs && node test-gaeb-import.cjs && node test-special-positions.cjs && node test-spreadsheet-import.cjs",
-    "check": "node --check project-core.js && node --check project-workflows.js && node --check central-entry.js && node --check api/auth.js && node --check api/projects.js && node --check lib/auth.cjs && node --check lib/project-service.cjs && node --check lib/project-repository.cjs && node --check api/access.js && node --check lib/access-security.cjs && node --check api/files.js && node --check lib/file-store.cjs && node --check gaeb-import.js && node --check spreadsheet-import.js",
+    "test": "node test-project-entry.cjs && node test-central-pending-write.cjs && node test-project-core.cjs && node test-project-execution.cjs && node test-project-workflows.cjs && node test-billing.cjs && node test-workspace-auth.cjs && node test-project-server.cjs && node test-central-client.cjs && node test-project-postgres.cjs && node test-workflow-integration.cjs && node test-access-security.cjs && node test-access-client.cjs && node test-file-store.cjs && node test-customer-project-access.cjs && node test-operating-capacity.cjs && node test-module-verification.cjs && node test-lv-structure.cjs && node test-commercial-completion.cjs && node test-gaeb-import.cjs && node test-special-positions.cjs && node test-spreadsheet-import.cjs && node test-pdf-import.cjs && node scripts/module-status.cjs --check && node test-document-layout.cjs",
+    "check": "node --check project-core.js && node --check project-workflows.js && node --check central-entry.js && node --check api/auth.js && node --check api/projects.js && node --check lib/auth.cjs && node --check lib/project-service.cjs && node --check lib/project-repository.cjs && node --check api/access.js && node --check lib/access-security.cjs && node --check api/files.js && node --check lib/file-store.cjs && node --check gaeb-import.js && node --check spreadsheet-import.js && node --check pdf-import.js && node --check garnmagazin-lv.js && node --check lv-import-manager.js && node --check document-layout.js && node --check lv-price-logic.js",
     "db:setup": "node scripts/setup-database.mjs",
     "admin:create": "node scripts/create-admin.mjs",
     "build:workspace": "node scripts/build-workspace-page.cjs",
-    "device:pair": "node scripts/pair-device.mjs"
+    "device:pair": "node scripts/pair-device.mjs",
+    "build": "node scripts/copy-pdf-assets.cjs && npm run build:workspace && node scripts/build-public.cjs",
+    "status:write": "node scripts/module-status.cjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
@@ -16,12 +18,13 @@
     "jsdom": "30.1.2"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13.0"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.2.0",
     "better-auth": "1.7.7",
     "fflate": "0.8.2",
+    "pdfjs-dist": "6.4.299",
     "pg": "8.23.1"
   }
 }
