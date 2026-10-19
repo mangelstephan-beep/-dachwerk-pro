@@ -39,8 +39,8 @@
     "name": "Importmanager",
     "verified": false,
     "checkedAt": "2026-10-19",
-    "evidence": "Live-CSV 19.10.2026: Vorschau, deutsche Dezimalzahlen und zentraler Journalnachweis bestanden. PDF-Grenze der Oberfläche auf 10 MB korrigiert; alte Quelldaten und Vorschau werden bei neuer, auch ungültiger Dateiauswahl entfernt. PDF-, GAEB- und XLSX-Regressionstests bestanden. Live-Dateiupload wurde nicht freigegeben.",
-    "remaining": "Live-Dateiimport PDF/GAEB/XLSX und iPhone-Abnahme offen; Scan/OCR, XLS sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV live bestanden, PDF-Dateigrenze und Schutz vor alten Importdaten korrigiert."
+    "evidence": "Live-Produktion 19.10.2026 im Testdach C: CSV zuvor bestanden; PDF mit 1,1 MB als gesperrte Prüfquelle, GAEB X83 XML 3.3 mit Position 01.02.9501 und 12,5 m² samt Gliederung sowie XLSX mit Spaltenzuordnung und Position 9601 mit 12,5 m² übernommen. Alle vier Quellen nach vollständigem Neuladen im zentralen Importjournal vorhanden; gespeicherte Excel-Quelldaten erneut geöffnet. Keine Fachfreigabe und kein Versand. Vollständige Testsuite, Syntaxprüfung und Build bestanden.",
+    "remaining": "iPhone-Abnahme offen; Scan/OCR, XLS sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF-Textprüfung, GAEB X83 XML 3.3 und XLSX live mit zentralem Wiederabruf bestanden."
   },
   "contract": {
     "number": 6,
