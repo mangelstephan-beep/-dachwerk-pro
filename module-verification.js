@@ -38,9 +38,9 @@
     "number": 5,
     "name": "Importmanager",
     "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Produktiver Import und iPhone-Abnahme; Scan/OCR, XLS, weitere GAEB-Phasen und -Versionen. PDF-Textprüfung ist implementiert, noch nicht produktiv abgenommen."
+    "checkedAt": "2026-10-19",
+    "evidence": "Live-CSV 19.10.2026: Vorschau, deutsche Dezimalzahlen und zentraler Journalnachweis bestanden. PDF-Grenze der Oberfläche auf 10 MB korrigiert; alte Quelldaten und Vorschau werden bei neuer, auch ungültiger Dateiauswahl entfernt. PDF-, GAEB- und XLSX-Regressionstests bestanden. Live-Dateiupload wurde nicht freigegeben.",
+    "remaining": "Live-Dateiimport PDF/GAEB/XLSX und iPhone-Abnahme offen; Scan/OCR, XLS sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV live bestanden, PDF-Dateigrenze und Schutz vor alten Importdaten korrigiert."
   },
   "contract": {
     "number": 6,
