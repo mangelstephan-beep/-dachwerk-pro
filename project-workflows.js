@@ -496,7 +496,7 @@
     try {
       if(event.target.matches('[data-offer-position]')){updateChoiceTotal();state.unsavedChanges=true;}
       if(event.target.id==='dwp-project') {
-        if(!event.target.value)return;
+        if(!event.target.value){event.target.value=db.data.selectedProject || '';return;}
         if(state.unsavedChanges&&!confirm('Ungespeicherte Eingaben verwerfen und Projekt wechseln?')){event.target.value=db.data.selectedProject;return;}
         selectProject(event.target.value);state.unsavedChanges=false;openModule(current);
       }

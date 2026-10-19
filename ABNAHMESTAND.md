@@ -2,14 +2,14 @@
 
 Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run status:write` übernehmen.
 
-**1/36 Module GRÜN.** Veröffentlichung, bestandene lokale Tests und fachliche Produktionsabnahme sind getrennte Nachweise.
+**2/36 Module GRÜN.** Veröffentlichung, bestandene lokale Tests und fachliche Produktionsabnahme sind getrennte Nachweise.
 
 | Nr. | Modul | Status | Nachweis / noch offen |
 |---|---|---|---|
-| 01 | Kunden und Kontakte | ROT | Freigabe zurückgezogen: Nutzer meldet nicht funktionierende Projektauswahl und Anlage. Erneute Prüfung im iPhone-Browser und Produktion erforderlich. |
-| 02 | Projekte und Kostenstellen | ROT | Freigabe zurückgezogen: Nutzer meldet nicht funktionierende Projektauswahl und Anlage. Erneute Prüfung im iPhone-Browser und Produktion erforderlich. |
+| 01 | Kunden und Kontakte | ROT | iPhone-Abnahme offen; Desktop-Liveprüfung von Anlage, Kontakten und Wiederabruf am 19.10.2026 bestanden. |
+| 02 | Projekte und Kostenstellen | ROT | iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl offen; Desktop-Anlage, Wechsel und Wiederabruf am 19.10.2026 bestanden. |
 | 03 | Betriebs- und Lohnkosten | GRÜN | test-operating-capacity.cjs + Live-HTTP: 3096 Produktivstunden, Kostensatz 100, AGK 0, Angebotswert 275 und Wiederabruf |
-| 04 | Leistungsverzeichnisse | ROT | Prüfung dieser Erweiterung in der veröffentlichten App offen; bleibt rot. |
+| 04 | Leistungsverzeichnisse | GRÜN | Live-Produktion 19.10.2026 im Testdach C: zentrale Positionsanlage und Wiederabruf, dreistufige Gliederung, Hauptleistung 180 EUR, Bedarf 100 EUR separat, Nachtrag 90 EUR; Hauptangebotsversionen 180/280 EUR und getrennte Nachtragsfassung 90 EUR. Ergänzend test-lv-structure.cjs für fünf Ebenen, Versionssperren und Aufmaß-/Rechnungsbezug. |
 | 05 | Importmanager | ROT | Produktiver Import und iPhone-Abnahme; Scan/OCR, XLS, weitere GAEB-Phasen und -Versionen. PDF-Textprüfung ist implementiert, noch nicht produktiv abgenommen. |
 | 06 | LV- und Vertragsprüfung | ROT | Live-Abnahme der automatischen LV-Datenprüfung; weitergehende Vertrags- und Regelwerksprüfungen. |
 | 07 | Kalkulation und Zielpreis | ROT | Live-Abnahme von Rabatt, Zielpreis, Grund-/Alternativ- und Bedarfspositionen. |

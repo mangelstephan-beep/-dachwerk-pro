@@ -6,17 +6,17 @@
     "number": 1,
     "name": "Kunden und Kontakte",
     "verified": false,
-    "checkedAt": "2026-10-14",
-    "evidence": "Freigabe zurückgezogen: Nutzer meldet nicht funktionierende Projektauswahl und Anlage. Erneute Prüfung im iPhone-Browser und Produktion erforderlich.",
-    "remaining": "Freigabe zurückgezogen: Nutzer meldet nicht funktionierende Projektauswahl und Anlage. Erneute Prüfung im iPhone-Browser und Produktion erforderlich."
+    "checkedAt": "2026-10-19",
+    "evidence": "Live 19.10.2026: Testkunde mit Haupt- und Zusatzkontakt zentral gespeichert; Zuordnung zum neuen Testprojekt und Wiederabruf nach Seitenreload bestätigt. iPhone-Abnahme weiterhin offen.",
+    "remaining": "iPhone-Abnahme offen; Desktop-Liveprüfung von Anlage, Kontakten und Wiederabruf am 19.10.2026 bestanden."
   },
   "projects": {
     "number": 2,
     "name": "Projekte und Kostenstellen",
     "verified": false,
-    "checkedAt": "2026-10-14",
-    "evidence": "Freigabe zurückgezogen: Nutzer meldet nicht funktionierende Projektauswahl und Anlage. Erneute Prüfung im iPhone-Browser und Produktion erforderlich.",
-    "remaining": "Freigabe zurückgezogen: Nutzer meldet nicht funktionierende Projektauswahl und Anlage. Erneute Prüfung im iPhone-Browser und Produktion erforderlich."
+    "checkedAt": "2026-10-19",
+    "evidence": "Live 19.10.2026: Testprojekt mit Kunde und Kostenstelle gespeichert; Wechsel zwischen Projekten und Auswahl nach Seitenreload bestätigt. iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl weiterhin offen.",
+    "remaining": "iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl offen; Desktop-Anlage, Wechsel und Wiederabruf am 19.10.2026 bestanden."
   },
   "operating": {
     "number": 3,
@@ -29,10 +29,10 @@
   "lv": {
     "number": 4,
     "name": "Leistungsverzeichnisse",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Prüfung dieser Erweiterung in der veröffentlichten App offen; bleibt rot."
+    "verified": true,
+    "checkedAt": "2026-10-19",
+    "evidence": "Live-Produktion 19.10.2026 im Testdach C: zentrale Positionsanlage und Wiederabruf, dreistufige Gliederung, Hauptleistung 180 EUR, Bedarf 100 EUR separat, Nachtrag 90 EUR; Hauptangebotsversionen 180/280 EUR und getrennte Nachtragsfassung 90 EUR. Ergänzend test-lv-structure.cjs für fünf Ebenen, Versionssperren und Aufmaß-/Rechnungsbezug.",
+    "remaining": ""
   },
   "imports": {
     "number": 5,
