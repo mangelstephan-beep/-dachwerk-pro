@@ -11,7 +11,7 @@ const html=fs.readFileSync(path.join(output,'index.html'),'utf8');
 for(const match of html.matchAll(/(?:src|href)="(\/[^"#?]+)(?:[?#][^"]*)?"/g)) {
   if(!fs.existsSync(path.join(output,match[1])))throw Error('Missing deployed asset: '+match[1]);
 }
-for(const file of ['vendor/pdfjs/pdf.min.mjs','vendor/pdfjs/pdf.worker.min.mjs','vendor/ocr/tesseract.min.js','vendor/ocr/worker.min.js','vendor/ocr/lang/deu.traineddata.gz','vendor/ocr/core/tesseract-core-lstm.wasm.js','vendor/ocr/core/tesseract-core-lstm.wasm','assets/dachwerkpro-original-logo-20261006.png']) {
+for(const file of ['vendor/pdfjs/pdf.min.mjs','vendor/pdfjs/pdf.worker.min.mjs','vendor/xls/xlsx.full.min.js','xls-import-worker.js','vendor/ocr/tesseract.min.js','vendor/ocr/worker.min.js','vendor/ocr/lang/deu.traineddata.gz','vendor/ocr/core/tesseract-core-lstm.wasm.js','vendor/ocr/core/tesseract-core-lstm.wasm','assets/dachwerkpro-original-logo-20261006.png']) {
   if(!fs.existsSync(path.join(output,file)))throw Error('Missing document dependency: '+file);
 }
 console.log('Public application assets prepared and references verified.');

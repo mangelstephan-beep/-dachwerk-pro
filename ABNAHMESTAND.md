@@ -10,7 +10,7 @@ Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run statu
 | 02 | Projekte und Kostenstellen | ROT | iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl offen; Desktop-Anlage, Wechsel und Wiederabruf am 19.10.2026 bestanden. |
 | 03 | Betriebs- und Lohnkosten | GRÜN | test-operating-capacity.cjs + Live-HTTP: 3096 Produktivstunden, Kostensatz 100, AGK 0, Angebotswert 275 und Wiederabruf |
 | 04 | Leistungsverzeichnisse | GRÜN | Live-Produktion 19.10.2026 im Testdach C: zentrale Positionsanlage und Wiederabruf, dreistufige Gliederung, Hauptleistung 180 EUR, Bedarf 100 EUR separat, Nachtrag 90 EUR; Hauptangebotsversionen 180/280 EUR und getrennte Nachtragsfassung 90 EUR. Ergänzend test-lv-structure.cjs für fünf Ebenen, Versionssperren und Aufmaß-/Rechnungsbezug. |
-| 05 | Importmanager | ROT | iPhone-Abnahme offen; XLS sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF-Textprüfung, deutsche Scan-Texterkennung, GAEB X83 XML 3.3 und XLSX live mit zentralem Wiederabruf bestanden. |
+| 05 | Importmanager | ROT | XLS-97–2003-Liveprüfung und iPhone-Abnahme offen; XLS vor Excel 97 sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF-Textprüfung, deutsche Scan-Texterkennung, GAEB X83 XML 3.3 und XLSX live mit zentralem Wiederabruf bestanden. |
 | 06 | LV- und Vertragsprüfung | ROT | Live-Abnahme der automatischen LV-Datenprüfung; weitergehende Vertrags- und Regelwerksprüfungen. |
 | 07 | Kalkulation und Zielpreis | ROT | Live-Abnahme von Rabatt, Zielpreis, Grund-/Alternativ- und Bedarfspositionen. |
 | 08 | EFB und Kalkulationsblätter | ROT | EFB 221/222/223 mit Feldmapping |
