@@ -15,7 +15,7 @@ Produktionsdomain: https://www.dachwerkpro.de/
 
 Node.js ab 22.13 oder 24; `npm ci`, `npm test`, `npm run check`, `npm run build`. Der Build liefert PDF.js samt Worker, Schriften und Zeichentabellen von derselben Domain aus. Dafür sind keine externen CDN-Freigaben nötig.
 
-PDFs mit Textschicht können im zentralen Importmanager seitenweise als **Prüfquelle** übernommen werden. Daraus entstehen gesperrte Prüfvorgänge, keine automatisch freigegebenen Positionen oder Mengen. Der ausgelesene Text bleibt im Importjournal; das Original-PDF separat im DMS ablegen. Scans benötigen eine gesonderte Texterkennung.
+PDFs mit Textschicht können im zentralen Importmanager seitenweise als **Prüfquelle** übernommen werden. Daraus entstehen gesperrte Prüfvorgänge, keine automatisch freigegebenen Positionen oder Mengen. Der ausgelesene Text bleibt im Importjournal; das Original-PDF separat im DMS ablegen. Für Scanseiten kann vor der Dateiauswahl die deutsche Texterkennung aktiviert werden. Sie verarbeitet Seiten mit weniger als 35 Textzeichen, höchstens 20 Scanseiten je PDF, mit Fortschritt und Abbruch. Tesseract.js, WASM und Sprachdaten werden von derselben Domain geladen; die Erkennung läuft im Browser. OCR-Text und Erkennungssicherheit bleiben mit Seitenbezug im Importjournal. Jede Seite erzeugt einen gesperrten Prüfvorgang; Zahlen und Einheiten immer am Originalbild bestätigen. Das Original-PDF weiterhin separat im DMS ablegen. Die tatsächliche iPhone-Abnahme ist offen.
 
 Einrichtung und Berechtigungen: [BACKEND_SETUP.md](BACKEND_SETUP.md). Der getrennte `/workspace`-Bereich bleibt ein lokaler Modultest und ist keine produktive Projektablage.
 

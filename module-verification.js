@@ -40,7 +40,7 @@
     "verified": false,
     "checkedAt": "2026-10-19",
     "evidence": "Live-Produktion 19.10.2026 im Testdach C: CSV zuvor bestanden; PDF mit 1,1 MB als gesperrte Prüfquelle, GAEB X83 XML 3.3 mit Position 01.02.9501 und 12,5 m² samt Gliederung sowie XLSX mit Spaltenzuordnung und Position 9601 mit 12,5 m² übernommen. Alle vier Quellen nach vollständigem Neuladen im zentralen Importjournal vorhanden; gespeicherte Excel-Quelldaten erneut geöffnet. Keine Fachfreigabe und kein Versand. PR #35 ergänzt abbrechbares Einlesen und Schutz vor verspäteten Ergebnissen; test-import-lifecycle.cjs bestanden. 100-seitiges PDF live eingelesen und Vorschau danach bedienbar; Abbruch selbst nur automatisiert geprüft. Vollständige Testsuite, Syntaxprüfung und Build bestanden.",
-    "remaining": "iPhone-Abnahme offen; Scan/OCR, XLS sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF-Textprüfung, GAEB X83 XML 3.3 und XLSX live mit zentralem Wiederabruf bestanden."
+    "remaining": "iPhone-Abnahme und Live-Abnahme der deutschen Scan-Texterkennung offen; XLS sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF-Textprüfung, GAEB X83 XML 3.3 und XLSX live mit zentralem Wiederabruf bestanden."
   },
   "contract": {
     "number": 6,
