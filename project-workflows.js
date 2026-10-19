@@ -222,7 +222,7 @@
   }
   function importView() {
     let legacy=[];try{legacy=JSON.parse(localStorage.getItem('dwp-lv-import-v1') || '{}').workingCopies || [];}catch{}
-    return panel('LV in das aktuelle Projekt übernehmen',`<p>CSV: Pflichtspalten number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;changeNumber;discountPercent. GAEB: X83 / XML 3.3 mit normalen Mengenpositionen und bis fünf Titelstufen. Sonderpositionen und Vorbemerkungen werden mit Originalinhalt und Wandlungsvorschlag in die LV-/Vertragsprüfung übernommen. Offene Prüfungen sperren Angebote und Aufträge.</p><p>PDF bis 10 MB; CSV, GAEB und XLSX bis 1 MB.</p><label>LV-Datei<input id="dwp-import-file" type="file" accept=".csv,.xml,.x83,.xlsx,.pdf,application/pdf,text/csv,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="dwp-import-progress" role="status" aria-live="polite"></p><button type="button" class="button button-secondary" data-dwp="cancel-import-read" hidden>Einlesen abbrechen</button><form id="dwp-import"><label>Format<select name="format" id="dwp-import-format"><option value="CSV">CSV</option><option value="GAEB XML">GAEB X83 / XML 3.3</option><option value="Excel Prüfquelle">Excel XLSX</option><option value="PDF Prüfquelle">PDF-Text zur Prüfung</option></select></label><label>Quelle / Dateiname<input name="source" id="dwp-import-source" placeholder="Dateiname oder Herkunft"></label><div id="dwp-excel-controls"></div><label>Dateiinhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>GAEB-Texte werden als Klartext übernommen. Briefkopf, Textformatierung und PDF-Originale bleiben außerhalb dieser Positionsübernahme. Das eingelesene GAEB-XML bleibt im Importjournal erhalten. Alle Positionen bleiben ungeprüft; Preise und Zeitansätze anschließend ergänzen. Excel XLSX: Blatt und Spalten zuordnen, Formeln und unklare Zeilen gesondert prüfen. PDF mit Textschicht: seitenweise Textprüfung ohne automatische Mengenübernahme. Im Importjournal wird der ausgelesene Text gespeichert; das Original-PDF bitte zusätzlich im DMS ablegen. Scan/OCR, XLS, GAEB 90/2000 und weitere XML-Phasen sind noch offen.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
+    return panel('LV in das aktuelle Projekt übernehmen',`<p>CSV: Pflichtspalten number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;changeNumber;discountPercent. GAEB: X83 / XML 3.3 mit normalen Mengenpositionen und bis fünf Titelstufen. Sonderpositionen und Vorbemerkungen werden mit Originalinhalt und Wandlungsvorschlag in die LV-/Vertragsprüfung übernommen. Offene Prüfungen sperren Angebote und Aufträge.</p><p>PDF bis 10 MB; CSV, GAEB und XLSX bis 1 MB.</p><label>LV-Datei<input id="dwp-import-file" type="file" accept=".csv,.xml,.x83,.xlsx,.pdf,application/pdf,text/csv,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><label><input id="dwp-import-ocr" type="checkbox"> Scan-Texterkennung bei der nächsten PDF-Dateiauswahl (Deutsch)</label><p>Seiten mit weniger als 35 Textzeichen werden als Scan geprüft. Höchstens 20 Scanseiten; erkannte Texte immer am Original kontrollieren.</p><p id="dwp-import-progress" role="status" aria-live="polite"></p><button type="button" class="button button-secondary" data-dwp="cancel-import-read" hidden>Einlesen abbrechen</button><form id="dwp-import"><label>Format<select name="format" id="dwp-import-format"><option value="CSV">CSV</option><option value="GAEB XML">GAEB X83 / XML 3.3</option><option value="Excel Prüfquelle">Excel XLSX</option><option value="PDF Prüfquelle">PDF-Text zur Prüfung</option></select></label><label>Quelle / Dateiname<input name="source" id="dwp-import-source" placeholder="Dateiname oder Herkunft"></label><div id="dwp-excel-controls"></div><label>Dateiinhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>GAEB-Texte werden als Klartext übernommen. Briefkopf, Textformatierung und PDF-Originale bleiben außerhalb dieser Positionsübernahme. Das eingelesene GAEB-XML bleibt im Importjournal erhalten. Alle Positionen bleiben ungeprüft; Preise und Zeitansätze anschließend ergänzen. Excel XLSX: Blatt und Spalten zuordnen, Formeln und unklare Zeilen gesondert prüfen. PDF mit Textschicht: seitenweise Textprüfung ohne automatische Mengenübernahme. Im Importjournal wird der ausgelesene Text gespeichert; das Original-PDF bitte zusätzlich im DMS ablegen. Scan-Texterkennung Deutsch ist optional verfügbar; Scantexte bleiben gesperrte Prüfvorgänge. iPhone-Abnahme, XLS, GAEB 90/2000 und weitere XML-Phasen sind noch offen.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
   }
   function importJournal() {
     return panel('Importjournal',table(['Quelle','Format','Übernahme','Original'],db.list('imports').map(r=>[esc(r.data.source),esc(r.data.format),esc(r.data.notes),(r.originalText?btn('Originaldaten anzeigen','import-original',r.id):'')+(r.hasOriginalWorkbook?btn('Excel-Original herunterladen','workbook-download',r.id):'')])));
@@ -244,6 +244,7 @@
     importRead=null;job.controller.abort();
     for(const control of job.form.elements)control.disabled=false;
     job.form.removeAttribute('aria-busy');
+    if(job.ocrToggle)job.ocrToggle.disabled=false;
     const cancel=main.querySelector('[data-dwp="cancel-import-read"]');if(cancel)cancel.hidden=true;
   }
   async function readImportFile(fileInput) {
@@ -252,7 +253,8 @@
     const form=main.querySelector('#dwp-import'),projectId=db.data.selectedProject;
     const progress=main.querySelector('#dwp-import-progress'),preview=main.querySelector('#dwp-import-preview');
     const cancel=main.querySelector('[data-dwp="cancel-import-read"]');
-    const job={form,controller:new AbortController()};importRead=job;
+    const ocrToggle=main.querySelector('#dwp-import-ocr'),useOcr=ocrToggle.checked;
+    const job={form,ocrToggle,controller:new AbortController()};importRead=job;ocrToggle.disabled=true;
     const active=()=>importRead===job && form.isConnected && db.data.selectedProject===projectId && fileInput.files[0]===file;
     importPreview=null;excelSource=null;
     form.querySelector('#dwp-csv').value='';form.querySelector('#dwp-csv').readOnly=false;
@@ -275,7 +277,9 @@
       }else if(isPdf){
         text=JSON.stringify(await window.DWPPdfImport.extract(file,(page,total)=>{
           if(active())progress.textContent=`PDF: Seite ${page} von ${total} eingelesen …`;
-        },undefined,{signal:job.controller.signal}));
+        },undefined,{signal:job.controller.signal,ocr:useOcr,ocrProgress:(page,total,value)=>{
+          if(active())progress.textContent=`Texterkennung: Seite ${page} von ${total} · ${Math.round(value*100)} % …`;
+        }}));
       }else text=await file.text();
       if(!active())return;
       excelSource=excel || null;
@@ -283,7 +287,7 @@
       form.querySelector('#dwp-import-format').value=isExcel?'Excel Prüfquelle':isPdf?'PDF Prüfquelle':/\.(xml|x83)$/i.test(file.name)?'GAEB XML':'CSV';
       form.querySelector('#dwp-import-source').value=file.name;
       if(isExcel)excelControls();
-      progress.textContent='Datei eingelesen. Bitte Vorschau prüfen.';
+      progress.textContent=useOcr&&isPdf?'PDF eingelesen. Erkannte Texte am Original prüfen; anschließend Vorschau prüfen.':'Datei eingelesen. Bitte Vorschau prüfen.';
     }catch(error){
       if(active()){progress.textContent='Datei konnte nicht eingelesen werden. Bitte erneut auswählen.';fileInput.value='';showError(error);}
     }finally{

@@ -6,3 +6,4 @@ node_modules
 
 vendor/pdfjs/
 public/
+vendor/ocr/
