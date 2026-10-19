@@ -66,6 +66,25 @@ function fixture() {
   q('[data-dwp="preview-import"]').click(); assert.match(q('#dwp-import-preview').textContent, /1 gesperrte Prüfvorgänge/);
   q('#dwp-import').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
   assert.equal(db.list('imports').length, 1); assert.equal(db.list('lv').length, 0); assert.equal(db.list('contract')[0].data.blocking, true);
+  w.DWPWorkspace.open('imports');
+  const input=q('#dwp-import-file');
+  const choose=async file=>{
+    Object.defineProperty(input,'files',{value:[file],configurable:true});
+    input.dispatchEvent(new w.Event('change',{bubbles:true}));
+    await new Promise(resolve=>setTimeout(resolve,0));
+  };
+  await choose({...file,name:'large-review.pdf',size:1_000_001});
+  assert.equal(q('#dwp-import-source').value,'large-review.pdf','PDFs above 1 MB must reach the 10 MB PDF reader');
+  assert.equal(q('#dwp-import-format').value,'PDF Prüfquelle');
+  q('[data-dwp="preview-import"]').click();
+  await choose({...file,name:'not-supported.exe'});
+  assert.equal(q('#dwp-csv').value,'','Rejected replacement must clear old import contents');
+  assert.equal(q('#dwp-import-source').value,'');
+  assert.equal(q('#dwp-import-preview').textContent,'','Rejected replacement must clear old preview');
+  await choose({...file,size:10_000_001});
+  assert.match(q('#dwp-error').textContent,/10 MB/);
+  await choose({...file,name:'oversized.csv',size:1_000_001});
+  assert.match(q('#dwp-error').textContent,/1 MB/,'Other formats retain their own bounds');
   dom.window.close();
   assert(!fs.readFileSync('garnmagazin-lv.js', 'utf8').includes('https://'));
   assert(!fs.readFileSync('lv-import-manager.js', 'utf8').includes('cdnjs.cloudflare.com'));
