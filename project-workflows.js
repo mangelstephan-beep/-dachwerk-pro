@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   const core=window.DWPProject, main=document.querySelector('#main-content');
-  let db, current='dashboard', editing=null, search='', signatureStrokes=[], importPreview=null, excelSource=null, selectionKey=null;
+  let db, current='dashboard', editing=null, search='', signatureStrokes=[], importPreview=null, excelSource=null, selectionKey=null, importRead=null;
   const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const money=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v||0);
   const verified=id=>window.DWPRemote?.active===true&&window.DWPVerification?.isVerified(id)===true;
@@ -59,6 +59,7 @@
     return `<header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.</p></div><div class="header-actions">${btn('Alle Module','open','dashboard')}${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${projectBar()}`;
   }
   function shell(name,body) {
+    cancelImportRead();
     updateNavigationCounts();
     main.innerHTML=`<section class="page dwp-workspace">${header(name)}<p id="dwp-error" role="alert" class="dwp-error"></p>${body}</section>`;
     if(window.DWPRemote?.active)main.querySelector('.dwp-local-note').textContent='Zentrale Projektakte · Änderungen nach Serverspeicherung. Anmeldungen und Modulaufrufe werden protokolliert.';
@@ -221,12 +222,13 @@
   }
   function importView() {
     let legacy=[];try{legacy=JSON.parse(localStorage.getItem('dwp-lv-import-v1') || '{}').workingCopies || [];}catch{}
-    return panel('LV in das aktuelle Projekt übernehmen',`<p>CSV: Pflichtspalten number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;changeNumber;discountPercent. GAEB: X83 / XML 3.3 mit normalen Mengenpositionen und bis fünf Titelstufen. Sonderpositionen und Vorbemerkungen werden mit Originalinhalt und Wandlungsvorschlag in die LV-/Vertragsprüfung übernommen. Offene Prüfungen sperren Angebote und Aufträge.</p><p>PDF bis 10 MB; CSV, GAEB und XLSX bis 1 MB.</p><label>LV-Datei<input id="dwp-import-file" type="file" accept=".csv,.xml,.x83,.xlsx,.pdf,application/pdf,text/csv,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><form id="dwp-import"><label>Format<select name="format" id="dwp-import-format"><option value="CSV">CSV</option><option value="GAEB XML">GAEB X83 / XML 3.3</option><option value="Excel Prüfquelle">Excel XLSX</option><option value="PDF Prüfquelle">PDF-Text zur Prüfung</option></select></label><label>Quelle / Dateiname<input name="source" id="dwp-import-source" placeholder="Dateiname oder Herkunft"></label><div id="dwp-excel-controls"></div><label>Dateiinhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>GAEB-Texte werden als Klartext übernommen. Briefkopf, Textformatierung und PDF-Originale bleiben außerhalb dieser Positionsübernahme. Das eingelesene GAEB-XML bleibt im Importjournal erhalten. Alle Positionen bleiben ungeprüft; Preise und Zeitansätze anschließend ergänzen. Excel XLSX: Blatt und Spalten zuordnen, Formeln und unklare Zeilen gesondert prüfen. PDF mit Textschicht: seitenweise Textprüfung ohne automatische Mengenübernahme. Im Importjournal wird der ausgelesene Text gespeichert; das Original-PDF bitte zusätzlich im DMS ablegen. Scan/OCR, XLS, GAEB 90/2000 und weitere XML-Phasen sind noch offen.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
+    return panel('LV in das aktuelle Projekt übernehmen',`<p>CSV: Pflichtspalten number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;changeNumber;discountPercent. GAEB: X83 / XML 3.3 mit normalen Mengenpositionen und bis fünf Titelstufen. Sonderpositionen und Vorbemerkungen werden mit Originalinhalt und Wandlungsvorschlag in die LV-/Vertragsprüfung übernommen. Offene Prüfungen sperren Angebote und Aufträge.</p><p>PDF bis 10 MB; CSV, GAEB und XLSX bis 1 MB.</p><label>LV-Datei<input id="dwp-import-file" type="file" accept=".csv,.xml,.x83,.xlsx,.pdf,application/pdf,text/csv,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="dwp-import-progress" role="status" aria-live="polite"></p><button type="button" class="button button-secondary" data-dwp="cancel-import-read" hidden>Einlesen abbrechen</button><form id="dwp-import"><label>Format<select name="format" id="dwp-import-format"><option value="CSV">CSV</option><option value="GAEB XML">GAEB X83 / XML 3.3</option><option value="Excel Prüfquelle">Excel XLSX</option><option value="PDF Prüfquelle">PDF-Text zur Prüfung</option></select></label><label>Quelle / Dateiname<input name="source" id="dwp-import-source" placeholder="Dateiname oder Herkunft"></label><div id="dwp-excel-controls"></div><label>Dateiinhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>GAEB-Texte werden als Klartext übernommen. Briefkopf, Textformatierung und PDF-Originale bleiben außerhalb dieser Positionsübernahme. Das eingelesene GAEB-XML bleibt im Importjournal erhalten. Alle Positionen bleiben ungeprüft; Preise und Zeitansätze anschließend ergänzen. Excel XLSX: Blatt und Spalten zuordnen, Formeln und unklare Zeilen gesondert prüfen. PDF mit Textschicht: seitenweise Textprüfung ohne automatische Mengenübernahme. Im Importjournal wird der ausgelesene Text gespeichert; das Original-PDF bitte zusätzlich im DMS ablegen. Scan/OCR, XLS, GAEB 90/2000 und weitere XML-Phasen sind noch offen.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
   }
   function importJournal() {
     return panel('Importjournal',table(['Quelle','Format','Übernahme','Original'],db.list('imports').map(r=>[esc(r.data.source),esc(r.data.format),esc(r.data.notes),(r.originalText?btn('Originaldaten anzeigen','import-original',r.id):'')+(r.hasOriginalWorkbook?btn('Excel-Original herunterladen','workbook-download',r.id):'')])));
   }
   function importInput() {
+    if(importRead)throw Error('Datei wird noch eingelesen. Bitte warten oder das Einlesen abbrechen.');
     const format=document.querySelector('#dwp-import-format').value;
     const input={text:document.querySelector('#dwp-csv').value,format,source:document.querySelector('#dwp-import-source').value,projectId:db.data.selectedProject,revision:db.data.revision};
     if(format==='Excel Prüfquelle'){
@@ -236,6 +238,57 @@
       input.workbook=excelSource.base64;
     }
     return input;
+  }
+  function cancelImportRead() {
+    const job=importRead;if(!job)return;
+    importRead=null;job.controller.abort();
+    for(const control of job.form.elements)control.disabled=false;
+    job.form.removeAttribute('aria-busy');
+    const cancel=main.querySelector('[data-dwp="cancel-import-read"]');if(cancel)cancel.hidden=true;
+  }
+  async function readImportFile(fileInput) {
+    const file=fileInput.files[0];if(!file)return;
+    cancelImportRead();
+    const form=main.querySelector('#dwp-import'),projectId=db.data.selectedProject;
+    const progress=main.querySelector('#dwp-import-progress'),preview=main.querySelector('#dwp-import-preview');
+    const cancel=main.querySelector('[data-dwp="cancel-import-read"]');
+    const job={form,controller:new AbortController()};importRead=job;
+    const active=()=>importRead===job && form.isConnected && db.data.selectedProject===projectId && fileInput.files[0]===file;
+    importPreview=null;excelSource=null;
+    form.querySelector('#dwp-csv').value='';form.querySelector('#dwp-csv').readOnly=false;
+    form.querySelector('#dwp-import-source').value='';form.querySelector('#dwp-import-format').value='CSV';
+    preview.textContent='';main.querySelector('#dwp-excel-controls').textContent='';main.querySelector('#dwp-error').textContent='';
+    state.unsavedChanges=true;
+    for(const control of form.elements)control.disabled=true;
+    form.setAttribute('aria-busy','true');cancel.hidden=false;progress.textContent='Datei wird eingelesen …';
+    try {
+      const isExcel=/\.xlsx$/i.test(file.name),isPdf=/\.pdf$/i.test(file.name);
+      if(!file.size)throw Error('Die gewählte Datei ist leer.');
+      if(file.size>(isPdf?10_000_000:1_000_000))throw Error(isPdf?'PDF-Datei höchstens 10 MB.':'LV-Datei höchstens 1 MB.');
+      if(!/\.(csv|xml|x83|xlsx|pdf)$/i.test(file.name))throw Error('Bitte PDF, CSV, XLSX oder GAEB X83 / XML wählen.');
+      let text='',excel;
+      if(isExcel){
+        const bytes=new Uint8Array(await file.arrayBuffer());if(!active())return;
+        const book=window.DWPSpreadsheetImport.parse(bytes);
+        let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+        excel={book,base64:btoa(binary),name:file.name};text=JSON.stringify(book,null,2);
+      }else if(isPdf){
+        text=JSON.stringify(await window.DWPPdfImport.extract(file,(page,total)=>{
+          if(active())progress.textContent=`PDF: Seite ${page} von ${total} eingelesen …`;
+        },undefined,{signal:job.controller.signal}));
+      }else text=await file.text();
+      if(!active())return;
+      excelSource=excel || null;
+      form.querySelector('#dwp-csv').value=text;form.querySelector('#dwp-csv').readOnly=isExcel || isPdf;
+      form.querySelector('#dwp-import-format').value=isExcel?'Excel Prüfquelle':isPdf?'PDF Prüfquelle':/\.(xml|x83)$/i.test(file.name)?'GAEB XML':'CSV';
+      form.querySelector('#dwp-import-source').value=file.name;
+      if(isExcel)excelControls();
+      progress.textContent='Datei eingelesen. Bitte Vorschau prüfen.';
+    }catch(error){
+      if(active()){progress.textContent='Datei konnte nicht eingelesen werden. Bitte erneut auswählen.';fileInput.value='';showError(error);}
+    }finally{
+      if(importRead===job)cancelImportRead();
+    }
   }
   function downloadWorkbook(record) {
     if(!record?.originalWorkbook)throw Error('Excel-Original nicht verfügbar.');
@@ -435,6 +488,11 @@
         csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto','Leistungsart','Wahlgruppe','In Summe'],...[...positions,...(action==='snapshot-csv'&&db.get(id).module==='offers'?[...(db.get(id).data.optionalPositions || []),...(db.get(id).data.alternativePositions || [])]:[])].map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp,p.kind || 'Hauptleistung',p.choiceGroup || '',action==='calc-csv'?(!['Bedarfsposition','Alternativposition'].includes(p.kind)?'Ja':'Nein'):(positions.includes(p)?'Ja':'Nein')])]);
       }
       if(action==='closing-csv')csvExport('DachWerkPro_Belege.csv',[['Modul','Nummer','Datum','Netto','Brutto','Status'],...db.data.records.filter(r=>r.projectId===db.data.selectedProject && ['incoming','invoices','payments','times','subcontracts'].includes(r.module)).map(r=>[core.definitions[r.module].name,r.data.number || r.data.invoiceNumber || r.data.title,r.data.date || r.createdAt,r.data.net ?? r.data.cost ?? '',r.data.gross ?? r.data.amount ?? '',r.status])]);
+      if(action==='cancel-import-read') {
+        cancelImportRead();
+        main.querySelector('#dwp-import-file').value='';
+        main.querySelector('#dwp-import-progress').textContent='Einlesen abgebrochen. Bitte eine Datei auswählen.';
+      }
       if(action==='preview-import') {
         importPreview=null;
         document.querySelector('#dwp-import-preview').textContent='';
@@ -508,39 +566,7 @@
         else document.querySelector('#dwp-excel-controls').textContent='';
         document.querySelector('#dwp-csv').readOnly=['Excel Prüfquelle','PDF Prüfquelle'].includes(event.target.value);importPreview=null;
       }
-      if(event.target.id==='dwp-import-file') {
-        const file=event.target.files[0];if(!file)return;
-        const form=main.querySelector('#dwp-import'),projectId=db.data.selectedProject;
-        const fileInput=event.target;
-        const isExcel=/\.xlsx$/i.test(file.name),isPdf=/\.pdf$/i.test(file.name);
-        importPreview=null;excelSource=null;
-        form.querySelector('#dwp-csv').value='';form.querySelector('#dwp-csv').readOnly=false;
-        form.querySelector('#dwp-import-source').value='';
-        main.querySelector('#dwp-import-preview').textContent='';
-        main.querySelector('#dwp-excel-controls').textContent='';
-        main.querySelector('#dwp-error').textContent='';
-        if(file.size>(isPdf?10_000_000:1_000_000))throw Error(isPdf?'PDF-Datei höchstens 10 MB.':'LV-Datei höchstens 1 MB.');
-        if(!/\.(csv|xml|x83|xlsx|pdf)$/i.test(file.name))throw Error('Bitte PDF, CSV, XLSX oder GAEB X83 / XML wählen.');
-        let text='',excel;
-        if(isExcel){
-          const bytes=new Uint8Array(await file.arrayBuffer());
-          const book=window.DWPSpreadsheetImport.parse(bytes);
-          let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
-          excel={book,base64:btoa(binary),name:file.name};text=JSON.stringify(book,null,2);
-        }else if(isPdf){
-          main.querySelector('#dwp-import-preview').textContent='PDF-Text wird ausgelesen …';
-          text=JSON.stringify(await window.DWPPdfImport.extract(file));
-        }
-        else text=await file.text();
-        if(!form.isConnected || db.data.selectedProject!==projectId || fileInput.files[0]!==file)return;
-        excelSource=excel || null;
-        form.querySelector('#dwp-csv').value=text;form.querySelector('#dwp-csv').readOnly=isExcel || isPdf;
-        form.querySelector('#dwp-import-format').value=isExcel?'Excel Prüfquelle':isPdf?'PDF Prüfquelle':/\.(xml|x83)$/i.test(file.name)?'GAEB XML':'CSV';
-        form.querySelector('#dwp-import-source').value=file.name;
-        if(isExcel)excelControls();else document.querySelector('#dwp-excel-controls').textContent='';
-        state.unsavedChanges=true;
-        main.querySelector('#dwp-import-preview').textContent='Datei eingelesen. Bitte Vorschau prüfen.';
-      }
+      if(event.target.id==='dwp-import-file')await readImportFile(event.target);
       if(event.target.id==='dwp-price-file') {const file=event.target.files[0];if(file){document.querySelector('#dwp-price-csv').value=await file.text();document.querySelector('#dwp-price-import [name="source"]').value=file.name;}}
       if(event.target.id==='dwp-restore') {
         const text=await event.target.files[0].text();
