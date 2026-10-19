@@ -31,6 +31,9 @@ q('#dwp-project').value=project.id;q('#dwp-project').dispatchEvent(new w.Event('
 assert.equal(w.DWPWorkspace.store.project().id,project.id);
 assert.equal(q('#dwp-project').value,project.id);
 assert.notEqual(w.DWPWorkspace.store.project().id,second.id);
+q('#dwp-project').value='';q('#dwp-project').dispatchEvent(new w.Event('change',{bubbles:true}));
+assert.equal(q('#dwp-project').value,project.id,'The placeholder must not hide the project still used for writes');
+assert.equal(w.DWPWorkspace.store.project().id,project.id);
 assert.equal(w.document.querySelector('[data-view="projects"] .nav-count').textContent,'2','Navigation counts server/workspace projects instead of demo data');
 const server=JSON.parse(JSON.stringify(w.DWPWorkspace.store.data));server.selectedProject=null;
 w.DWPWorkspace.acceptServerState(server,{id:'owner',name:'Owner'});
