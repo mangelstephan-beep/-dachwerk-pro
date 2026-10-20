@@ -57,6 +57,20 @@
     {id:'closing',name:'Abschluss und Nachkalkulation',modules:['closing','controlling']}
   ];
   const definitions = Object.fromEntries(modules.map(m=>[m.id,m]));
+  definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('subcontractMarkup','Zuschlag Fremdleistungen %','number'));
+  definitions.materials.fields.push(f('validUntil','Preisbindung bis einschließlich','date'),f('system','Dach- / Abdichtungssystem'),f('documentUrl','Herstellerunterlage (https://)','url'),f('documentEdition','Unterlagenstand / Fassung'),f('compatibility','Systemverträglichkeit','select',false,['','Ungeprüft','Geeignet laut Nachweis','Nicht geeignet']),f('compatibilityEvidence','Eignungsnachweis / geprüfter Aufbau','textarea'));
+  const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
+  function validatePricing(module,data) {
+    if(module==='lv' && data.useEfbRates && !(data.efbWage>0))throw Error('Kalkulationslohn für Kostenartenzuschläge muss größer als null sein.');
+    if(module!=='materials')return;
+    if(data.validUntil && (!validDate(data.validUntil) || data.validUntil<data.priceDate))throw Error('Preisbindung muss ein gültiges Datum ab Preisstand sein.');
+    if(data.documentUrl) {
+      let url;try{url=new URL(data.documentUrl);}catch{throw Error('Herstellerunterlage benötigt eine gültige HTTPS-Adresse.');}
+      if(url.protocol!=='https:' || !url.hostname || url.username || url.password)throw Error('Herstellerunterlage benötigt eine gültige HTTPS-Adresse.');
+    }
+    if(data.compatibility && !definitions.materials.fields.find(f=>f.key==='compatibility').options.includes(data.compatibility))throw Error('Systemverträglichkeit ist ungültig.');
+    if(data.compatibility==='Geeignet laut Nachweis' && (!data.system || !data.documentUrl || !data.documentEdition || !data.compatibilityEvidence))throw Error('System, Herstellerunterlage, Fassung und Eignungsnachweis erforderlich.');
+  }
   const parseContacts=value=>{
     const rows=Array.isArray(value)?value:String(value || '').split('\n').filter(s=>s.trim()).map(s=>{const [name,role,email,phone,...extra]=s.split('|').map(x=>x.trim());if(extra.length)throw Error('Kontaktzeile enthält mehr als vier Felder.');return {name,role,email,phone};});
     if(rows.length>50)throw Error('Maximal 50 zusätzliche Kontakte.');
@@ -99,6 +113,7 @@
         ids.add(r.id);
       }
       for(const r of data.records) {
+        validatePricing(r.module,r.data);
         if(definitions[r.module].scope==='project' && !data.records.some(p=>p.module==='projects' && p.id===r.projectId)) throw Error('Projektbezug fehlt.');
         if(r.module==='projects' && !data.records.some(c=>c.module==='customers' && c.id===r.data.customerId)) throw Error('Kundenzuordnung fehlt.');
         for(const field of definitions[r.module].fields) {
@@ -178,6 +193,7 @@
           if(['material','offer'].includes(field.type) && ref.status!=='Freigegeben') throw Error(`${field.label} muss freigegeben sein.`);
         }
       }
+      validatePricing(module,data);
       if(module==='projects' && !before && data.phase!=='Erfassung')throw Error('Neue Projekte beginnen in der Erfassung.');
       if(module==='projects' && before && data.phase!==before.data.phase) {
         const selected=this.data.selectedProject;this.data.selectedProject=before.id;
@@ -242,7 +258,7 @@
         record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
       }
       return this.transaction(before?'Geändert':'Angelegt',module,record.id,d=>{
-        if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,source:before.data.source}] : [])].slice(-3);
+        if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,validUntil:before.data.validUntil || '',supplier:before.data.supplier,source:before.data.source}] : [])].slice(-3);
         const i=d.records.findIndex(r=>r.id===record.id);
         if(i<0) d.records.push(record); else d.records[i]=record;
         if(module==='projects') d.selectedProject=record.id;
@@ -323,14 +339,25 @@
         if(m?.status!=='Freigegeben') throw Error(`Material zu Position ${p.number} ist nicht freigegeben.`);
         material=m.data.price*(p.consumption || 1);
       }
-      const labor=p.minutes/60*s.wage;
+      const labor=p.minutes/60*(p.useEfbRates?p.efbWage:s.wage);
       const direct=material+labor+p.equipment+p.subcontract;
-      const calculatedEp=round(direct*(1+s.agk/100)*(1+s.profit/100));
+      const priceComponents=p.useEfbRates?Object.fromEntries([['labor',labor,'laborMarkup'],['material',material,'materialMarkup'],['equipment',p.equipment,'equipmentMarkup'],['subcontract',p.subcontract,'subcontractMarkup']].map(([key,value,markup])=>[key,round(value*(1+(p[markup] || 0)/100))])):null;
+      const calculatedEp=priceComponents?round(Object.values(priceComponents).reduce((sum,value)=>sum+value,0)):round(direct*(1+s.agk/100)*(1+s.profit/100));
       const undiscountedEp=p.useTargetPrice?round(p.targetEp || 0):calculatedEp;
       const discountPercent=num(p.discountPercent || 0);
       if(discountPercent<0 || discountPercent>100)throw Error('Positionsrabatt zwischen 0 und 100 %.');
       const ep=round(undiscountedEp*(1-discountPercent/100));
-      return {...p,id:record.id,material,labor,direct,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
+      return {...p,id:record.id,material,labor,direct,priceComponents,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
+    }
+    materialChecks(record,asOf=new Date().toISOString().slice(0,10)) {
+      if(record?.module!=='materials' || !validDate(asOf))throw Error('Artikel oder Prüfdatum ungültig.');
+      const d=record.data,issues=[];
+      if(record.status!=='Freigegeben')issues.push('Preis nicht freigegeben');
+      if(d.priceDate>asOf)issues.push('Preisstand liegt in der Zukunft');
+      if(d.validUntil && d.validUntil<asOf)issues.push('Preisbindung abgelaufen');
+      if(d.compatibility==='Nicht geeignet')issues.push('System als nicht geeignet dokumentiert');
+      if(d.system && d.compatibility!=='Geeignet laut Nachweis' && d.compatibility!=='Nicht geeignet')issues.push('Systemverträglichkeit ungeprüft');
+      return issues;
     }
     calculation() {
       const positions=this.list('lv').map(r=>this.position(r));
@@ -377,6 +404,7 @@
       const add=(r,code,finding,question)=>findings.push({positionId:r.id,number:r.data.number,code,finding,question});
       for(const r of this.list('lv')) {
         const p=r.data;
+        if(p.materialId)for(const finding of this.materialChecks(this.get(p.materialId)))add(r,'material-review',finding,'Preisbindung und Systemnachweise des Artikels prüfen.');
         if(p.qty===0)add(r,'quantity','LV-Menge ist null.','Ist diese Leistung erforderlich oder nur optional?');
         if(p.kind==='Nachtrag' && !p.changeNumber)add(r,'change-number','Nachtragsnummer fehlt.','Welchem Nachtrag ist die Leistung zugeordnet?');
         if(!p.groupPath)add(r,'group','Gliederung fehlt.','Welchem Gewerk und Titel gehört die Position an?');
@@ -439,6 +467,13 @@
         if(!candidates.length && assigned.size)throw Error('Diese LV-Positionen sind bereits beauftragt.');
         if(!candidates.length)throw Error('Mindestens eine passende LV-Position erforderlich.');
         if(candidates.some(r=>r.status!=='Freigegeben'))throw Error('Alle LV-Positionen dieser Angebotsfassung müssen zuerst freigegeben werden.');
+        for(const p of [...candidates,...optionalPositions,...alternativePositions]) {
+          const data=p.data || p;
+          if(data.materialId) {
+            const issues=this.materialChecks(this.get(data.materialId));
+            if(issues.length)throw Error(`Material zu Position ${data.number}: ${issues.join('; ')}.`);
+          }
+        }
         if(options.offerType==='Nachtragsangebot') {
           const base=this.get(options.baseOfferId);
           if(base?.module!=='offers' || base.projectId!==project.id || base.data.baseOfferId)throw Error('Hauptangebot für den Nachtrag auswählen.');
@@ -558,7 +593,7 @@
       const supplier=this.get(supplierId),quote=supplier?.quotes?.find(q=>q.id===quoteId),material=this.get(quote?.materialId);
       if(!quote || !material)throw Error('Preisvergleich nicht gefunden.');
       if(quote.unit!==material.data.unit)throw Error('Einheit des Preisvergleichs stimmt nicht mit dem Artikel überein.');
-      return this.save('materials',{...material.data,price:round(quote.price*(1-quote.discount/100)+quote.freight),supplier:supplier.data.name,priceDate:quote.date,source:quote.source},{id:material.id,status:'Freigegeben',owner});
+      return this.save('materials',{...material.data,price:round(quote.price*(1-quote.discount/100)+quote.freight),supplier:supplier.data.name,priceDate:quote.date,validUntil:'',source:quote.source},{id:material.id,status:'Freigegeben',owner});
     }
     schedule(employeeId, values) {
       const employee=this.get(employeeId),project=this.get(values.projectId);
@@ -648,10 +683,11 @@
       const staged=new Store({getItem:()=>staging,setItem:(_k,v)=>{staging=v;}});
       const seen=new Set();
       const imported=rows.map(row=>{
-        const values={...row,source:source.source,priceDate:source.priceDate,supplier:row.supplier || source.supplier || ''};
+        let values={...row,source:source.source,priceDate:source.priceDate,validUntil:row.validUntil || source.validUntil || '',supplier:row.supplier || source.supplier || ''};
         const key=[values.manufacturer || '',values.article || values.name,values.supplier,values.unit].join('|');
         if(seen.has(key))throw Error('Doppelter Artikel innerhalb der Preisliste.');seen.add(key);
         const existing=staged.list('materials').find(m=>[m.data.manufacturer,m.data.article || m.data.name,m.data.supplier,m.data.unit].join('|')===key);
+        if(existing)values={...existing.data,...values};
         if(existing?.status==='Freigegeben') {
           // Validate the proposed price in isolation without invalidating approved live prices.
           const proposed=staged.save('materials',values,{status:'Prüfung',owner:source.owner || ''});

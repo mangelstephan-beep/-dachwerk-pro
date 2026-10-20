@@ -13,9 +13,9 @@ Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run statu
 | 05 | Importmanager | ROT | iPhone-Abnahme und Originaldownload auf freigegebenem iPhone/HP offen; XLS vor Excel 97 sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF/OCR, GAEB X83 XML 3.3, XLSX und XLS BIFF8 live importiert und nach Reload wiedergefunden. |
 | 06 | LV- und Vertragsprüfung | ROT | Live-Abnahme der automatischen LV-Datenprüfung; weitergehende Vertrags- und Regelwerksprüfungen. |
 | 07 | Kalkulation und Zielpreis | ROT | Live-Abnahme von Rabatt, Zielpreis, Grund-/Alternativ- und Bedarfspositionen. |
-| 08 | EFB und Kalkulationsblätter | ROT | EFB 221/222/223 mit Feldmapping |
+| 08 | EFB und Kalkulationsblätter | ROT | Kostenartenzuschläge und Kalkulationsnachweis lokal geprüft; Live-Abnahme und amtliche EFB 221/222/223 mit Feldmapping offen. |
 | 09 | Leistungskatalog und Zeitwerte | ROT | Fachkatalog, Nutzungsrechte |
-| 10 | Material und Systeme | ROT | Systemkompatibilität, Herstellerunterlagen |
+| 10 | Material und Systeme | ROT | Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft; Live- und Geräteabnahme sowie fachliche Prüfung der konkreten Systeme offen. |
 | 11 | Lieferanten und Preisvergleich | ROT | Automatische Händleranbindungen, Gebindeumrechnung |
 | 12 | DATANORM und Preislisten | ROT | DATANORM-Parser, Excel-Spaltenmapping |
 | 13 | Angebote | ROT | Live-Abnahme der Versionen und Angebotsvarianten; Versand und Angebotsbedingungen. |

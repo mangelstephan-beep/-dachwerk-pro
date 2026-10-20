@@ -64,7 +64,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "EFB 221/222/223 mit Feldmapping"
+    "remaining": "Kostenartenzuschläge und Kalkulationsnachweis lokal geprüft; Live-Abnahme und amtliche EFB 221/222/223 mit Feldmapping offen."
   },
   "services": {
     "number": 9,
@@ -80,7 +80,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Systemkompatibilität, Herstellerunterlagen"
+    "remaining": "Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft; Live- und Geräteabnahme sowie fachliche Prüfung der konkreten Systeme offen."
   },
   "suppliers": {
     "number": 11,
