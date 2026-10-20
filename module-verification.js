@@ -88,7 +88,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Automatische Händleranbindungen, Gebindeumrechnung"
+    "remaining": "Gebindeumrechnung, Rabatt/Fracht und Preisbindung lokal geprüft; automatische Händleranbindungen sowie Live- und iPhone-Abnahme offen."
   },
   "pricelists": {
     "number": 12,

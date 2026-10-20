@@ -85,6 +85,14 @@
     const n=Number(s);if(!Number.isFinite(n))throw Error('Ungültige Zahl.');return n;
   };
   const round = n => {if(!Number.isFinite(n) || Math.abs(n)>Number.MAX_SAFE_INTEGER/100)throw Error('Betrag oder Menge außerhalb des sicheren Zahlenbereichs.');return Math.round((n + Math.sign(n)*Number.EPSILON)*100)/100;};
+  const quotePrice=q=>round(q.price*(1-q.discount/100)/(q.packageQuantity ?? 1)+q.freight);
+  const validateQuote=q=>{
+    if(['price','discount','freight'].some(k=>typeof q[k]!=='number' || !Number.isFinite(q[k]) || q[k]<0) || q.discount>100)throw Error('Lieferantenpreis ungültig.');
+    if(typeof (q.packageQuantity ?? 1)!=='number' || !Number.isFinite(q.packageQuantity ?? 1) || (q.packageQuantity ?? 1)<=0 || (q.packageQuantity ?? 1)>1e9)throw Error('Gebindeinhalt muss größer als 0 sein (maximal 1 Milliarde).');
+    if(!validDate(q.date) || !q.source?.trim() || (q.validUntil && (!validDate(q.validUntil) || q.validUntil<q.date)))throw Error('Preisquelle, Preisstand oder Preisbindung ungültig.');
+    if(q.packageLabel!==undefined && (typeof q.packageLabel!=='string' || q.packageLabel.length>80))throw Error('Gebindebezeichnung ungültig.');
+    quotePrice(q);
+  };
   const capacity=values=>{
     const v=Object.fromEntries(['year','headcount','weeklyHours','leaveDays','sickDays','trainingDays','nonproductivePercent'].map(k=>[k,num(values[k])]));
     if(!Number.isInteger(v.year)||v.year<2000||v.year>2100||v.headcount<=0||v.headcount>10000||v.weeklyHours<=0||v.weeklyHours>120||['leaveDays','sickDays','trainingDays'].some(k=>v[k]<0)||v.nonproductivePercent<0||v.nonproductivePercent>=100)throw Error('Produktivstundenmodell enthält ungültige Werte.');
@@ -132,7 +140,8 @@
         if(r.module==='lv' && (r.data.discountPercent || 0)>100)throw Error('Sicherung: Positionsrabatt höchstens 100 %.');
         if(['offers','invoices'].includes(r.module) && (!Array.isArray(r.data.positions) || ['net','gross','tax','taxAmount'].some(k=>typeof r.data[k]!=='number' || !Number.isFinite(r.data[k])))) throw Error('Sicherung: Dokumentfassung ungültig.');
         for(const q of r.quotes || []) {
-          if(r.module!=='suppliers' || !data.records.some(m=>m.module==='materials' && m.id===q.materialId) || ['price','discount','freight'].some(k=>typeof q[k]!=='number' || !Number.isFinite(q[k]) || q[k]<0) || q.discount>100) throw Error('Sicherung: Lieferantenpreis ungültig.');
+          if(r.module!=='suppliers' || !data.records.some(m=>m.module==='materials' && m.id===q.materialId)) throw Error('Sicherung: Lieferantenpreis ungültig.');
+          validateQuote(q);
         }
         for(const a of r.assignments || [])if(r.module!=='personnel' || !data.records.some(p=>p.module==='projects' && p.id===a.projectId) || !a.start || !a.end || a.start>a.end)throw Error('Sicherung: Einsatzplanung ungültig.');
         for(const s of r.signatures || []) {
@@ -578,7 +587,7 @@
       return this.save('purchase',{title:`Bestellung ${demand.name}`,materialId,quantity:demand.remaining,supplier:demand.supplier,unitPrice:demand.unitPrice,deliveryDate:options.deliveryDate || ''},{owner:options.owner || '',status:'Neu'});
     }
     quotes(materialId) {
-      return this.list('suppliers').flatMap(s=>(s.quotes || []).filter(q=>q.materialId===materialId).map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:round(q.price*(1-q.discount/100)+q.freight)}))).sort((a,b)=>a.effectivePrice-b.effectivePrice);
+      return this.list('suppliers').flatMap(s=>(s.quotes || []).filter(q=>q.materialId===materialId).map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:quotePrice(q),eligible:q.date<=new Date().toISOString().slice(0,10) && (!q.validUntil || q.validUntil>=new Date().toISOString().slice(0,10)) && q.unit===this.get(materialId)?.data.unit}))).sort((a,b)=>a.effectivePrice-b.effectivePrice);
     }
     quote(supplierId, values) {
       const supplier=this.get(supplierId), material=this.get(values.materialId);
@@ -586,14 +595,18 @@
       const price=num(values.price),discount=num(values.discount),freight=num(values.freight);
       if(price<0 || discount<0 || discount>100 || freight<0)throw Error('Preis, Rabatt oder Fracht sind ungültig.');
       if(!values.source?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(values.date || '') || Number.isNaN(Date.parse(values.date)) || new Date(values.date).toISOString().slice(0,10)!==values.date)throw Error('Preisquelle und gültiger Preisstand erforderlich.');
-      const quote={id:uid(),materialId:material.id,unit:material.data.unit,price,discount,freight,date:values.date,source:values.source.trim()};
+      const quote={id:uid(),materialId:material.id,unit:material.data.unit,price,discount,freight,date:values.date,source:values.source.trim(),packageQuantity:values.packageQuantity===undefined?1:num(values.packageQuantity),packageLabel:String(values.packageLabel || '').trim(),validUntil:values.validUntil || ''};
+      validateQuote(quote);
       return this.transaction('Lieferantenpreis erfasst','suppliers',supplier.id,d=>{d.records.find(r=>r.id===supplier.id).quotes=[...(supplier.quotes || []),quote];return quote;});
     }
     useQuote(supplierId, quoteId, owner) {
       const supplier=this.get(supplierId),quote=supplier?.quotes?.find(q=>q.id===quoteId),material=this.get(quote?.materialId);
       if(!quote || !material)throw Error('Preisvergleich nicht gefunden.');
       if(quote.unit!==material.data.unit)throw Error('Einheit des Preisvergleichs stimmt nicht mit dem Artikel überein.');
-      return this.save('materials',{...material.data,price:round(quote.price*(1-quote.discount/100)+quote.freight),supplier:supplier.data.name,priceDate:quote.date,validUntil:'',source:quote.source},{id:material.id,status:'Freigegeben',owner});
+      validateQuote(quote);
+      const today=new Date().toISOString().slice(0,10);
+      if(quote.date>today || quote.validUntil && quote.validUntil<today)throw Error('Lieferantenpreis ist noch nicht gültig oder Preisbindung abgelaufen.');
+      return this.save('materials',{...material.data,price:quotePrice(quote),supplier:supplier.data.name,priceDate:quote.date,validUntil:quote.validUntil || '',source:quote.source},{id:material.id,status:'Freigegeben',owner});
     }
     schedule(employeeId, values) {
       const employee=this.get(employeeId),project=this.get(values.projectId);
