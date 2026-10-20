@@ -96,7 +96,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "DATANORM-Parser, Excel-Spaltenmapping"
+    "remaining": "CSV-/Excel-Preislisten mit Blatt-/Spaltenzuordnung und Prüfpreisen lokal geprüft; DATANORM 4/5-Direktimport sowie Live- und Geräteabnahme offen."
   },
   "offers": {
     "number": 13,

@@ -692,14 +692,17 @@
     }
     importMaterials(rows, source) {
       if(!Array.isArray(rows) || !rows.length || rows.length>5000)throw Error('Bitte 1 bis 5000 Artikel importieren.');
+      if(!source || typeof source.source!=='string' || !source.source.trim() || !validDate(source.priceDate))throw Error('Preisquelle und gültiger Preisstand erforderlich.');
+      if(source.originalWorkbook && (typeof source.originalWorkbook!=='string' || source.originalWorkbook.length>1_333_340 || !/^[A-Za-z0-9+/]+={0,2}$/.test(source.originalWorkbook)))throw Error('Excel-Original ungültig oder größer als 1 MB.');
+      if(source.mapping && (typeof source.mapping!=='object' || JSON.stringify(source.mapping).length>10000))throw Error('Spaltenzuordnung ungültig oder zu groß.');
       let staging=this.backup();
       const staged=new Store({getItem:()=>staging,setItem:(_k,v)=>{staging=v;}});
       const seen=new Set();
       const imported=rows.map(row=>{
         let values={...row,source:source.source,priceDate:source.priceDate,validUntil:row.validUntil || source.validUntil || '',supplier:row.supplier || source.supplier || ''};
-        const key=[values.manufacturer || '',values.article || values.name,values.supplier,values.unit].join('|');
+        const key=JSON.stringify([values.manufacturer || '',values.article || values.name,values.supplier,values.unit]);
         if(seen.has(key))throw Error('Doppelter Artikel innerhalb der Preisliste.');seen.add(key);
-        const existing=staged.list('materials').find(m=>[m.data.manufacturer,m.data.article || m.data.name,m.data.supplier,m.data.unit].join('|')===key);
+        const existing=staged.list('materials').find(m=>JSON.stringify([m.data.manufacturer,m.data.article || m.data.name,m.data.supplier,m.data.unit])===key);
         if(existing)values={...existing.data,...values};
         if(existing?.status==='Freigegeben') {
           // Validate the proposed price in isolation without invalidating approved live prices.
@@ -711,6 +714,9 @@
         return staged.save('materials',values,{id:existing?.id,status:'Prüfung',owner:source.owner || ''});
       });
       const list=staged.save('pricelists',{title:source.title || source.source,source:source.source,priceDate:source.priceDate,supplier:source.supplier || '',notes:`${imported.length} Artikel importiert – Einzelpreise vor Kalkulationsübernahme freigeben.`},{status:'Prüfung',owner:source.owner || ''});
+      list.importMapping=source.mapping?JSON.parse(JSON.stringify(source.mapping)):null;
+      list.importFormat=source.format || 'CSV';list.importedArticleIds=imported.map(r=>r.id);
+      if(source.originalWorkbook){list.originalWorkbook=source.originalWorkbook;list.hasOriginalWorkbook=true;list.workbookName=String(source.workbookName || source.source);}
       return this.transaction('Preisliste importiert','pricelists',list.id,d=>{
         // Imported updates remain in review; no automatic approval of new prices.
         for(const record of imported){const i=d.records.findIndex(r=>r.id===record.id);if(i<0)d.records.push(record);else d.records[i]=record;}

@@ -17,7 +17,7 @@ Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run statu
 | 09 | Leistungskatalog und Zeitwerte | ROT | Fachkatalog, Nutzungsrechte |
 | 10 | Material und Systeme | ROT | Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft; Live- und Geräteabnahme sowie fachliche Prüfung der konkreten Systeme offen. |
 | 11 | Lieferanten und Preisvergleich | ROT | Gebindeumrechnung, Rabatt/Fracht und Preisbindung lokal geprüft; automatische Händleranbindungen sowie Live- und iPhone-Abnahme offen. |
-| 12 | DATANORM und Preislisten | ROT | DATANORM-Parser, Excel-Spaltenmapping |
+| 12 | DATANORM und Preislisten | ROT | CSV-/Excel-Preislisten mit Blatt-/Spaltenzuordnung und Prüfpreisen lokal geprüft; DATANORM 4/5-Direktimport sowie Live- und Geräteabnahme offen. |
 | 13 | Angebote | ROT | Live-Abnahme der Versionen und Angebotsvarianten; Versand und Angebotsbedingungen. |
 | 14 | Auftrag und Bestätigung | ROT | Live-Abnahme der Auftragsbestätigung, Varianten- und Nachtragsbezüge; weitere Auftragsänderungen. |
 | 15 | Schriftverkehr und E-Mail | ROT | Mailkonto, Versand, Rücklauf, Zustellnachweis |
