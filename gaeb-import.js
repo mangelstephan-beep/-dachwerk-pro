@@ -71,7 +71,10 @@
         } else if(node.localName==='Itemlist') {
           if(!review)allowed(node,['Item']);
           for(const item of Array.from(node.children)) {
-            if(item.localName!=='Item'){if(review)preserve(item,[...parts,item.getAttribute('RNoPart') || item.getAttribute('ID') || ''].filter(Boolean).join('.'),groups,[item.localName]);continue;}
+            if(item.namespaceURI!==NS || item.localName!=='Item'){
+              if(!review)throw Error('GAEB: Fremdes Element in der Positionsliste.');
+              preserve(item,[...parts,item.getAttribute('RNoPart') || item.getAttribute('ID') || ''].filter(Boolean).join('.'),groups,[item.localName]);continue;
+            }
             visitedItems++;
             const number=[...parts,part(item)].join('.');
             if(numbers.has(number))throw Error(`GAEB: Positionsnummer ${number} doppelt.`);

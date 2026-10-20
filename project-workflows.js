@@ -229,7 +229,7 @@
     return panel('LV in das aktuelle Projekt übernehmen',`<p>CSV: Pflichtspalten number;text;qty;unit. Optional: material;minutes;equipment;subcontract;groupPath;kind;changeNumber;discountPercent. GAEB: X83 / XML 3.3 mit normalen Mengenpositionen und bis fünf Titelstufen. Sonderpositionen und Vorbemerkungen werden mit Originalinhalt und Wandlungsvorschlag in die LV-/Vertragsprüfung übernommen. Offene Prüfungen sperren Angebote und Aufträge.</p><p>PDF bis 10 MB; CSV, GAEB, XLSX und XLS (Excel 97–2003) bis 1 MB.</p><label>LV-Datei<input id="dwp-import-file" type="file" accept=".csv,.xml,.x83,.xlsx,.xls,.pdf,application/pdf,text/csv,application/xml,text/xml,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><label><input id="dwp-import-ocr" type="checkbox"> Scan-Texterkennung bei der nächsten PDF-Dateiauswahl (Deutsch)</label><p>Seiten mit weniger als 35 Textzeichen werden als Scan geprüft. Höchstens 20 Scanseiten; erkannte Texte immer am Original kontrollieren.</p><p id="dwp-import-progress" role="status" aria-live="polite"></p><button type="button" class="button button-secondary" data-dwp="cancel-import-read" hidden>Einlesen abbrechen</button><form id="dwp-import"><label>Format<select name="format" id="dwp-import-format"><option value="CSV">CSV</option><option value="GAEB XML">GAEB X83 / XML 3.3</option><option value="Excel Prüfquelle">Excel XLSX / XLS 97–2003</option><option value="PDF Prüfquelle">PDF-Text zur Prüfung</option></select></label><label>Quelle / Dateiname<input name="source" id="dwp-import-source" placeholder="Dateiname oder Herkunft"></label><div id="dwp-excel-controls"></div><label>Dateiinhalt<textarea name="csv" id="dwp-csv" rows="8" required placeholder="number;text;qty;unit;material;minutes&#10;010;Abdichtung;100;m²;15,50;10"></textarea></label><div class="dwp-actions">${btn('Vorschau prüfen','preview-import')}<button class="button button-primary" type="submit">In Projekt übernehmen</button></div></form><div id="dwp-import-preview"></div><p>GAEB-Texte werden als Klartext übernommen. Briefkopf, Textformatierung und PDF-Originale bleiben außerhalb dieser Positionsübernahme. Das eingelesene GAEB-XML bleibt im Importjournal erhalten. Alle Positionen bleiben ungeprüft; Preise und Zeitansätze anschließend ergänzen. Excel XLSX / XLS 97–2003: Blatt und Spalten zuordnen, Formeln und unklare Zeilen gesondert prüfen. PDF mit Textschicht: seitenweise Textprüfung ohne automatische Mengenübernahme. Im Importjournal wird der ausgelesene Text gespeichert; das Original-PDF bitte zusätzlich im DMS ablegen. Scan-Texterkennung Deutsch ist optional verfügbar; Scantexte bleiben gesperrte Prüfvorgänge. iPhone-Abnahme, ältere XLS-Versionen vor Excel 97, GAEB 90/2000 und weitere XML-Phasen sind noch offen.</p>${btn('Bisherigen Importmanager öffnen','legacy-import')}`)+panel('Vorhandene Arbeitskopien übernehmen',`<p>Alte Browserbestände werden erhalten. Eine Übernahme kopiert ausdrücklich gewählte Positionen in das aktuell ausgewählte Projekt. Anschließend neu prüfen und freigeben.</p>${table(['Arbeitskopie','Positionen','Übernahme'],legacy.map(w=>[esc(w.name),esc(w.positions?.length || 0),btn('In aktuelles Projekt kopieren','legacy-copy',w.id)]))}`);
   }
   function importJournal() {
-    return panel('Importjournal',table(['Quelle','Format','Übernahme','Original'],db.list('imports').map(r=>[esc(r.data.source),esc(r.data.format),esc(r.data.notes),(r.originalText?btn('Originaldaten anzeigen','import-original',r.id):'')+(r.hasOriginalWorkbook?btn('Excel-Original herunterladen','workbook-download',r.id):'')])));
+    return panel('Importjournal',table(['Quelle','Format','Übernahme','Original'],db.list('imports').map(r=>[esc(r.data.source),esc(r.data.format),esc(r.data.notes),(r.originalText?btn('Originaldaten anzeigen','import-original',r.id):'')+(r.originalText && ['CSV','GAEB XML'].includes(r.data.format)?btn('Übernommene Textquelle herunterladen','import-text-download',r.id):'')+(r.hasOriginalWorkbook?btn('Excel-Original herunterladen','workbook-download',r.id):'')])));
   }
   function importInput() {
     if(importRead)throw Error('Datei wird noch eingelesen. Bitte warten oder das Einlesen abbrechen.');
@@ -305,7 +305,14 @@
     download(record.workbookName || 'LV.xlsx',bytes,/\.xls$/i.test(record.workbookName || '')?'application/vnd.ms-excel':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   }
   function importSource(input,report) {
-    return {source:input.source || input.format,format:input.format,title:'LV-Import '+(input.source || input.format),findings:report.findings,originalText:['GAEB XML','PDF Prüfquelle'].includes(input.format)?input.text:input.format==='Excel Prüfquelle'?JSON.stringify(excelSource.book):'',originalWorkbook:input.workbook,workbookName:excelSource?.name,mapping:input.format==='Excel Prüfquelle'?{sheet:input.sheet,header:input.header,columns:input.mapping}:undefined};
+    return {source:input.source || input.format,format:input.format,title:'LV-Import '+(input.source || input.format),findings:report.findings,originalText:['CSV','GAEB XML','PDF Prüfquelle'].includes(input.format)?input.text:input.format==='Excel Prüfquelle'?JSON.stringify(excelSource.book):'',originalWorkbook:input.workbook,workbookName:excelSource?.name,mapping:input.format==='Excel Prüfquelle'?{sheet:input.sheet,header:input.header,columns:input.mapping}:undefined};
+  }
+  function downloadImportText(record) {
+    if(record?.module!=='imports' || record.projectId!==db.data.selectedProject || !record.originalText || !['CSV','GAEB XML'].includes(record.data.format))throw Error('Import-Textquelle nicht verfügbar.');
+    const csv=record.data.format==='CSV',extension=csv?'csv':'x83';
+    // The saved, reviewed text is exported as UTF-8; it is not a byte copy of the selected file.
+    const name=String(record.data.source || 'LV').split(/[\\/]/).pop().replace(/\.[^.]*$/,'').replace(/[^\p{L}\p{N}_.-]/gu,'_').slice(0,120) || 'LV';
+    download(name+'.'+extension,record.originalText,csv?'text/csv;charset=utf-8':'application/xml;charset=utf-8');
   }
   function excelControls(sheetIndex=0,headerRow) {
     const sheet=excelSource.book.sheets[sheetIndex];
@@ -436,10 +443,11 @@
     event.preventDefault();event.stopImmediatePropagation();
     const action=target.dataset.dwp,id=target.dataset.id;
     try {
-      if(window.DWPRemote?.active && ['backup','project-json','calc-csv','snapshot-csv','closing-csv','print','workbook-download'].includes(action)) {
-        const kind={backup:'backup','project-json':'project','calc-csv':'calculation','snapshot-csv':'positions','closing-csv':'closing',print:'record','workbook-download':'record'}[action];
+      if(window.DWPRemote?.active && ['backup','project-json','calc-csv','snapshot-csv','closing-csv','print','workbook-download','import-text-download'].includes(action)) {
+        const kind={backup:'backup','project-json':'project','calc-csv':'calculation','snapshot-csv':'positions','closing-csv':'closing',print:'record','workbook-download':'record','import-text-download':'record'}[action];
         const output=await window.DWPRemote.export({kind,projectId:db.data.selectedProject,recordId:id});
-        if(action==='workbook-download')downloadWorkbook(output.record);
+        if(action==='import-text-download')downloadImportText(output.record);
+        else if(action==='workbook-download')downloadWorkbook(output.record);
         else if(action==='print')printRecord(output.record);
         else if(['calc-csv','snapshot-csv'].includes(action)){const rows=output.positions || output.record.data.positions;csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto','Leistungsart','Wahlgruppe','In Summe'],...[...rows,...(output.record?.module==='offers'?[...(output.record.data.optionalPositions || []),...(output.record.data.alternativePositions || [])]:[])].map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp,p.kind || 'Hauptleistung',p.choiceGroup || '',output.positions?(!['Bedarfsposition','Alternativposition'].includes(p.kind)?'Ja':'Nein'):(rows.includes(p)?'Ja':'Nein')])]);}
         else download(output.name,output.text,output.type);
@@ -457,6 +465,7 @@
         }
       }
       if(action==='workbook-download')downloadWorkbook(db.get(id));
+      if(action==='import-text-download')downloadImportText(db.get(id));
       if(action==='import-original') {
         const r=db.get(id);if(r?.module!=='imports' || r.projectId!==db.data.selectedProject)throw Error('Importquelle nicht gefunden.');
         shell('Import-Originaldaten',panel(r.data.source,`<label>Unveränderter eingelesener Dateiinhalt<textarea rows="20" readonly>${esc(r.originalText)}</textarea></label>${btn('Zurück zum Importjournal','open','imports')}`));
