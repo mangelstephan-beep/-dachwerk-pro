@@ -2,7 +2,7 @@
 
 Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run status:write` übernehmen.
 
-**4/36 Module GRÜN.** Veröffentlichung, bestandene lokale Tests und fachliche Produktionsabnahme sind getrennte Nachweise.
+**5/36 Module GRÜN.** Veröffentlichung, bestandene lokale Tests und fachliche Produktionsabnahme sind getrennte Nachweise.
 
 | Nr. | Modul | Status | Nachweis / noch offen |
 |---|---|---|---|
@@ -36,7 +36,7 @@ Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run statu
 | 28 | Eingangsrechnungen | ROT | OCR/E-Rechnung, automatischer Prüfabgleich |
 | 29 | Zahlung und Kontierung | ROT | Bankanbindung, Kontenmapping |
 | 30 | Monatsabschluss und Export | ROT | Monatsperioden, DATEV-Paket |
-| 31 | Nachkalkulation und Controlling | ROT | Produktionsabnahme der Gemeinkosten, Vollständigkeitskontrolle der Kostenerfassung. |
+| 31 | Nachkalkulation und Controlling | GRÜN | Live-Produktion 22.10.2026 im Testdach D: geplante Einzelkosten 120 EUR + zusätzliche Gemeinkosten 200 EUR = 320 EUR. Unfreigegebene Materialrechnung wird nicht als Ist-Kosten gerechnet und als Prüfhinweis angezeigt. Freigegebene Material-/NU-Rechnungen 1000 + 180 EUR ersetzen den vorläufigen NU-Ansatz 200 EUR ohne Doppelzählung. Mit 150 EUR zusätzlichen Ist-Gemeinkosten ergeben sich 1330 EUR Ist-Kosten und bei Umsatz 0 ein vorläufiges Ergebnis -1330 EUR. Fehlende Freigaben und Belegzuordnungen werden angezeigt und nach Klärung aufgelöst. Projektwechsel trennt Kosten. Prüfung betrifft den erfassten Bestand; Buchhaltungsabgleich nicht erfasster Geschäftsvorfälle bleibt fachliche Aufgabe. |
 | 32 | DMS, Scanner, OCR und Barcode | ROT | Scanner/OCR/Barcode, Backup/Wiederherstellung und produktive Geräteabnahme; zentrale Originalablage bis 64 MB implementiert. |
 | 33 | Technik und Wissensregister | ROT | Lizenzierte Quellen und Versionsprüfungen |
 | 34 | Ausschreibungsmonitor | ROT | Automatische Quellenabfrage/Übersicht |

@@ -4,7 +4,7 @@ const core=require('./project-core.js');
 assert.deepEqual(Object.keys(registry.modules),core.modules.map(m=>m.id));
 for(const [i,m] of core.modules.entries()){const item=registry.modules[m.id];assert.equal(item.number,i+1);assert.equal(item.name,m.name);assert(item.verified?item.evidence&&item.checkedAt:item.remaining);}
 const verifiedCount=Object.values(registry.modules).filter(m=>m.verified).length;
-assert.deepEqual(Object.entries(registry.modules).filter(([,m])=>m.verified).map(([id])=>id),['operating','lv','calculation','logistics']);
+assert.deepEqual(Object.entries(registry.modules).filter(([,m])=>m.verified).map(([id])=>id),['operating','lv','calculation','logistics','controlling']);
 assert.equal(registry.isVerified('unknown'),false);assert.equal(registry.isVerified('documents'),false);
 const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'}),w=dom.window;
 w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
