@@ -2,7 +2,7 @@
 
 Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run status:write` übernehmen.
 
-**3/36 Module GRÜN.** Veröffentlichung, bestandene lokale Tests und fachliche Produktionsabnahme sind getrennte Nachweise.
+**4/36 Module GRÜN.** Veröffentlichung, bestandene lokale Tests und fachliche Produktionsabnahme sind getrennte Nachweise.
 
 | Nr. | Modul | Status | Nachweis / noch offen |
 |---|---|---|---|
@@ -22,7 +22,7 @@ Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run statu
 | 14 | Auftrag und Bestätigung | ROT | Live-Abnahme von Auftragsbestätigung und Bedingungen; weitergehende Auftragsänderungen. |
 | 15 | Schriftverkehr und E-Mail | ROT | Mailkonto, Versand, Rücklauf, Zustellnachweis |
 | 16 | Einkauf und Bestellung | ROT | Mehrere Materialien pro Position, Bestellversand |
-| 17 | Liefertermine und Logistik | ROT | Produktionsabnahme der Lieferwarnungen und Mengentoleranzen offen. Hintergrundbenachrichtigungen nicht eingerichtet. |
+| 17 | Liefertermine und Logistik | GRÜN | Live-Produktion 21.10.2026 im Testdach D: Bestellung 100 m² mit begründeter Toleranz 98–105 m². Ohne Vereinbarung serverseitig abgewiesen. Termin 20.10. als überfällig angezeigt; 60 m² ergeben 40 m² offen, weitere 38 m² schließen innerhalb der Minderlieferung ab und zeigen 2 m² Differenz. Weitere 8 m² (gesamt 106) abgewiesen, 7 m² (gesamt 105) angenommen. Projektwechsel trennt Bestände. Automatische Terminwarnungen erfolgen beim Öffnen der Oberfläche; heutige/fehlende Termine und Grenzen zusätzlich im Server-/DOM-Test geprüft. Kein externer Mail-/Pushversand. |
 | 18 | Personal und Termine | ROT | Kalenderdarstellung, Teilzeitschichten, sensible Stammdaten, DATEV/SV |
 | 19 | Technische Prüfung | ROT | Validierte Fachprüfungen |
 | 20 | Arbeitsschutz und Unterweisung | ROT | Vollständige Gefährdungsbeurteilung und Nachweise |
