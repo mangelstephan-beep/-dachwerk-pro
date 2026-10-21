@@ -109,7 +109,7 @@
    }
    if(mapping.longText>=0){
     const shortText=String(candidate.text || '').trim(),longText=String(candidate.longText || '').trim();
-    candidate.text=[shortText,longText].filter((value,index,all)=>value && all.indexOf(value)===index).join('\\n');
+    candidate.text=[shortText,longText].filter((value,index,all)=>value && all.indexOf(value)===index).join(String.fromCharCode(10));
     delete candidate.longText;
    }
    if(candidate.kind && !['Hauptleistung','Nachtrag','Bedarfsposition','Grundposition','Alternativposition'].includes(candidate.kind)){issues.push('Leistungsart '+candidate.kind+' benötigt Wandlung');candidate.kind='';}
