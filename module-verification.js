@@ -43,12 +43,12 @@
     "remaining": "iPhone-Abnahme und Originaldownload auf freigegebenem iPhone/HP offen; XLS vor Excel 97 sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF/OCR, GAEB X83 XML 3.3, XLSX und XLS BIFF8 live importiert und nach Reload wiedergefunden."
   },
   "contract": {
-    "number": 6,
-    "name": "LV- und Vertragsprüfung",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Live-Abnahme der automatischen LV-Datenprüfung; weitergehende Vertrags- und Regelwerksprüfungen."
+      "number": 6,
+      "name": "LV- und Vertragsprüfung",
+      "verified": false,
+      "checkedAt": "2026-10-21",
+      "evidence": "Automatische LV-Befunde mit gespeicherter Prüfgrundlage und Kennzeichnung veralteter Entscheidungen lokal geprüft.",
+      "remaining": "Live-Abnahme der Prüfgrundlage und Erneuerungsanzeige; weitergehende Vertrags- und Regelwerksprüfungen."
   },
   "calculation": {
     "number": 7,
@@ -99,20 +99,20 @@
     "remaining": "Excel-/CSV-Spaltenmapping und verbindliche Vorschau lokal geprüft; DATANORM-Parser, Live-/Geräteabnahme und reale Händlerdateien offen."
   },
   "offers": {
-    "number": 13,
-    "name": "Angebote",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Live-Abnahme der Versionen und Angebotsvarianten; Versand und Angebotsbedingungen."
+      "number": 13,
+      "name": "Angebote",
+      "verified": false,
+      "checkedAt": "2026-10-21",
+      "evidence": "Zahlungs-/Ausführungsbedingungen, Gültigkeit, Hinweise und getrennte Haupt-/Nachtragsformulare sowie unveränderliche Ausgabe lokal geprüft.",
+      "remaining": "Live-Abnahme der Versionen, Angebotsvarianten und Bedingungen; Mailversand über Modul 15 offen."
   },
   "orders": {
-    "number": 14,
-    "name": "Auftrag und Bestätigung",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Live-Abnahme der Auftragsbestätigung, Varianten- und Nachtragsbezüge; weitere Auftragsänderungen."
+      "number": 14,
+      "name": "Auftrag und Bestätigung",
+      "verified": false,
+      "checkedAt": "2026-10-21",
+      "evidence": "Angebotsbedingungen und Auftragshinweise werden mit unveränderlicher Auftragsbestätigung gespeichert und gedruckt; Server-/DOM-Test bestanden.",
+      "remaining": "Live-Abnahme von Auftragsbestätigung und Bedingungen; weitergehende Auftragsänderungen."
   },
   "correspondence": {
     "number": 15,
@@ -131,12 +131,12 @@
     "remaining": "Mehrere Materialien pro Position, Bestellversand"
   },
   "logistics": {
-    "number": 17,
-    "name": "Liefertermine und Logistik",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Automatische Terminwarnung, Toleranzregeln"
+      "number": 17,
+      "name": "Liefertermine und Logistik",
+      "verified": false,
+      "checkedAt": "2026-10-21",
+      "evidence": "Datumsabhängige Lieferwarnungen beim Öffnen, dokumentierte Unter-/Überlieferungstoleranzen, Teilmengen, Projekttrennung und Abschlussprüfung lokal über Server-/DOM-Test geprüft.",
+      "remaining": "Produktionsabnahme der Lieferwarnungen und Mengentoleranzen offen. Hintergrundbenachrichtigungen nicht eingerichtet."
   },
   "personnel": {
     "number": 18,
@@ -243,12 +243,12 @@
     "remaining": "Monatsperioden, DATEV-Paket"
   },
   "controlling": {
-    "number": 31,
-    "name": "Nachkalkulation und Controlling",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Gemeinkosten, Vollständigkeitskontrolle"
+      "number": 31,
+      "name": "Nachkalkulation und Controlling",
+      "verified": false,
+      "checkedAt": "2026-10-21",
+      "evidence": "Zusätzliche geplante/Ist-Gemeinkosten mit Abgrenzung, Gesamtkosten und Ergebnis lokal über Server-/DOM-Test geprüft.",
+      "remaining": "Produktionsabnahme der Gemeinkosten, Vollständigkeitskontrolle der Kostenerfassung."
   },
   "documents": {
     "number": 32,

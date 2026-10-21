@@ -57,6 +57,9 @@
     {id:'closing',name:'Abschluss und Nachkalkulation',modules:['closing','controlling']}
   ];
   const definitions = Object.fromEntries(modules.map(m=>[m.id,m]));
+  definitions.projects.fields.push(f('plannedOverhead','Zusätzliche geplante Gemeinkosten netto','number'),f('actualOverhead','Zusätzlich erfasste Ist-Gemeinkosten netto','number'),f('overheadBasis','Gemeinkosten: Abgrenzung und Nachweis','textarea'));
+  definitions.purchase.fields.push(f('overDeliveryPercent','Zulässige Mehrlieferung %','number'),f('underDeliveryPercent','Zulässige Minderlieferung %','number'),f('toleranceReason','Vereinbarung zur Mengentoleranz','textarea'));
+  definitions.contract.fields.push(f('decision','Prüfentscheidung / Begründung','textarea'));
   definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('subcontractMarkup','Zuschlag Fremdleistungen %','number'));
   // Optional detailed cost structure modelled on the March 2025 blank calculation workbook.
   // Legacy position prices remain untouched until the user explicitly activates this mode.
@@ -79,6 +82,10 @@
   definitions.materials.fields.push(f('priceBasis','Preisberechnung / Bezugsmenge','textarea'));
   const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
   function validatePricing(module,data) {
+    if(module==='projects' && (data.plannedOverhead || data.actualOverhead) && !data.overheadBasis?.trim())throw Error('Zusätzliche Gemeinkosten benötigen Abgrenzung und Nachweis.');
+    if(module==='offers' && data.validUntil && !validDate(data.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
+    if(module==='purchase' && ((data.overDeliveryPercent || 0)>100 || (data.underDeliveryPercent || 0)>=100))throw Error('Mehrlieferung höchstens 100 %, Minderlieferung kleiner als 100 %.');
+    if(module==='purchase' && (data.overDeliveryPercent || data.underDeliveryPercent) && !data.toleranceReason?.trim())throw Error('Mengentoleranz benötigt eine dokumentierte Vereinbarung.');
     if(module==='lv' && data.useEfbRates && !(data.efbWage>0))throw Error('Kalkulationslohn für Kostenartenzuschläge muss größer als null sein.');
     if(module==='lv' && data.useDetailedMaterials) {
       if(data.materialId || data.material)throw Error('Vier Materialansätze nicht mit pauschalem Material oder Materialartikel kombinieren. Die Ansätze ersetzen diese Eingabe.');
@@ -263,7 +270,8 @@
         const order=this.get(data.purchaseId);
         if(order.status!=='Freigegeben') throw Error('Bestellung vor Lieferung freigeben.');
         const delivered=this.list('logistics').filter(r=>r.id!==options.id && r.status==='Freigegeben' && r.data.purchaseId===order.id).reduce((n,r)=>n+r.data.quantity,0);
-        if(data.quantity<=0 || round(delivered+data.quantity)>order.data.quantity) throw Error('Liefermenge muss positiv sein und darf die offene Bestellmenge nicht überschreiten.');
+        const maximum=round(order.data.quantity*(1+(order.data.overDeliveryPercent || 0)/100));
+        if(data.quantity<=0 || round(delivered+data.quantity)>maximum) throw Error('Liefermenge muss positiv sein und darf die offene Bestellmenge einschließlich vereinbarter Toleranz nicht überschreiten.');
       }
       if(module==='payments' && status==='Freigegeben') {
         const invoice=this.get(data.invoiceId);
@@ -279,6 +287,11 @@
       }
       if(options.due && (!/^\d{4}-\d{2}-\d{2}$/.test(options.due) || Number.isNaN(Date.parse(options.due)) || new Date(options.due).toISOString().slice(0,10)!==options.due))throw Error('Rückmeldefrist ungültig.');
       const record={...(before || {}),id:before?.id || uid(),module,projectId,data,status,owner:options.owner || '',due:options.due || '',createdAt:before?.createdAt || new Date().toISOString(),updatedAt:new Date().toISOString()};
+      if(module==='contract' && values.checkCode) {
+        const finding=this.contractChecks().find(f=>f.positionId===data.positionId && f.code===values.checkCode);
+        if(!finding)throw Error('Automatischer Befund nicht mehr vorhanden. Bitte neu prüfen.');
+        record.autoCheck={positionId:finding.positionId,code:finding.code,basis:finding.basis};
+      }
       if(module==='materials')delete record.pendingPrice;
       if(module==='orders' && status==='Freigegeben') {
         const offer=this.get(data.offerId);
@@ -326,10 +339,7 @@
       for(const p of assigned.values())if(this.measured(p.id)<=0)add('measurements','Freigegebenes Aufmaß für Position '+p.number+' fehlt.',p.id);
       for(const r of this.list('defects').filter(r=>r.status!=='Erledigt'))add('defects','Offener Mangel: '+r.data.title,r.id);
       if(!this.list('acceptance').some(r=>r.status==='Freigegeben' && r.data.result==='Abgenommen' && r.signatures?.length))add('acceptance','Freigegebene, unterschriebene Abnahme ohne offene Restpunkte fehlt.');
-      for(const o of this.list('purchase').filter(r=>r.status==='Freigegeben')) {
-        const delivered=this.list('logistics').filter(r=>r.status==='Freigegeben' && r.data.purchaseId===o.id).reduce((n,r)=>n+r.data.quantity,0);
-        if(round(o.data.quantity-delivered)>0)add('logistics','Offene Lieferung: '+o.data.title,o.id);
-      }
+      for(const delivery of this.deliverySchedule())if(!delivery.complete)add('logistics',(delivery.state==='Überfällig'?'Überfällige Lieferung: ':'Offene Lieferung: ')+delivery.title,delivery.id);
       for(const m of ['times','incoming','subcontracts','payments','orders','measurements','purchase','logistics'])for(const r of this.list(m).filter(r=>!['Freigegeben','Erledigt'].includes(r.status)))add(m,'Vorgang noch zu prüfen: '+(r.data.title || r.data.number),r.id);
       const invoices=this.list('invoices'),cancelled=new Set(invoices.map(r=>r.data.stornoOf).filter(Boolean));
       for(const o of orders.filter(o=>!this.get(o.data.offerId).data.baseOfferId))if(!invoices.some(r=>r.data.sourceOfferId===o.data.offerId && r.data.invoiceType==='Schlussrechnung' && !r.data.stornoOf && !cancelled.has(r.id)))add('invoices','Schlussrechnung für '+o.data.title+' fehlt.',o.id);
@@ -436,7 +446,7 @@
     contractChecks() {
       if(!this.project())throw Error('Projekt auswählen.');
       const findings=[];
-      const add=(r,code,finding,question)=>findings.push({positionId:r.id,number:r.data.number,code,finding,question});
+      const add=(r,code,finding,question)=>findings.push({positionId:r.id,number:r.data.number,code,finding,question,basis:JSON.stringify({position:r.data,settings:this.data.settings,material:this.get(r.data.materialId)?.data || null})});
       for(const r of this.list('lv')) {
         const p=r.data;
         if(p.materialId)for(const finding of this.materialChecks(this.get(p.materialId)))add(r,'material-review',finding,'Preisbindung und Systemnachweise des Artikels prüfen.');
@@ -451,6 +461,13 @@
       }
       return findings;
     }
+    contractReview() {
+      return this.contractChecks().map(finding=>{
+        const reviews=this.list('contract').filter(r=>r.autoCheck?.positionId===finding.positionId && r.autoCheck.code===finding.code);
+        const current=reviews.filter(r=>r.autoCheck.basis===finding.basis).at(-1);
+        return {...finding,reviewId:current?.id || null,reviewState:current?(current.status==='Erledigt'?'Entscheidung dokumentiert':current.status):reviews.length?'Prüfung erneuern':'Ungeprüft'};
+      });
+    }
     measured(positionId) {
       return round(this.list('measurements').filter(r=>r.status==='Freigegeben' && r.data.positionId===positionId).reduce((sum,r)=>sum+r.data.length*r.data.width*r.data.factor-r.data.deduction,0));
     }
@@ -459,6 +476,9 @@
       if(!['offers','invoices'].includes(kind)) throw Error('Ausgabeart ungültig.');
       const project=this.project(); if(!project) throw Error('Projekt auswählen.');
       const customer=this.get(project.data.customerId);
+      const terms=kind==='offers'?Object.fromEntries(['validUntil','paymentTerms','executionTerms','offerNotes'].map(key=>[key,String(options[key] ?? '').trim()])):{};
+      if(terms.validUntil && !validDate(terms.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
+      if(Object.values(terms).some(value=>value.length>10000))throw Error('Angebotsbedingungen: höchstens 10000 Zeichen je Feld.');
       let positions=[],optionalPositions=[],alternativePositions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],tax=this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
       this.assertClear(['contract','technical']);
       if(kind==='offers') {
@@ -550,6 +570,8 @@
       const previouslyNet=round(previous.reduce((n,r)=>n+r.data.net,0)),previouslyTax=round(previous.reduce((n,r)=>n+r.data.taxAmount,0));
       const taxAmount=round(round((previouslyNet+net)*tax/100)-previouslyTax);
       const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:`${kind==='offers'?'AN':'RE'}-${new Date().getFullYear()}-${String(this.data.records.filter(r=>r.module===kind).length+1).padStart(4,'0')}`,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount)}};
+      Object.assign(record.data,terms);
+      validatePricing(kind,record.data);
       return this.transaction('Dokumentfassung freigegeben',kind,record.id,d=>{d.records.push(record);return record;});
     }
     stornoInvoice(id, options={}) {
@@ -578,7 +600,20 @@
       const paid=round(this.list('payments').filter(r=>r.status==='Freigegeben').reduce((n,r)=>n+(r.data.direction==='Rückzahlung'?-1:1)*r.data.amount,0));
       const contracted=this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions);
       const planned=contracted.length?round(contracted.reduce((n,p)=>n+p.qty*p.direct,0)):calc.direct;
-      return {planned,times,incoming,subcontracts,commitments,actual:round(times+incoming+subcontracts),revenue,result:round(revenue-times-incoming-subcontracts),gross,paid,outstanding:round(gross-paid)};
+      const plannedOverhead=this.project()?.data.plannedOverhead || 0,actualOverhead=this.project()?.data.actualOverhead || 0;
+      const directActual=round(times+incoming+subcontracts),actual=round(directActual+actualOverhead);
+      return {planned,plannedOverhead,plannedTotal:round(planned+plannedOverhead),times,incoming,subcontracts,commitments,directActual,actualOverhead,actual,revenue,result:round(revenue-actual),gross,paid,outstanding:round(gross-paid)};
+    }
+    deliverySchedule(today=new Date().toISOString().slice(0,10)) {
+      if(!validDate(today))throw Error('Lieferübersicht benötigt ein gültiges Datum.');
+      return this.list('purchase').filter(r=>r.status==='Freigegeben').map(order=>{
+        const d=order.data,material=this.get(d.materialId);
+        const delivered=round(this.list('logistics').filter(r=>r.status==='Freigegeben' && r.data.purchaseId===order.id).reduce((n,r)=>n+r.data.quantity,0));
+        const minimum=round(d.quantity*(1-(d.underDeliveryPercent || 0)/100)),maximum=round(d.quantity*(1+(d.overDeliveryPercent || 0)/100));
+        const complete=delivered>=minimum;
+        const state=complete?'Geliefert':!d.deliveryDate?'Termin fehlt':d.deliveryDate<today?'Überfällig':d.deliveryDate===today?'Heute fällig':'Ausstehend';
+        return {id:order.id,title:d.title,supplier:d.supplier,unit:material?.data.unit || '',due:d.deliveryDate,ordered:d.quantity,delivered,remaining:round(Math.max(0,d.quantity-delivered)),minimum,maximum,complete,state};
+      }).sort((a,b)=>(a.due || '9999').localeCompare(b.due || '9999'));
     }
     materialDemand() {
       const demand=new Map();
