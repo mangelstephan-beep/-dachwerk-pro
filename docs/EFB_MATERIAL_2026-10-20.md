@@ -23,3 +23,13 @@ CSV-Import unterstützt die zusätzlichen Artikelfelder. Eine Preisaktualisierun
 `test-efb-material-systems.cjs` prüft Kostenarten und Rundung, Fremdleistungen, EP/GP, Zielpreis/Rabatt, unveränderte Standardkalkulation, zentrale Dienstaufrufe, Snapshots, Gültigkeitsgrenzen, sichere Herstellerlinks, Eignungsnachweise, Preisimport, Wiederherstellung und die Modulnavigation.
 
 Lokale Prüfungen ersetzen keine Produktions- oder Geräteabnahme. Modul 08 und Modul 10 bleiben ROT.
+
+## Blanko-Kalkulation 03/25 (Dropbox-Referenz, Oktober 2026)
+
+Die bereitgestellte Makroarbeitsmappe `Blanko Kalkulation ab 03-25.xlsm` enthält 19 Arbeitsblätter, darunter Kalkulation, Ergebnis, LV, Einzelpos, Berechnung, EFB-Preis 2 und efb 221. Sie hat VBA-Makros und mindestens einen fehlerhaften `#REF!`-Bezug. Die komplette Datei wird **nicht** ausgeführt, verarbeitet oder mit Makros in die Web-App kopiert; die Originalquelle ist über einen Dropbox-Leselink im Modul 08 erreichbar.
+
+Zur schrittweisen Übernahme wird im LV je Position eine explizit zu aktivierende Detailkalkulation angeboten: vier Materialbezeichnungen mit Einkaufspreis je LV-Einheit, Zuschnittfaktor (leer/0 = 1), Verschnitt in Prozent und Arbeitsminuten; außerdem Befestigungsmittel, Entsorgung, sonstige Nebenkosten und ein Herkunftsvermerk. Bei aktiver Detailkalkulation ersetzen diese Material- und Minutenansätze die allgemeinen LV-Felder. Ein Materialartikel aus Modul 10 ist dann für dieselbe Position nicht zulässig. Nachunternehmer und Geräte bleiben die üblichen LV-Felder.
+
+Material je Einheit = Summe über vier Materialien von (Preis × Faktor × (1 + Verschnitt/100)) + Befestigungsmittel. Lohn je Einheit = (Summe Minuten / 60) × Stundenlohn. Container und Sonstiges sind getrennte Nebenkosten. Einzelfeldrundungen der Alt-Exceldatei werden **nicht** als fachlich verbindlich übernommen: die Materialsumme wird insgesamt auf Cent gerundet, angezeigte Einzelanteile separat. Im Kostenartenzuschlagsmodus sind die Nebenkosten eine fünfte gesonderte Kategorie mit eigenem Zuschlag. Ohne diesen Modus gelten die bestehenden globalen Zuschlagsregeln für die gesamten direkten Kosten.
+
+Vorhandene Angebots-/Rechnungssnapshots bleiben unverändert. Die Vorlage ist noch nicht vollständig auf EFB-Feldkompatibilität, Rechenidentität oder fachliche Eignung geprüft. Änderungen stehen bis Live-/iPhone-Abnahme im Testbranch; Modul 08 bleibt ROT. Der Test `test-kalkulationsvorlage-03-25.cjs` prüft Rechenwege, Rückwärtskompatibilität, Validierung und Darstellung.
