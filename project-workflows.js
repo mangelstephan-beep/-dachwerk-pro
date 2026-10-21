@@ -240,7 +240,7 @@
   }
   function efbBreakdown() {
     const positions=db.calculation().positions;
-    return panel('Kalkulationsnachweis mit Kostenartenzuschlägen',`<p>Grundlage: hochgeladener Kalkulationsnachweis. In der LV-Position „Kostenartenzuschläge“ aktivieren und Kalkulationslohn sowie Zuschläge erfassen. Lohn = Minuten / 60 × Kalkulationslohn. Jeder Preisbestandteil wird auf Cent gerundet, danach zum Einheitspreis addiert. Gesamtpreis = Menge × Einheitspreis.</p><p>Bei Kostenartenzuschlägen werden die globalen AGK-/Gewinnsätze durch die vier Zuschläge ersetzt. Zielpreis und Rabatt werden anschließend angewendet. Die enthaltenen Gemeinkosten deshalb vor Übernahme prüfen.</p>${table(['Position','Modus','Lohn EK / Zuschlag / Preis','Stoffe EK / Zuschlag / Preis','Geräte EK / Zuschlag / Preis','Fremd EK / Zuschlag / Preis','Kalkulierter EP','Ziel-/Angebots-EP','GP netto','Bearbeiten'],positions.map(p=>[esc(p.number),p.useEfbRates?'Kostenartenzuschläge':'Globale Kalkulationsbasis',...['labor','material','equipment','subcontract'].map(key=>`${money(p[key])} / ${p.useEfbRates?esc(p[key+'Markup'] || 0)+' % / '+money(p.priceComponents[key]):'global'}`),money(p.calculatedEp),money(p.ep),money(p.gp),btn('Ansätze bearbeiten','edit',p.id)]))}`)+panel('EFB-Formblätter','<p>Der Kalkulationsnachweis ist verfügbar. Amtliche EFB 221/222/223 mit geprüfter Feldzuordnung sind noch offen.</p>');
+    return panel('Kalkulationsnachweis mit Kostenartenzuschlägen',`<p>Grundlage: Kalkulationsnachweis und Blankokalkulation 03/2025. Optional vier Materialien, Zuschnitt und Verschnitt (in Prozent), vier zusätzliche Minutenansätze, Befestiger, Entsorgung und Sonstiges je LV-Position. In der LV-Position „Kostenartenzuschläge“ aktivieren und Kalkulationslohn sowie Zuschläge erfassen. Lohn = Minuten / 60 × Kalkulationslohn. Jeder Preisbestandteil wird auf Cent gerundet, danach zum Einheitspreis addiert. Gesamtpreis = Menge × Einheitspreis.</p><p>Bei Kostenartenzuschlägen werden die globalen AGK-/Gewinnsätze durch die vier Zuschläge ersetzt. Zielpreis und Rabatt werden anschließend angewendet. Die enthaltenen Gemeinkosten deshalb vor Übernahme prüfen.</p>${table(['Position','Modus','Lohn EK / Zuschlag / Preis','Stoffe EK / Zuschlag / Preis','Geräte EK / Zuschlag / Preis','Fremd EK / Zuschlag / Preis','Kalkulierter EP','Ziel-/Angebots-EP','GP netto','Bearbeiten'],positions.map(p=>[esc(p.number),p.useEfbRates?'Kostenartenzuschläge':'Globale Kalkulationsbasis',...['labor','material','equipment','subcontract'].map(key=>`${money(p[key])} / ${p.useEfbRates?esc(p[key+'Markup'] || 0)+' % / '+money(p.priceComponents[key]):'global'}`),money(p.calculatedEp),money(p.ep),money(p.gp),btn('Ansätze bearbeiten','edit',p.id)]))}`)+panel('EFB-Formblätter','<p>Der Kalkulationsnachweis ist verfügbar. Amtliche EFB 221/222/223 mit geprüfter Feldzuordnung sind noch offen.</p>');
   }
   function offerChoices() {
     const assigned=db.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>db.get(o.data.offerId).data.positions);
@@ -415,7 +415,7 @@
     if(mod.scope==='project' && !db.project())return shell(mod.name,panel('Projektbezug erforderlich',`<p>Bitte zuerst einen Kunden und ein Projekt anlegen. Danach das Projekt oben auswählen.</p>`));
     if(!special.has(id))return records(mod);
     let body='';
-    if(['calculation','efb'].includes(id))body=calculation()+(id==='efb'?efbBreakdown():'');
+    if(['calculation','efb'].includes(id))body=calculation()+(id==='efb'?efbBreakdown()+panel('BFW-Übergabe',`<p>Die separate XLS-Übergabedatei enthält Pos, Menge, MEH, Kurztext, Langtext, EP und PA. Hier werden die aktuellen LV-Positionen als Excel-kompatible CSV ausgegeben. PA bleibt leer, bis die Bedeutung der Zielsystem-Schnittstelle fachlich bestätigt ist. Vor der Übernahme Bedarfs-/Alternativpositionen prüfen.</p>${btn('BFW-Übergabe CSV herunterladen','bfw-csv')}`):'');
     if(['offers','invoices'].includes(id))body=snapshots(id);
     if(id==='controlling')body=controlling();
     if(id==='closing')body=panel('Projektbezogenes Belegpaket',`<p>JSON enthält die Projektakte, CSV die Rechnungen und Kostenbelege. DATEV-Importformate und automatischer Monatsabschluss sind noch nicht freigegeben.</p>${btn('Projektakte JSON','project-json')}${btn('Belegübersicht CSV','closing-csv')}`);
@@ -493,12 +493,13 @@
     event.preventDefault();event.stopImmediatePropagation();
     const action=target.dataset.dwp,id=target.dataset.id;
     try {
-      if(window.DWPRemote?.active && ['backup','project-json','calc-csv','snapshot-csv','closing-csv','print','workbook-download','import-text-download'].includes(action)) {
-        const kind={backup:'backup','project-json':'project','calc-csv':'calculation','snapshot-csv':'positions','closing-csv':'closing',print:'record','workbook-download':'record','import-text-download':'record'}[action];
+      if(window.DWPRemote?.active && ['backup','project-json','calc-csv','snapshot-csv','bfw-csv','closing-csv','print','workbook-download','import-text-download'].includes(action)) {
+        const kind={backup:'backup','project-json':'project','calc-csv':'calculation','snapshot-csv':'positions','bfw-csv':'calculation','closing-csv':'closing',print:'record','workbook-download':'record','import-text-download':'record'}[action];
         const output=await window.DWPRemote.export({kind,projectId:db.data.selectedProject,recordId:id});
         if(action==='import-text-download')downloadImportText(output.record);
         else if(action==='workbook-download')downloadWorkbook(output.record);
         else if(action==='print')printRecord(output.record);
+        else if(action==='bfw-csv')csvExport('DachWerkPro_BFW_Uebergabe.csv',core.bfwTransferRows(output.positions || output.record?.data.positions || []));
         else if(['calc-csv','snapshot-csv'].includes(action)){const rows=output.positions || output.record.data.positions;csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto','Leistungsart','Wahlgruppe','In Summe'],...[...rows,...(output.record?.module==='offers'?[...(output.record.data.optionalPositions || []),...(output.record.data.alternativePositions || [])]:[])].map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp,p.kind || 'Hauptleistung',p.choiceGroup || '',output.positions?(!['Bedarfsposition','Alternativposition'].includes(p.kind)?'Ja':'Nein'):(rows.includes(p)?'Ja':'Nein')])]);}
         else download(output.name,output.text,output.type);
         return;
@@ -551,6 +552,7 @@
       if(action==='operating-rate')mutate('applyOperatingCosts',[],()=>{notice('Vollkostensatz übernommen; AGK auf 0 gesetzt.');openModule('calculation');});
       if(action==='backup')download('DachWerkPro_Sicherung.json',db.backup());
       if(action==='project-json')download('DachWerkPro_Projektakte.json',JSON.stringify({project:db.project(),customer:db.get(db.project().data.customerId),records:db.data.records.filter(r=>r.projectId===db.data.selectedProject)},null,2));
+      if(action==='bfw-csv')csvExport('DachWerkPro_BFW_Uebergabe.csv',core.bfwTransferRows(db.calculation().positions));
       if(action==='calc-csv' || action==='snapshot-csv') {
         const positions=action==='calc-csv'?db.calculation().positions:db.get(id).data.positions;
         csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto','Leistungsart','Wahlgruppe','In Summe'],...[...positions,...(action==='snapshot-csv'&&db.get(id).module==='offers'?[...(db.get(id).data.optionalPositions || []),...(db.get(id).data.alternativePositions || [])]:[])].map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp,p.kind || 'Hauptleistung',p.choiceGroup || '',action==='calc-csv'?(!['Bedarfsposition','Alternativposition'].includes(p.kind)?'Ja':'Nein'):(positions.includes(p)?'Ja':'Nein')])]);
