@@ -2,6 +2,7 @@
   'use strict';
   const core=window.DWPProject, main=document.querySelector('#main-content');
   let db, current='dashboard', editing=null, search='', signatureStrokes=[], importPreview=null, excelSource=null, selectionKey=null, importRead=null;
+  let priceSource=null, pricePreview=null, priceReadToken=0;
   const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const money=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v||0);
   const verified=id=>window.DWPRemote?.active===true&&window.DWPVerification?.isVerified(id)===true;
@@ -156,7 +157,7 @@
     if(mod.id==='personnel')summary+=schedulePanel();
     if(mod.id==='pricelists')summary+=priceImportPanel();
     let integration='';
-    const missing={pricelists:'CSV-Preislisten werden mit Vorschau, Artikelabgleich und Preisquelle übernommen. Importierte Preise müssen einzeln freigegeben werden. DATANORM-Parser und Excel-Spaltenmapping sind noch nicht freigegeben.',correspondence:'Nachrichten werden als Entwurf geführt. Ein Versand- oder Zustellnachweis entsteht erst mit einer eingerichteten Mailanbindung.',documents:'Fotos und PDF können zugeordnet werden. Scannersteuerung und automatische OCR sind noch nicht angeschlossen.',tenders:'Vergaben mit Fundstelle und Frist können erfasst werden. Der automatische Quellenscan ist noch nicht angeschlossen.',acceptance:'Handschriftliche Unterschriften werden mit dem angezeigten Protokollstand gespeichert. Zentrale Originalablage und qualifizierte elektronische Signatur sind nicht angeschlossen.',personnel:'Einsatzzeiträume werden auf Doppelbelegung geprüft. Sensible Lohn-, Steuer- und SV-Stammdaten benötigen geschützte serverseitige Rollen.'};
+    const missing={pricelists:'CSV, XLSX und XLS (Excel 97–2003) werden mit Blatt- und Spaltenzuordnung, Preisberechnung und verbindlicher Vorschau übernommen. Importierte Preise müssen einzeln freigegeben werden. DATANORM-Parser und Geräteabnahme sind noch offen.',correspondence:'Nachrichten werden als Entwurf geführt. Ein Versand- oder Zustellnachweis entsteht erst mit einer eingerichteten Mailanbindung.',documents:'Fotos und PDF können zugeordnet werden. Scannersteuerung und automatische OCR sind noch nicht angeschlossen.',tenders:'Vergaben mit Fundstelle und Frist können erfasst werden. Der automatische Quellenscan ist noch nicht angeschlossen.',acceptance:'Handschriftliche Unterschriften werden mit dem angezeigten Protokollstand gespeichert. Zentrale Originalablage und qualifizierte elektronische Signatur sind nicht angeschlossen.',personnel:'Einsatzzeiträume werden auf Doppelbelegung geprüft. Sensible Lohn-, Steuer- und SV-Stammdaten benötigen geschützte serverseitige Rollen.'};
     if(missing[mod.id]) integration=panel('Funktionsstand',`<p>${esc(missing[mod.id])}</p>`);
     const attachments=list.flatMap(r=>(r.attachments || []).map(a=>`<li>${esc(names(r.id))} · ${esc(a.name)} ${btn('Öffnen','file',`${r.id}/${a.id}`)}</li>`));
     shell(mod.name,`${integration}${recordForm(mod)}${panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
@@ -164,14 +165,59 @@
   function quotePanel() {
     const materials=db.list('materials'),suppliers=db.list('suppliers');
     const options=records=>`<option value="">Bitte auswählen</option>${records.map(r=>`<option value="${esc(r.id)}">${esc(names(r.id))}</option>`).join('')}`;
-    return panel('Lieferantenpreise vergleichbar erfassen',`<p>Alle Preise beziehen sich auf die Einheit des gewählten Artikels. Fracht wird als Betrag je Einheit erfasst. Umrechnungen von Gebinden vorher prüfen.</p><form id="dwp-quote" class="quick-form">${field('Artikel',`<select name="materialId" required>${options(materials)}</select>`)}${field('Lieferant',`<select name="supplierId" required>${options(suppliers)}</select>`)}${field('Listenpreis je Einheit netto',`<input name="price" inputmode="decimal" required>`)}${field('Rabatt %',`<input name="discount" inputmode="decimal" value="0" required>`)}${field('Fracht je Einheit netto',`<input name="freight" inputmode="decimal" value="0" required>`)}${field('Preisstand',`<input name="date" type="date" required value="${new Date().toISOString().slice(0,10)}">`)}${field('Quelle / Angebotsnummer',`<input name="source" required>`)}<button class="button button-primary" type="submit">Preisvergleich speichern</button></form>`)+panel('Vergleich nach effektivem Einkaufspreis',table(['Artikel','Lieferant','Einheit','Preisstand','EK inkl. Fracht','Übernahme'],materials.flatMap(m=>db.quotes(m.id).map(q=>[esc(m.data.name),esc(q.supplier),esc(q.unit),esc(q.date),money(q.effectivePrice),btn('Artikelpreis freigeben','use-quote',`${q.supplierId}/${q.id}`)]))));
+    return panel('Lieferantenpreise vergleichbar erfassen',`<p>Preis und Fracht beziehen sich auf ein Preisgebinde, z. B. eine Rolle oder 100 Stück. Gebindeinhalt in der Einheit des Artikels angeben. EK je Artikeleinheit = (Preis nach Rabatt + Fracht) / Gebindeinhalt.</p><form id="dwp-quote" class="quick-form">${field('Artikel',`<select name="materialId" required>${options(materials)}</select>`)}${field('Lieferant',`<select name="supplierId" required>${options(suppliers)}</select>`)}${field('Listenpreis je Preisgebinde netto',`<input name="price" inputmode="decimal" required>`)}${field('Rabatt %',`<input name="discount" inputmode="decimal" value="0" required>`)}${field('Fracht je Preisgebinde netto',`<input name="freight" inputmode="decimal" value="0" required>`)}${field('Bezeichnung Preisgebinde',`<input name="packageUnit" placeholder="z. B. Rolle, Sack, 100 Stück">`)}${field('Artikeleinheiten je Preisgebinde',`<input name="baseQuantity" inputmode="decimal" value="1" required>`)}${field('Preisbindung bis einschließlich',`<input name="validUntil" type="date">`)}${field('Preisstand',`<input name="date" type="date" required value="${new Date().toISOString().slice(0,10)}">`)}${field('Quelle / Angebotsnummer',`<input name="source" required>`)}<button class="button button-primary" type="submit">Preisvergleich speichern</button></form>`)+panel('Vergleich nach effektivem Einkaufspreis',table(['Artikel','Lieferant / Quelle','Preisgebinde','Preisstand / Bindung','EK je Artikeleinheit','Übernahme'],materials.flatMap(m=>db.quotes(m.id).map(q=>[esc(m.data.name),`${esc(q.supplier)}<br>${esc(q.source)}`,`${esc(q.packageUnit || q.unit)} = ${esc(q.baseQuantity ?? 1)} ${esc(q.unit)}`,`${esc(q.date)}<br>${esc(q.validUntil || 'Keine Preisbindung dokumentiert')}`,`${money(q.effectivePrice)} / ${esc(q.unit)}`,q.expired?'Preisbindung abgelaufen':q.future?'Zukünftiger Preisstand':btn('Artikelpreis freigeben','use-quote',`${q.supplierId}/${q.id}`)]))));
   }
   function schedulePanel() {
     const options=records=>`<option value="">Bitte auswählen</option>${records.map(r=>`<option value="${esc(r.id)}" ${r.id===db.data.selectedProject?'selected':''}>${esc(names(r.id))}</option>`).join('')}`;
     return panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage und Teilzeitschichten sind noch nicht berücksichtigt.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`)+panel('Einsatzübersicht aller Projekte',table(['Mitarbeiter','Projekt','Von','Bis','Aufgabe','Status'],db.list('personnel').flatMap(e=>(e.assignments || []).map(a=>[esc(e.data.name),esc(names(a.projectId)),esc(a.start),esc(a.end),esc(a.task),a.cancelled?'Storniert':btn('Einsatz stornieren','cancel-schedule',`${e.id}/${a.id}`)]))));
   }
   function priceImportPanel() {
-    return panel('CSV-Preisliste prüfen und übernehmen',`<p>Pflichtspalten: name;unit;price. Optional: article;manufacturer;supplier;validUntil;system;documentUrl;documentEdition;compatibility;compatibilityEvidence. Ein vorhandener Artikel wird über Hersteller, Artikelnummer (ersatzweise Name), Lieferant und Einheit erkannt. Jede Übernahme setzt den Artikelpreis auf Prüfung.</p><label>CSV-Datei<input id="dwp-price-file" type="file" accept=".csv,text/csv"></label><form id="dwp-price-import" class="quick-form">${field('Quelle / Dateiname',`<input name="source" required>`)}${field('Preisstand',`<input name="priceDate" type="date" required value="${new Date().toISOString().slice(0,10)}">`)}${field('Lieferant für leere Lieferantenspalten',`<input name="supplier">`)}<div class="field-span"><label>CSV-Inhalt<textarea name="csv" id="dwp-price-csv" rows="7" required placeholder="name;unit;price;article;manufacturer&#10;Abdichtungsbahn;m²;9,20;ART001;Hersteller"></textarea></label></div><div class="field-span dwp-actions">${btn('Preisvorschau prüfen','price-preview')}<button class="button button-primary" type="submit">Preisliste zur Prüfung übernehmen</button></div></form><div id="dwp-price-preview"></div>`);
+    priceSource=null;pricePreview=null;priceReadToken++;
+    return panel('Excel- und CSV-Preislisten prüfen',`<p>CSV, XLSX und XLS (Excel 97–2003), jeweils bis 1 MB. Blatt, Überschriften und Spalten vor der Übernahme prüfen. Alle Datenzeilen unterhalb der Überschrift müssen fehlerfrei sein. Formeln werden nicht ausgeführt. DATANORM ist noch offen.</p><p>Preis und Fracht gelten je Preisgebinde; der Gebindeinhalt wird in Artikeleinheiten angegeben. Der Import berechnet daraus den Einkaufspreis je Artikeleinheit. Bestehende freigegebene Preise bleiben bis zur Einzelpreisfreigabe erhalten.</p><div id="dwp-price-drop" class="dwp-panel"><p>Preisliste hier ablegen oder Datei auswählen.</p><label>Datei auswählen<input id="dwp-price-file" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label></div><p id="dwp-price-progress" role="status" aria-live="polite"></p><form id="dwp-price-import" class="quick-form">${field('Quelle / Dateiname',`<input name="source" required>`)}${field('Preisstand',`<input name="priceDate" type="date" required value="${new Date().toISOString().slice(0,10)}">`)}${field('Preisbindung bis einschließlich',`<input name="validUntil" type="date">`)}${field('Lieferant für leere Lieferantenspalten',`<input name="supplier">`)}<div class="field-span"><label>CSV-Inhalt (alternativ zur Datei)<textarea name="csv" id="dwp-price-csv" rows="5" placeholder="name;unit;price;article;manufacturer&#10;Abdichtungsbahn;m²;9,20;ART001;Hersteller"></textarea></label>${btn('CSV-Spalten zuordnen','price-csv')}</div><div class="field-span" id="dwp-price-controls"></div><div class="field-span dwp-actions">${btn('Preisvorschau prüfen','price-preview')}<button class="button button-primary" type="submit">Preisliste zur Prüfung übernehmen</button></div></form><div id="dwp-price-preview"></div>`);
+  }
+  function priceControls(sheetIndex=0,headerRow) {
+    const sheet=priceSource.book.sheets[sheetIndex];if(!sheet)throw Error('Preisliste: Blatt fehlt.');
+    headerRow=headerRow ?? sheet.rows.find(r=>r.values.some(c=>c && String(c.value).trim()))?.index;
+    const header=sheet.rows.find(r=>r.index===headerRow);if(!header)throw Error('Preisliste: Überschriftenzeile fehlt.');
+    const suggested=window.DWPMaterialPriceImport.suggest(header.values);
+    const columns=header.values.map((c,i)=>c?{i,label:c.address+' · '+String(c.value)}:null).filter(Boolean);
+    document.querySelector('#dwp-price-controls').innerHTML=`${field('Arbeitsblatt',`<select id="dwp-price-sheet">${priceSource.book.sheets.map((sheet,i)=>`<option value="${i}" ${sheetIndex===i?'selected':''}>${esc(sheet.name)}${sheet.hidden?' (ausgeblendet)':''}</option>`).join('')}</select>`)}${field('Zeile mit Spaltenüberschriften',`<input id="dwp-price-header" type="number" min="1" max="10000" value="${headerRow}">`)}<div class="quick-form">${Object.entries(window.DWPMaterialPriceImport.fields).map(([key,label])=>field(label+(['name','unit','price'].includes(key)?' *':''),`<select data-price-map="${key}"><option value="-1">Nicht zugeordnet</option>${columns.map(c=>`<option value="${c.i}" ${suggested[key]===c.i?'selected':''}>${esc(c.label)}</option>`).join('')}</select>`)).join('')}</div>`;
+    pricePreview=null;
+  }
+  function priceInput() {
+    const form=document.querySelector('#dwp-price-import');
+    const values=Object.fromEntries(new FormData(form));delete values.csv;
+    if(!priceSource || priceSource.csv!==undefined && priceSource.csv!==document.querySelector('#dwp-price-csv').value)throw Error('CSV-Spalten zuerst neu zuordnen.');
+    if(priceSource.loading)throw Error('Bitte das Einlesen der Datei abwarten.');
+    return {values,sheet:Number(document.querySelector('#dwp-price-sheet').value),header:Number(document.querySelector('#dwp-price-header').value),mapping:Object.fromEntries([...form.querySelectorAll('[data-price-map]')].map(s=>[s.dataset.priceMap,Number(s.value)])),token:priceReadToken,revision:db.data.revision};
+  }
+  function priceReport(input) {
+    const report=window.DWPMaterialPriceImport.report(priceSource.book,input.sheet,input.header,input.mapping);
+    if(report.findings.length)throw Error('Preisliste korrigieren: '+report.findings.map(f=>`Zeile ${f.row}: ${f.reason}`).join(' · '));
+    let raw=db.backup();const staged=new core.Store({getItem:()=>raw,setItem:(_key,value)=>{raw=value;}});
+    staged.importMaterials(report.rows,input.values);
+    return report;
+  }
+  async function readPriceFile(file) {
+    if(!file)return;
+    const token=++priceReadToken,form=document.querySelector('#dwp-price-import');
+    priceSource={loading:true};pricePreview=null;
+    document.querySelector('#dwp-price-controls').textContent='';document.querySelector('#dwp-price-preview').textContent='';
+    document.querySelector('#dwp-price-csv').readOnly=false;
+    const progress=document.querySelector('#dwp-price-progress');progress.textContent='Datei wird gelesen …';
+    const isCurrent=()=>token===priceReadToken && document.querySelector('#dwp-price-import')===form;
+    try {
+      if(file.size>1_000_000)throw Error('Preisliste: Datei bis 1 MB erforderlich.');
+      let book,csv;
+      if(/\.xlsx$/i.test(file.name))book=window.DWPSpreadsheetImport.parse(await file.arrayBuffer());
+      else if(/\.xls$/i.test(file.name))book=await window.DWPXlsImport.read(await file.arrayBuffer());
+      else if(/\.csv$/i.test(file.name)){csv=await file.text();book=window.DWPMaterialPriceImport.csv(csv);}
+      else throw Error('Bitte CSV, XLSX oder XLS (Excel 97–2003) auswählen.');
+      if(!isCurrent())return;
+      priceSource={book,csv};form.elements.source.value=file.name;
+      document.querySelector('#dwp-price-csv').value=csv ?? '';document.querySelector('#dwp-price-csv').readOnly=csv===undefined;
+      priceControls();progress.textContent='Datei gelesen. Spaltenzuordnung und Preisvorschau prüfen.';state.unsavedChanges=true;
+    }catch(error){if(isCurrent()){priceSource=null;progress.textContent=error.message;showError(error);}}
   }
   function signatureSvg(signature) {
     return `<svg class="dwp-signature-image" viewBox="0 0 640 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Handschriftliche Unterschrift">${signature.strokes.map(stroke=>`<polyline points="${stroke.map(p=>`${p[0]*640},${p[1]*240}`).join(' ')}" fill="none" stroke="#17241d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`).join('')}</svg>`;
@@ -430,7 +476,11 @@
       if(form.id==='dwp-quote')command=['quote',values.supplierId,values];
       if(form.id==='dwp-schedule')command=['schedule',values.employeeId,values];
       if(form.id==='dwp-sign'){command=['sign',values.recordId,{...values,strokes:signatureStrokes}];afterModule=db.get(values.recordId).module;}
-      if(form.id==='dwp-price-import')command=['importMaterials',csvRows(values.csv,['name','unit','price']),{...values,owner:state.currentUser}];
+      if(form.id==='dwp-price-import'){
+        const input=priceInput();
+        if(!pricePreview || JSON.stringify(input)!==JSON.stringify(pricePreview))throw Error('Bitte die aktuelle Preisvorschau prüfen. Quelle, Zuordnung oder Bestand haben sich geändert.');
+        command=['importMaterials',priceReport(input).rows,{...input.values,owner:state.currentUser}];
+      }
       if(form.id==='dwp-change-offer')command=['issue','offers',{offerType:'Nachtragsangebot',baseOfferId:values.baseOfferId,changeNumber:values.changeNumber,owner:state.currentUser}];
       if(form.id==='dwp-storno')command=['stornoInvoice',values.invoiceId,{reason:values.reason,owner:state.currentUser}];
       if(form.id==='dwp-pair'){window.DWPRemote.pair(values.token).then(()=>{notice('Gerät freigegeben.');openModule('access');}).catch(showError);return;}
@@ -521,9 +571,17 @@
         document.querySelector('#dwp-import-preview').innerHTML=`<p>${rows.length} LV-Positionen und ${report.findings.length} gesperrte Prüfvorgänge für ${esc(db.project().data.name)} geprüft. Übernahme setzt keine Fachfreigabe.</p>`+table(['Position','Gliederung','Leistung','Menge','Einheit','Leistungsart','Wahlgruppe'],rows.map(r=>[esc(r.number),esc(r.groupPath || ''),esc(r.text),esc(r.qty),esc(r.unit),esc(r.kind || 'Hauptleistung'),esc(r.choiceGroup)]))+table(['Sonderposition / Hinweis','Originalinhalt','Wandlungsvorschlag'],report.findings.map(f=>[esc(f.number),esc(f.text),esc(f.suggestion)]));
         importPreview=input;
       }
+      if(action==='price-csv') {
+        priceReadToken++;pricePreview=null;
+        const csv=document.querySelector('#dwp-price-csv').value;
+        priceSource=null;document.querySelector('#dwp-price-controls').textContent='';document.querySelector('#dwp-price-preview').textContent='';
+        priceSource={book:window.DWPMaterialPriceImport.csv(csv),csv};priceControls();
+      }
       if(action==='price-preview') {
-        const rows=csvRows(document.querySelector('#dwp-price-csv').value,['name','unit','price']);
-        document.querySelector('#dwp-price-preview').innerHTML=table(['Artikel','Artikelnummer','Hersteller','Lieferant','Einheit','Preis'],rows.map(r=>[esc(r.name),esc(r.article),esc(r.manufacturer),esc(r.supplier),esc(r.unit),esc(r.price)]));
+        pricePreview=null;document.querySelector('#dwp-price-preview').textContent='';
+        const input=priceInput(),report=priceReport(input);
+        document.querySelector('#dwp-price-preview').innerHTML=`<p>${report.rows.length} Artikel geprüft. EK = (Preis × (1 − Rabatt / 100) + Fracht) / Gebindeinhalt. Übernahme erfolgt zur Einzelpreisprüfung.</p>`+table(['Artikel','Artikelnummer','Hersteller','Lieferant','Einheit','EK je Artikeleinheit'],report.rows.map(r=>[esc(r.name),esc(r.article),esc(r.manufacturer),esc(r.supplier || input.values.supplier),esc(r.unit),money(r.price)]))+table(['Originalzeile','Preisgebinde netto','Rabatt %','Fracht','Gebindeinhalt','Berechneter EK'],report.calculations.map(c=>[esc(c.row),money(c.price),esc(c.discount),money(c.freight),esc(c.baseQuantity),money(c.effective)]));
+        pricePreview=input;
       }
       if(action==='service-lv') {
         const data=db.get(id).data;
@@ -568,6 +626,13 @@
     if(event.target.id==='dwp-module-search'){search=event.target.value;filterModules();return;}
     if(event.target.closest('.dwp-workspace form'))state.unsavedChanges=true;
   });
+  main.addEventListener('dragover',event=>{if(event.target.closest('#dwp-price-drop'))event.preventDefault();});
+  main.addEventListener('drop',event=>{
+    if(!event.target.closest('#dwp-price-drop'))return;
+    event.preventDefault();event.stopPropagation();
+    if(event.dataTransfer.files.length!==1){showError(Error('Bitte genau eine Preisliste ablegen.'));return;}
+    readPriceFile(event.dataTransfer.files[0]);
+  });
   main.addEventListener('change',async event=>{
     try {
       if(event.target.matches('[data-offer-position]')){updateChoiceTotal();state.unsavedChanges=true;}
@@ -585,7 +650,8 @@
         document.querySelector('#dwp-csv').readOnly=['Excel Prüfquelle','PDF Prüfquelle'].includes(event.target.value);importPreview=null;
       }
       if(event.target.id==='dwp-import-file')await readImportFile(event.target);
-      if(event.target.id==='dwp-price-file') {const file=event.target.files[0];if(file){document.querySelector('#dwp-price-csv').value=await file.text();document.querySelector('#dwp-price-import [name="source"]').value=file.name;}}
+      if(event.target.id==='dwp-price-file')await readPriceFile(event.target.files[0]);
+      if(event.target.id==='dwp-price-sheet' || event.target.id==='dwp-price-header')priceControls(Number(document.querySelector('#dwp-price-sheet').value),event.target.id==='dwp-price-header'?Number(event.target.value):undefined);
       if(event.target.id==='dwp-restore') {
         const text=await event.target.files[0].text();
         if(confirm('Aktuellen lokalen Arbeitsbestand durch diese Sicherung ersetzen?')){mutate('restore',[text],()=>{state.unsavedChanges=false;openModule('dashboard');});}
