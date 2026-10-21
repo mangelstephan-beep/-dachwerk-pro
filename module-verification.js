@@ -133,10 +133,10 @@
   "logistics": {
       "number": 17,
       "name": "Liefertermine und Logistik",
-      "verified": false,
+      "verified": true,
       "checkedAt": "2026-10-21",
-      "evidence": "Datumsabhängige Lieferwarnungen beim Öffnen, dokumentierte Unter-/Überlieferungstoleranzen, Teilmengen, Projekttrennung und Abschlussprüfung lokal über Server-/DOM-Test geprüft.",
-      "remaining": "Produktionsabnahme der Lieferwarnungen und Mengentoleranzen offen. Hintergrundbenachrichtigungen nicht eingerichtet."
+      "evidence": "Live-Produktion 21.10.2026 im Testdach D: Bestellung 100 m² mit begründeter Toleranz 98–105 m². Ohne Vereinbarung serverseitig abgewiesen. Termin 20.10. als überfällig angezeigt; 60 m² ergeben 40 m² offen, weitere 38 m² schließen innerhalb der Minderlieferung ab und zeigen 2 m² Differenz. Weitere 8 m² (gesamt 106) abgewiesen, 7 m² (gesamt 105) angenommen. Projektwechsel trennt Bestände. Automatische Terminwarnungen erfolgen beim Öffnen der Oberfläche; heutige/fehlende Termine und Grenzen zusätzlich im Server-/DOM-Test geprüft. Kein externer Mail-/Pushversand.",
+      "remaining": ""
   },
   "personnel": {
     "number": 18,
