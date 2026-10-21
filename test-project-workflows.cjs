@@ -5,7 +5,7 @@ const {JSDOM}=require(process.env.DWP_TEST_JSDOM || 'jsdom');
 const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'});
 const w=dom.window;
 w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
-for(const file of ['app.js','module-fixes.js','project-core.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
+for(const file of ['app.js','module-fixes.js','project-core.js','material-price-import.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
 const open=id=>w.DWPWorkspace.open(id);
 const query=s=>w.document.querySelector('#main-content').querySelector(s);
 function save(id,values,approved=false) {
@@ -64,6 +64,7 @@ assert.equal(reload.list('lv',project.id).length,2);
 open('pricelists');
 query('#dwp-price-csv').value='name;unit;price;article;manufacturer\nBahn;m²;9,20;ART1;Testhersteller';
 query('#dwp-price-import [name="source"]').value='Testpreise.csv';
+query('[data-dwp="price-csv"]').click();
 query('[data-dwp="price-preview"]').click();
 assert(query('#dwp-price-preview').textContent.includes('9,20'));
 query('#dwp-price-import').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));

@@ -59,6 +59,7 @@
   const definitions = Object.fromEntries(modules.map(m=>[m.id,m]));
   definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('subcontractMarkup','Zuschlag Fremdleistungen %','number'));
   definitions.materials.fields.push(f('validUntil','Preisbindung bis einschließlich','date'),f('system','Dach- / Abdichtungssystem'),f('documentUrl','Herstellerunterlage (https://)','url'),f('documentEdition','Unterlagenstand / Fassung'),f('compatibility','Systemverträglichkeit','select',false,['','Ungeprüft','Geeignet laut Nachweis','Nicht geeignet']),f('compatibilityEvidence','Eignungsnachweis / geprüfter Aufbau','textarea'));
+  definitions.materials.fields.push(f('priceBasis','Preisberechnung / Bezugsmenge','textarea'));
   const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
   function validatePricing(module,data) {
     if(module==='lv' && data.useEfbRates && !(data.efbWage>0))throw Error('Kalkulationslohn für Kostenartenzuschläge muss größer als null sein.');
@@ -133,6 +134,9 @@
         if(['offers','invoices'].includes(r.module) && (!Array.isArray(r.data.positions) || ['net','gross','tax','taxAmount'].some(k=>typeof r.data[k]!=='number' || !Number.isFinite(r.data[k])))) throw Error('Sicherung: Dokumentfassung ungültig.');
         for(const q of r.quotes || []) {
           if(r.module!=='suppliers' || !data.records.some(m=>m.module==='materials' && m.id===q.materialId) || ['price','discount','freight'].some(k=>typeof q[k]!=='number' || !Number.isFinite(q[k]) || q[k]<0) || q.discount>100) throw Error('Sicherung: Lieferantenpreis ungültig.');
+          if(q.baseQuantity!==undefined && (typeof q.baseQuantity!=='number' || !Number.isFinite(q.baseQuantity) || q.baseQuantity<=0) || q.validUntil && (!validDate(q.validUntil) || q.validUntil<q.date))throw Error('Sicherung: Gebinde oder Preisbindung ungültig.');
+          if(!validDate(q.date) || typeof q.source!=='string' || !q.source.trim())throw Error('Sicherung: Lieferantenpreis benötigt Quelle und Preisstand.');
+          round((q.price*(1-q.discount/100)+q.freight)/(q.baseQuantity ?? 1));
         }
         for(const a of r.assignments || [])if(r.module!=='personnel' || !data.records.some(p=>p.module==='projects' && p.id===a.projectId) || !a.start || !a.end || a.start>a.end)throw Error('Sicherung: Einsatzplanung ungültig.');
         for(const s of r.signatures || []) {
@@ -258,7 +262,7 @@
         record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
       }
       return this.transaction(before?'Geändert':'Angelegt',module,record.id,d=>{
-        if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,validUntil:before.data.validUntil || '',supplier:before.data.supplier,source:before.data.source}] : [])].slice(-3);
+        if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,validUntil:before.data.validUntil || '',priceBasis:before.data.priceBasis || '',supplier:before.data.supplier,source:before.data.source}] : [])].slice(-3);
         const i=d.records.findIndex(r=>r.id===record.id);
         if(i<0) d.records.push(record); else d.records[i]=record;
         if(module==='projects') d.selectedProject=record.id;
@@ -578,7 +582,8 @@
       return this.save('purchase',{title:`Bestellung ${demand.name}`,materialId,quantity:demand.remaining,supplier:demand.supplier,unitPrice:demand.unitPrice,deliveryDate:options.deliveryDate || ''},{owner:options.owner || '',status:'Neu'});
     }
     quotes(materialId) {
-      return this.list('suppliers').flatMap(s=>(s.quotes || []).filter(q=>q.materialId===materialId).map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:round(q.price*(1-q.discount/100)+q.freight)}))).sort((a,b)=>a.effectivePrice-b.effectivePrice);
+      const today=new Date().toISOString().slice(0,10);
+      return this.list('suppliers').flatMap(s=>(s.quotes || []).filter(q=>q.materialId===materialId).map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:round((q.price*(1-q.discount/100)+q.freight)/(q.baseQuantity ?? 1)),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today}))).sort((a,b)=>a.effectivePrice-b.effectivePrice);
     }
     quote(supplierId, values) {
       const supplier=this.get(supplierId), material=this.get(values.materialId);
@@ -586,14 +591,21 @@
       const price=num(values.price),discount=num(values.discount),freight=num(values.freight);
       if(price<0 || discount<0 || discount>100 || freight<0)throw Error('Preis, Rabatt oder Fracht sind ungültig.');
       if(!values.source?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(values.date || '') || Number.isNaN(Date.parse(values.date)) || new Date(values.date).toISOString().slice(0,10)!==values.date)throw Error('Preisquelle und gültiger Preisstand erforderlich.');
-      const quote={id:uid(),materialId:material.id,unit:material.data.unit,price,discount,freight,date:values.date,source:values.source.trim()};
+      const baseQuantity=values.baseQuantity===undefined?1:num(values.baseQuantity),validUntil=String(values.validUntil || '');
+      if(baseQuantity<=0 || baseQuantity>Number.MAX_SAFE_INTEGER/100)throw Error('Gebindeinhalt in Artikeleinheiten muss größer als null sein.');
+      if(validUntil && (!validDate(validUntil) || validUntil<values.date))throw Error('Preisbindung muss ein gültiges Datum ab Preisstand sein.');
+      round((price*(1-discount/100)+freight)/baseQuantity);
+      const quote={id:uid(),materialId:material.id,unit:material.data.unit,price,discount,freight,baseQuantity,packageUnit:String(values.packageUnit || material.data.unit).trim(),validUntil,date:values.date,source:values.source.trim()};
       return this.transaction('Lieferantenpreis erfasst','suppliers',supplier.id,d=>{d.records.find(r=>r.id===supplier.id).quotes=[...(supplier.quotes || []),quote];return quote;});
     }
     useQuote(supplierId, quoteId, owner) {
       const supplier=this.get(supplierId),quote=supplier?.quotes?.find(q=>q.id===quoteId),material=this.get(quote?.materialId);
       if(!quote || !material)throw Error('Preisvergleich nicht gefunden.');
       if(quote.unit!==material.data.unit)throw Error('Einheit des Preisvergleichs stimmt nicht mit dem Artikel überein.');
-      return this.save('materials',{...material.data,price:round(quote.price*(1-quote.discount/100)+quote.freight),supplier:supplier.data.name,priceDate:quote.date,validUntil:'',source:quote.source},{id:material.id,status:'Freigegeben',owner});
+      const today=new Date().toISOString().slice(0,10);
+      if(quote.validUntil && quote.validUntil<today)throw Error('Preisbindung abgelaufen. Neues Lieferantenangebot erforderlich.');
+      if(quote.date>today)throw Error('Preisstand liegt in der Zukunft.');
+      return this.save('materials',{...material.data,price:round((quote.price*(1-quote.discount/100)+quote.freight)/(quote.baseQuantity ?? 1)),supplier:supplier.data.name,priceDate:quote.date,validUntil:quote.validUntil || '',source:quote.source,priceBasis:`(${quote.price} EUR × (1 − ${quote.discount} / 100) + ${quote.freight} EUR Fracht) / ${quote.baseQuantity ?? 1} ${quote.unit}; Preisgebinde: ${quote.packageUnit || quote.unit}`},{id:material.id,status:'Freigegeben',owner});
     }
     schedule(employeeId, values) {
       const employee=this.get(employeeId),project=this.get(values.projectId);

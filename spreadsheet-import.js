@@ -45,6 +45,7 @@
    const target=relationship.getAttribute('Target'),path=target?.startsWith('/')?target.slice(1):'xl/'+target;
    if(!path || path.includes('..') || !/^xl\/worksheets\/[^/]+\.xml$/.test(path))throw Error('Excel: Blattpfad nicht unterstützt.');
    const doc=xml(path),merged=tags(doc,'mergeCell').map(n=>n.getAttribute('ref'));
+   const hiddenColumns=tags(doc,'col').filter(c=>c.getAttribute('hidden')==='1').map(c=>[Number(c.getAttribute('min')),Number(c.getAttribute('max'))]);
    const rows=tags(doc,'row').map(row=>{
     const index=Number(row.getAttribute('r'));if(!Number.isInteger(index) || index<1 || index>10000)throw Error('Excel: Höchstens 10000 Blattzeilen unterstützt.');
     const values=[];
@@ -65,6 +66,7 @@
       if(typeof value==='number' && Number.isInteger(value) && /^0+$/.test(fmt || '') && fmt.length<=20)value=String(value).padStart(fmt.length,'0');
      }else if(type!=='str')issue='Unbekannte Zellart '+type;
      if(formula){issue='Formel benötigt Prüfung';value='='+formula.textContent;}
+     if(hiddenColumns.some(([min,max])=>column>=min && column<=max))issue+=(issue?'; ':'')+'Ausgeblendete Spalte';
      values[column-1]={address,value,issue,formula:formula?.textContent || ''};
     }
     return {index,hidden:row.getAttribute('hidden')==='1',values};

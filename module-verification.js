@@ -88,7 +88,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Automatische Händleranbindungen, Gebindeumrechnung"
+    "remaining": "Gebindeumrechnung, Rabatt, Fracht und Preisbindung lokal geprüft; Live-/Geräteabnahme und automatische Händleranbindungen offen."
   },
   "pricelists": {
     "number": 12,
@@ -96,7 +96,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "DATANORM-Parser, Excel-Spaltenmapping"
+    "remaining": "Excel-/CSV-Spaltenmapping und verbindliche Vorschau lokal geprüft; DATANORM-Parser, Live-/Geräteabnahme und reale Händlerdateien offen."
   },
   "offers": {
     "number": 13,
