@@ -58,11 +58,34 @@
   ];
   const definitions = Object.fromEntries(modules.map(m=>[m.id,m]));
   definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('subcontractMarkup','Zuschlag Fremdleistungen %','number'));
+  // Optional detailed cost structure modelled on the March 2025 blank calculation workbook.
+  // Legacy position prices remain untouched until the user explicitly activates this mode.
+  definitions.lv.fields.push(
+    f('useDetailedMaterials','Vier Materialansätze (Blankokalkulation) verwenden','checkbox'),
+    ...[1,2,3,4].flatMap(i=>[
+      f('materialName'+i,'Material '+i+' – Bezeichnung'),
+      f('materialPrice'+i,'Material '+i+' – EK je Bezugseinheit','number'),
+      f('materialCut'+i,'Material '+i+' – Zuschnitt / Menge je LE (0 = 1)','number'),
+      f('materialWaste'+i,'Material '+i+' – Verschnitt %','number'),
+      f('materialMinutes'+i,'Material '+i+' – Minuten je LE','number')
+    ]),
+    f('fasteners','Befestigungsmittel EK je LE','number'),
+    f('disposal','Entsorgung EK je LE','number'),
+    f('miscellaneous','Sonstige Kosten EK je LE','number'),
+    f('otherMarkup','Zuschlag auf sonstige Kosten % (EFB)','number'),
+    f('subcontractMaterialShare','Materialanteil Fremdarbeiten % (Nachweis)','number')
+  );
   definitions.materials.fields.push(f('validUntil','Preisbindung bis einschließlich','date'),f('system','Dach- / Abdichtungssystem'),f('documentUrl','Herstellerunterlage (https://)','url'),f('documentEdition','Unterlagenstand / Fassung'),f('compatibility','Systemverträglichkeit','select',false,['','Ungeprüft','Geeignet laut Nachweis','Nicht geeignet']),f('compatibilityEvidence','Eignungsnachweis / geprüfter Aufbau','textarea'));
   definitions.materials.fields.push(f('priceBasis','Preisberechnung / Bezugsmenge','textarea'));
   const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
   function validatePricing(module,data) {
     if(module==='lv' && data.useEfbRates && !(data.efbWage>0))throw Error('Kalkulationslohn für Kostenartenzuschläge muss größer als null sein.');
+    if(module==='lv' && data.useDetailedMaterials) {
+      if(data.materialId || data.material)throw Error('Vier Materialansätze nicht mit pauschalem Material oder Materialartikel kombinieren. Die Ansätze ersetzen diese Eingabe.');
+      for(const i of [1,2,3,4])if(data['materialWaste'+i]>100)throw Error('Verschnitt für Material '+i+' darf 100 % nicht überschreiten.');
+      if(data.subcontractMaterialShare>100)throw Error('Materialanteil Fremdarbeiten darf 100 % nicht überschreiten.');
+    }
+
     if(module!=='materials')return;
     if(data.validUntil && (!validDate(data.validUntil) || data.validUntil<data.priceDate))throw Error('Preisbindung muss ein gültiges Datum ab Preisstand sein.');
     if(data.documentUrl) {
@@ -337,21 +360,29 @@
     }
     position(record) {
       const p=record.data, s=this.data.settings;
-      let material=p.material || 0;
-      if(p.materialId) {
+      const detailed=Boolean(p.useDetailedMaterials);
+      const materialBreakdown=detailed?[1,2,3,4].map(i=>{
+        const price=p['materialPrice'+i] || 0,cut=p['materialCut'+i] || 1,waste=p['materialWaste'+i] || 0,minutes=p['materialMinutes'+i] || 0;
+        return {number:i,name:p['materialName'+i] || '',price,cut,waste,minutes,cost:round(price*cut*(1+waste/100))};
+      }):[];
+      let material=detailed?round(materialBreakdown.reduce((sum,m)=>sum+m.cost,0)+(p.fasteners || 0)):(p.material || 0);
+      if(!detailed && p.materialId) {
         const m=this.get(p.materialId);
         if(m?.status!=='Freigegeben') throw Error(`Material zu Position ${p.number} ist nicht freigegeben.`);
         material=m.data.price*(p.consumption || 1);
       }
-      const labor=p.minutes/60*(p.useEfbRates?p.efbWage:s.wage);
-      const direct=material+labor+p.equipment+p.subcontract;
+      const totalMinutes=(p.minutes || 0)+(detailed?materialBreakdown.reduce((sum,m)=>sum+m.minutes,0):0);
+      const labor=totalMinutes/60*(p.useEfbRates?p.efbWage:s.wage);
+      const other=detailed?round((p.disposal || 0)+(p.miscellaneous || 0)):0;
+      const direct=material+labor+p.equipment+p.subcontract+other;
       const priceComponents=p.useEfbRates?Object.fromEntries([['labor',labor,'laborMarkup'],['material',material,'materialMarkup'],['equipment',p.equipment,'equipmentMarkup'],['subcontract',p.subcontract,'subcontractMarkup']].map(([key,value,markup])=>[key,round(value*(1+(p[markup] || 0)/100))])):null;
+      if(priceComponents && other)priceComponents.other=round(other*(1+(p.otherMarkup || 0)/100));
       const calculatedEp=priceComponents?round(Object.values(priceComponents).reduce((sum,value)=>sum+value,0)):round(direct*(1+s.agk/100)*(1+s.profit/100));
       const undiscountedEp=p.useTargetPrice?round(p.targetEp || 0):calculatedEp;
       const discountPercent=num(p.discountPercent || 0);
       if(discountPercent<0 || discountPercent>100)throw Error('Positionsrabatt zwischen 0 und 100 %.');
       const ep=round(undiscountedEp*(1-discountPercent/100));
-      return {...p,id:record.id,material,labor,direct,priceComponents,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
+      return {...p,id:record.id,material,materialBreakdown,totalMinutes,labor,other,direct,priceComponents,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
     }
     materialChecks(record,asOf=new Date().toISOString().slice(0,10)) {
       if(record?.module!=='materials' || !validDate(asOf))throw Error('Artikel oder Prüfdatum ungültig.');
@@ -367,7 +398,7 @@
       const positions=this.list('lv').map(r=>this.position(r));
       const included=positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
       const sum=k=>round(included.reduce((n,p)=>n+p.qty*p[k],0));
-      return {positions,optionalNet:round(positions.filter(p=>p.kind==='Bedarfsposition').reduce((n,p)=>n+p.gp,0)),net:round(included.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),direct:sum('direct')};
+      return {positions,optionalNet:round(positions.filter(p=>p.kind==='Bedarfsposition').reduce((n,p)=>n+p.gp,0)),net:round(included.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),other:sum('other'),direct:sum('direct')};
     }
     lvGroups() {
       const groups=new Map();
@@ -724,7 +755,17 @@
       });
     }
   }
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity};
+  // BFW blank exchange sheet: Pos | Menge | MEH | Kurztext | Langtext | EP | PA.
+  // The legacy PA semantics are not documented in the supplied blank file: do not guess.
+  const bfwTransferRows=positions=>{
+    if(!Array.isArray(positions))throw Error('BFW-Übergabe benötigt eine Positionsliste.');
+    const decimal=value=>Number(value || 0).toFixed(2).replace('.',',');
+    return [['Pos','Menge','MEH','Kurztext','Langtext','EP','PA'],...positions.map(p=>[
+      String(p.number || ''),decimal(p.qty),String(p.unit || ''),String(p.text || '').slice(0,80),
+      String(p.text || ''),decimal(p.ep),''
+    ])];
+  };
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
