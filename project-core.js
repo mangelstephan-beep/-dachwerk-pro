@@ -587,6 +587,19 @@
       const record={id:uid(),module:'invoices',projectId:invoice.projectId,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data};
       return this.transaction('Rechnung storniert','invoices',record.id,d=>{d.records.push(record);return record;});
     }
+    costChecks() {
+      if(!this.project())throw Error('Projekt auswählen.');
+      const findings=[];
+      const add=(module,recordId,message)=>findings.push({module,recordId,message});
+      for(const module of ['times','incoming','subcontracts','purchase'])for(const r of this.list(module).filter(r=>!['Freigegeben','Erledigt'].includes(r.status)))add(module,r.id,'Noch nicht freigegeben: '+(r.data.title || r.data.invoiceNumber));
+      const invoices=this.list('incoming').filter(r=>r.status==='Freigegeben' && r.data.includeInCosts);
+      for(const purchase of this.list('purchase').filter(r=>r.status==='Freigegeben'))if(!invoices.some(r=>r.data.purchaseId===purchase.id))add('incoming',purchase.id,'Kostenbeleg zur Bestellung fehlt: '+purchase.data.title);
+      for(const subcontract of this.list('subcontracts').filter(r=>r.status==='Freigegeben'))if(!invoices.some(r=>r.data.subcontractId===subcontract.id))add('incoming',subcontract.id,'NU-Kostenansatz noch nicht durch zugeordneten Kostenbeleg ersetzt: '+subcontract.data.title);
+      const calc=this.calculation();
+      if(calc.labor>0 && !this.list('times').some(r=>r.status==='Freigegeben'))add('times',null,'Lohnkosten kalkuliert, aber noch keine Stunden freigegeben.');
+      if(calc.material>0 && !invoices.length)add('incoming',null,'Materialkosten kalkuliert, aber noch kein kostenrelevanter Eingangsbeleg freigegeben.');
+      return findings;
+    }
     controlling() {
       const calc=this.calculation();
       const times=round(this.list('times').filter(r=>r.status==='Freigegeben').reduce((n,r)=>n+r.data.hours*r.data.rate,0));
