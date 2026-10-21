@@ -245,10 +245,10 @@
   "controlling": {
       "number": 31,
       "name": "Nachkalkulation und Controlling",
-      "verified": false,
-      "checkedAt": "2026-10-21",
-      "evidence": "Zusätzliche geplante/Ist-Gemeinkosten mit Abgrenzung, Gesamtkosten und Ergebnis lokal über Server-/DOM-Test geprüft.",
-      "remaining": "Produktionsabnahme der Gemeinkosten, Vollständigkeitskontrolle der Kostenerfassung."
+      "verified": true,
+      "checkedAt": "2026-10-22",
+      "evidence": "Live-Produktion 22.10.2026 im Testdach D: geplante Einzelkosten 120 EUR + zusätzliche Gemeinkosten 200 EUR = 320 EUR. Unfreigegebene Materialrechnung wird nicht als Ist-Kosten gerechnet und als Prüfhinweis angezeigt. Freigegebene Material-/NU-Rechnungen 1000 + 180 EUR ersetzen den vorläufigen NU-Ansatz 200 EUR ohne Doppelzählung. Mit 150 EUR zusätzlichen Ist-Gemeinkosten ergeben sich 1330 EUR Ist-Kosten und bei Umsatz 0 ein vorläufiges Ergebnis -1330 EUR. Fehlende Freigaben und Belegzuordnungen werden angezeigt und nach Klärung aufgelöst. Projektwechsel trennt Kosten. Prüfung betrifft den erfassten Bestand; Buchhaltungsabgleich nicht erfasster Geschäftsvorfälle bleibt fachliche Aufgabe.",
+      "remaining": ""
   },
   "documents": {
     "number": 32,

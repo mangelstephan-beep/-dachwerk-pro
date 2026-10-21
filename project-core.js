@@ -60,7 +60,7 @@
   definitions.projects.fields.push(f('plannedOverhead','Zusätzliche geplante Gemeinkosten netto','number'),f('actualOverhead','Zusätzlich erfasste Ist-Gemeinkosten netto','number'),f('overheadBasis','Gemeinkosten: Abgrenzung und Nachweis','textarea'));
   definitions.purchase.fields.push(f('overDeliveryPercent','Zulässige Mehrlieferung %','number'),f('underDeliveryPercent','Zulässige Minderlieferung %','number'),f('toleranceReason','Vereinbarung zur Mengentoleranz','textarea'));
   definitions.contract.fields.push(f('decision','Prüfentscheidung / Begründung','textarea'));
-  definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('subcontractMarkup','Zuschlag Fremdleistungen %','number'));
+  definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('useNuMarkup','Eigenen NU-Zuschlag statt globaler AGK/W&G verwenden','checkbox'),f('subcontractMarkup','NU-Zuschlag %','number'));
   // Optional detailed cost structure modelled on the March 2025 blank calculation workbook.
   // Legacy position prices remain untouched until the user explicitly activates this mode.
   definitions.lv.fields.push(
@@ -212,7 +212,7 @@
       if(before?.signatures?.length || (before?.status==='Freigegeben' && ['lv','measurements','orders','times','incoming','subcontracts','payments','purchase','logistics','acceptance'].includes(module))) throw Error('Freigegebene oder unterschriebene Daten bleiben unverändert. Bitte einen Korrekturvorgang erfassen.');
       const data={};
       for(const field of def.fields) {
-        const value=values[field.key];
+        const value=module==='lv' && field.key==='subcontractMarkup' && values.useNuMarkup===true && values[field.key]===undefined?15:values[field.key];
         if(field.required && (value===undefined || value===null || String(value).trim()==='')) throw Error(`${field.label} fehlt.`);
         data[field.key]=field.type==='contacts' ? parseContacts(value) : field.type==='number' ? num(value) : field.type==='checkbox' ? (field.key==='useTargetPrice' && typeof value==='string' ? /^(true|1|ja)$/i.test(value.trim()) : Boolean(value)) : String(value ?? '').trim();
         if(field.type==='email' && data[field.key] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[field.key]))throw Error(`${field.label} ist ungültig.`);
@@ -385,14 +385,16 @@
       const labor=totalMinutes/60*(p.useEfbRates?p.efbWage:s.wage);
       const other=detailed?round((p.disposal || 0)+(p.miscellaneous || 0)):0;
       const direct=material+labor+p.equipment+p.subcontract+other;
+      const nuMarkupPercent=p.useEfbRates?(p.subcontractMarkup || 0):p.useNuMarkup?(p.subcontractMarkup ?? 15):null;
+      const nuSalePrice=round(p.subcontract*(nuMarkupPercent===null?(1+s.agk/100)*(1+s.profit/100):(1+nuMarkupPercent/100)));
       const priceComponents=p.useEfbRates?Object.fromEntries([['labor',labor,'laborMarkup'],['material',material,'materialMarkup'],['equipment',p.equipment,'equipmentMarkup'],['subcontract',p.subcontract,'subcontractMarkup']].map(([key,value,markup])=>[key,round(value*(1+(p[markup] || 0)/100))])):null;
       if(priceComponents && other)priceComponents.other=round(other*(1+(p.otherMarkup || 0)/100));
-      const calculatedEp=priceComponents?round(Object.values(priceComponents).reduce((sum,value)=>sum+value,0)):round(direct*(1+s.agk/100)*(1+s.profit/100));
+      const calculatedEp=priceComponents?round(Object.values(priceComponents).reduce((sum,value)=>sum+value,0)):p.useNuMarkup?round((direct-p.subcontract)*(1+s.agk/100)*(1+s.profit/100)+nuSalePrice):round(direct*(1+s.agk/100)*(1+s.profit/100));
       const undiscountedEp=p.useTargetPrice?round(p.targetEp || 0):calculatedEp;
       const discountPercent=num(p.discountPercent || 0);
       if(discountPercent<0 || discountPercent>100)throw Error('Positionsrabatt zwischen 0 und 100 %.');
       const ep=round(undiscountedEp*(1-discountPercent/100));
-      return {...p,id:record.id,material,materialBreakdown,totalMinutes,labor,other,direct,priceComponents,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
+      return {...p,id:record.id,material,materialBreakdown,totalMinutes,labor,other,direct,priceComponents,nuMarkupPercent,nuSalePrice,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
     }
     materialChecks(record,asOf=new Date().toISOString().slice(0,10)) {
       if(record?.module!=='materials' || !validDate(asOf))throw Error('Artikel oder Prüfdatum ungültig.');
