@@ -2,7 +2,7 @@
 
 Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run status:write` übernehmen.
 
-**2/36 Module GRÜN.** Veröffentlichung, bestandene lokale Tests und fachliche Produktionsabnahme sind getrennte Nachweise.
+**3/36 Module GRÜN.** Veröffentlichung, bestandene lokale Tests und fachliche Produktionsabnahme sind getrennte Nachweise.
 
 | Nr. | Modul | Status | Nachweis / noch offen |
 |---|---|---|---|
@@ -12,7 +12,7 @@ Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run statu
 | 04 | Leistungsverzeichnisse | GRÜN | Live-Produktion 19.10.2026 im Testdach C: zentrale Positionsanlage und Wiederabruf, dreistufige Gliederung, Hauptleistung 180 EUR, Bedarf 100 EUR separat, Nachtrag 90 EUR; Hauptangebotsversionen 180/280 EUR und getrennte Nachtragsfassung 90 EUR. Ergänzend test-lv-structure.cjs für fünf Ebenen, Versionssperren und Aufmaß-/Rechnungsbezug. |
 | 05 | Importmanager | ROT | iPhone-Abnahme und Originaldownload auf freigegebenem iPhone/HP offen; XLS vor Excel 97 sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF/OCR, GAEB X83 XML 3.3, XLSX und XLS BIFF8 live importiert und nach Reload wiedergefunden. |
 | 06 | LV- und Vertragsprüfung | ROT | Live-Abnahme der Prüfgrundlage und Erneuerungsanzeige; weitergehende Vertrags- und Regelwerksprüfungen. |
-| 07 | Kalkulation und Zielpreis | ROT | Live-Abnahme von Rabatt, Zielpreis, Grund-/Alternativ- und Bedarfspositionen. |
+| 07 | Kalkulation und Zielpreis | GRÜN | Live-Produktion 21.10.2026 im Testdach D: H1 10 m² × 30 EUR Zielpreis abzüglich 10 % Rabatt = 270 EUR; Grundposition G1 80 EUR, Alternative A1 120 EUR separat, Bedarf B1 60 EUR separat. Kalkulationssumme 350 EUR; gewählte Angebotsvariante Alternative plus Bedarf 450 EUR. Zentrale Speicherung und vollständiger Reload bestätigen die vier Positionen und Preise. Server-/DOM-Regressionstests bestanden. |
 | 08 | EFB und Kalkulationsblätter | ROT | Kostenartenzuschläge und Kalkulationsnachweis lokal geprüft; Live-Abnahme und amtliche EFB 221/222/223 mit Feldmapping offen. |
 | 09 | Leistungskatalog und Zeitwerte | ROT | Fachkatalog, Nutzungsrechte |
 | 10 | Material und Systeme | ROT | Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft; Live- und Geräteabnahme sowie fachliche Prüfung der konkreten Systeme offen. |

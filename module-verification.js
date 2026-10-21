@@ -53,10 +53,10 @@
   "calculation": {
     "number": 7,
     "name": "Kalkulation und Zielpreis",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Live-Abnahme von Rabatt, Zielpreis, Grund-/Alternativ- und Bedarfspositionen."
+    "verified": true,
+    "checkedAt": "2026-10-21",
+    "evidence": "Live-Produktion 21.10.2026 im Testdach D: H1 10 m² × 30 EUR Zielpreis abzüglich 10 % Rabatt = 270 EUR; Grundposition G1 80 EUR, Alternative A1 120 EUR separat, Bedarf B1 60 EUR separat. Kalkulationssumme 350 EUR; gewählte Angebotsvariante Alternative plus Bedarf 450 EUR. Zentrale Speicherung und vollständiger Reload bestätigen die vier Positionen und Preise. Server-/DOM-Regressionstests bestanden.",
+    "remaining": ""
   },
   "efb": {
     "number": 8,
