@@ -58,11 +58,32 @@
   ];
   const definitions = Object.fromEntries(modules.map(m=>[m.id,m]));
   definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('subcontractMarkup','Zuschlag Fremdleistungen %','number'));
+  // Detailansätze der Blanko-Kalkulation ab 03/25: Nur Zahlen und Texte, keine VBA-Ausführung.
+  definitions.lv.fields.push(f('useDetailCalculation','Vier-Material-Detailkalkulation aktivieren','checkbox'));
+  for(let i=1;i<=4;i++)definitions.lv.fields.push(
+    f('detailMaterial'+i,'Material '+i+' – Bezeichnung'),
+    f('detailPrice'+i,'Material '+i+' – Einkaufspreis je Positionseinheit €','number'),
+    f('detailCut'+i,'Material '+i+' – Zuschnittfaktor (leer/0 = 1)','number'),
+    f('detailWaste'+i,'Material '+i+' – Verschnitt %','number'),
+    f('detailMinutes'+i,'Material '+i+' – Arbeitsminuten','number')
+  );
+  definitions.lv.fields.push(
+    f('detailFasteners','Befestigungsmittel je Einheit €','number'),
+    f('detailDisposal','Container / Entsorgung je Einheit €','number'),
+    f('detailOther','Sonstige Nebenkosten je Einheit €','number'),
+    f('detailOtherMarkup','Zuschlag sonstige Nebenkosten %','number'),
+    f('detailSource','Herkunft / Preisstand der Detailansätze')
+  );
   definitions.materials.fields.push(f('validUntil','Preisbindung bis einschließlich','date'),f('system','Dach- / Abdichtungssystem'),f('documentUrl','Herstellerunterlage (https://)','url'),f('documentEdition','Unterlagenstand / Fassung'),f('compatibility','Systemverträglichkeit','select',false,['','Ungeprüft','Geeignet laut Nachweis','Nicht geeignet']),f('compatibilityEvidence','Eignungsnachweis / geprüfter Aufbau','textarea'));
   definitions.materials.fields.push(f('priceBasis','Preisberechnung / Bezugsmenge','textarea'));
   const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
   function validatePricing(module,data) {
     if(module==='lv' && data.useEfbRates && !(data.efbWage>0))throw Error('Kalkulationslohn für Kostenartenzuschläge muss größer als null sein.');
+    if(module==='lv' && data.useDetailCalculation){
+      if(data.materialId)throw Error('Detailmaterialien und Materialartikel dürfen nicht gleichzeitig für dieselbe Position angesetzt werden.');
+      for(let i=1;i<=4;i++)if((data['detailWaste'+i] || 0)>100)throw Error('Materialverschnitt höchstens 100 %.');
+      if((data.detailOtherMarkup || 0)>1000)throw Error('Zuschlag auf Nebenkosten höchstens 1000 %.');
+    }
     if(module!=='materials')return;
     if(data.validUntil && (!validDate(data.validUntil) || data.validUntil<data.priceDate))throw Error('Preisbindung muss ein gültiges Datum ab Preisstand sein.');
     if(data.documentUrl) {
@@ -337,21 +358,33 @@
     }
     position(record) {
       const p=record.data, s=this.data.settings;
-      let material=p.material || 0;
-      if(p.materialId) {
+      let material=p.material || 0, minutes=p.minutes || 0, auxiliary=0, materialDetails=[];
+      if(p.useDetailCalculation){
+        // Ein Materialpreis gehört stets zur LV-Positionseinheit; Faktor 0 entspricht der Excel-Vorlage = 1.
+        materialDetails=Array.from({length:4},(_,index)=>{
+          const i=index+1,price=p['detailPrice'+i] || 0,cut=p['detailCut'+i] || 1,waste=p['detailWaste'+i] || 0,work=p['detailMinutes'+i] || 0;
+          return {name:p['detailMaterial'+i] || '',price,cut,waste,minutes:work,cost:round(price*cut*(1+waste/100))};
+        });
+        material=round(materialDetails.reduce((sum,item)=>sum+item.price*item.cut*(1+item.waste/100),0)+(p.detailFasteners || 0));
+        minutes=materialDetails.reduce((sum,item)=>sum+item.minutes,0);
+        auxiliary=round((p.detailDisposal || 0)+(p.detailOther || 0));
+      }else if(p.materialId){
         const m=this.get(p.materialId);
-        if(m?.status!=='Freigegeben') throw Error(`Material zu Position ${p.number} ist nicht freigegeben.`);
+        if(m?.status!=='Freigegeben')throw Error(`Material zu Position ${p.number} ist nicht freigegeben.`);
         material=m.data.price*(p.consumption || 1);
       }
-      const labor=p.minutes/60*(p.useEfbRates?p.efbWage:s.wage);
-      const direct=material+labor+p.equipment+p.subcontract;
-      const priceComponents=p.useEfbRates?Object.fromEntries([['labor',labor,'laborMarkup'],['material',material,'materialMarkup'],['equipment',p.equipment,'equipmentMarkup'],['subcontract',p.subcontract,'subcontractMarkup']].map(([key,value,markup])=>[key,round(value*(1+(p[markup] || 0)/100))])):null;
+      const equipment=p.equipment || 0,subcontract=p.subcontract || 0;
+      const labor=minutes/60*(p.useEfbRates?p.efbWage:s.wage);
+      const direct=material+labor+equipment+subcontract+auxiliary;
+      const items=[['labor',labor,'laborMarkup'],['material',material,'materialMarkup'],['equipment',equipment,'equipmentMarkup'],['subcontract',subcontract,'subcontractMarkup']];
+      if(p.useDetailCalculation)items.push(['other',auxiliary,'detailOtherMarkup']);
+      const priceComponents=p.useEfbRates?Object.fromEntries(items.map(([key,value,markup])=>[key,round(value*(1+(p[markup] || 0)/100))])):null;
       const calculatedEp=priceComponents?round(Object.values(priceComponents).reduce((sum,value)=>sum+value,0)):round(direct*(1+s.agk/100)*(1+s.profit/100));
       const undiscountedEp=p.useTargetPrice?round(p.targetEp || 0):calculatedEp;
       const discountPercent=num(p.discountPercent || 0);
       if(discountPercent<0 || discountPercent>100)throw Error('Positionsrabatt zwischen 0 und 100 %.');
       const ep=round(undiscountedEp*(1-discountPercent/100));
-      return {...p,id:record.id,material,labor,direct,priceComponents,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
+      return {...p,id:record.id,material,minutes,materialDetails,auxiliary,labor,equipment,subcontract,direct,priceComponents,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
     }
     materialChecks(record,asOf=new Date().toISOString().slice(0,10)) {
       if(record?.module!=='materials' || !validDate(asOf))throw Error('Artikel oder Prüfdatum ungültig.');
