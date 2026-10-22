@@ -3,6 +3,7 @@
   const core=window.DWPProject, main=document.querySelector('#main-content');
   let db, current='dashboard', editing=null, search='', signatureStrokes=[], importPreview=null, excelSource=null, selectionKey=null, importRead=null;
   let priceSource=null, pricePreview=null, priceReadToken=0;
+  let moduleTrail=[], renderingModule=false, subpage=false;
   const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const money=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v||0);
   const verified=id=>window.DWPRemote?.active===true&&window.DWPVerification?.isVerified(id)===true;
@@ -16,7 +17,13 @@
   try {db=new core.Store(localStorage);} catch(error) {
     main.innerHTML=panel('Bestand kann nicht geöffnet werden',`<p>${esc(error.message)}</p><p>Der vorhandene Speicher wird nicht überschrieben.</p>`);return;
   }
-  window.DWPWorkspace={get store(){return db;},open:openModule,acceptServerState(data,user){
+  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings'].includes(id);
+  const moduleUrl=id=>{const url=new URL(window.location.href);url.searchParams.set('start','app');url.searchParams.set('module',validModule(id)?id:'dashboard');url.hash='';return url;};
+  window.DWPWorkspace={get store(){return db;},open:openModule,start(){
+    const requested=new URLSearchParams(window.location.search).get('module');
+    moduleTrail=[];
+    openModule(requested?(validModule(requested)?requested:'dashboard'):(viewsToModule[state.currentView] || 'dashboard'));
+  },acceptServerState(data,user){
     const key='dwp-selected-project:'+user.id;
     let remembered=null;
     try{remembered=sessionStorage.getItem(key);}catch(_error){/* Selection remains usable when storage is unavailable. */}
@@ -57,9 +64,10 @@
     return `<div class="dwp-project-bar"><label>Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}</div></div>`;
   }
   function header(name) {
-    return `<header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.</p></div><div class="header-actions">${btn('Alle Module','open','dashboard')}${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${projectBar()}`;
+    return `<nav class="dwp-module-navigation" aria-label="Modulnavigation">${btn('← Zurück','module-back')}${btn('Alle Module','open','dashboard')}<a class="button button-secondary" data-dwp="direct-link" href="${esc(moduleUrl(current).href)}">Direktlink</a></nav><header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.</p></div><div class="header-actions">${btn('Alle Module','open','dashboard')}${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${projectBar()}`;
   }
   function shell(name,body) {
+    subpage=!renderingModule;
     cancelImportRead();
     updateNavigationCounts();
     main.innerHTML=`<section class="page dwp-workspace">${header(name)}<p id="dwp-error" role="alert" class="dwp-error"></p>${body}</section>`;
@@ -413,6 +421,22 @@
   }
   function openModule(id) {
     if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und Bereich wechseln?')) return;
+    id=validModule(id)?id:'dashboard';
+    if(moduleTrail.at(-1)!==id)moduleTrail.push(id);
+    if(moduleTrail.length>100)moduleTrail.shift();
+    window.history.replaceState(window.history.state,'',moduleUrl(id));
+    renderingModule=true;
+    try{return renderModule(id);}finally{renderingModule=false;}
+  }
+  function backModule() {
+    if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und zurückgehen?'))return;
+    state.unsavedChanges=false;
+    if(subpage){openModule(validModule(current)?current:(moduleTrail.at(-1)||'dashboard'));return;}
+    if(moduleTrail.length>1)moduleTrail.pop();
+    else moduleTrail=[];
+    openModule(moduleTrail.at(-1)||'dashboard');
+  }
+  function renderModule(id) {
     current=id;editing=null;search='';importPreview=null;excelSource=null;
     const section=core.definitions[id]?.view || (['help','settings'].includes(id)?id:'dashboard');
     state.currentView=section;localStorage.setItem('dwp-current-view',section);
@@ -507,6 +531,11 @@
     event.preventDefault();event.stopImmediatePropagation();
     const action=target.dataset.dwp,id=target.dataset.id;
     try {
+      if(action==='module-back'){backModule();return;}
+      if(action==='direct-link'){
+        if(!confirmPageChange())return;
+        window.location.assign(moduleUrl(current).href);return;
+      }
       if(window.DWPRemote?.active && ['backup','project-json','calc-csv','snapshot-csv','bfw-csv','closing-csv','print','workbook-download','import-text-download'].includes(action)) {
         const kind={backup:'backup','project-json':'project','calc-csv':'calculation','snapshot-csv':'positions','bfw-csv':'calculation','closing-csv':'closing',print:'record','workbook-download':'record','import-text-download':'record'}[action];
         const output=await window.DWPRemote.export({kind,projectId:db.data.selectedProject,recordId:id});

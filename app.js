@@ -566,7 +566,8 @@ function startApp() {
   const initialView = views[state.currentView] ? state.currentView : "dashboard";
   state.viewHistory = [initialView];
   state.historyIndex = 0;
-  renderView(initialView);
+  if (window.DWPWorkspace?.start) window.DWPWorkspace.start();
+  else renderView(initialView);
   requestAnimationFrame(() => document.querySelector(".page-header h1")?.focus?.());
 }
 

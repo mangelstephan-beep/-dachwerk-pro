@@ -23,3 +23,6 @@
 @media print {.dwp-file-dialog,.dwp-protected-image {display:none !important;}}
 
 @media print {body > * {display:none !important;}}
+.dwp-module-navigation{position:sticky;top:84px;z-index:15;display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;background:var(--bg,#f5f6f8);margin-bottom:12px}
+.dwp-module-navigation .button{min-height:44px}
+@media(max-width:650px){.dwp-module-navigation{top:68px;gap:6px}.dwp-module-navigation .button{flex:1;padding-left:8px;padding-right:8px}}
