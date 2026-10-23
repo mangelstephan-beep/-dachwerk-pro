@@ -289,7 +289,34 @@
     const options=rows=>rows.map(r=>`<option value="${esc(r.id)}">${esc(names(r.id))}</option>`).join('');
     const invoiceFields=kind==='invoices'?`<div id="dwp-invoice-options" class="quick-form">${field('Hauptauftrag',`<select name="orderId"><option value="">Letzter freigegebener Hauptauftrag</option>${options(orders)}</select>`)}${field('Rechnungsart',`<select name="invoiceType"><option>Schlussrechnung</option><option>Abschlagsrechnung</option><option>Teilrechnung</option></select>`)}${field('Kumulativer Anteil des freigegebenen Aufmaßes %',`<input name="percentage" inputmode="decimal" value="100">`)}</div><p>Bei Abschlägen/Teilrechnungen den kumulativen Leistungsanteil angeben. Bereits berechnete Mengen werden abgezogen. Schlussrechnungen rechnen den verbleibenden freigegebenen Leistungsstand ab. XRechnung und ZUGFeRD sind noch nicht freigegeben.</p>`:'';
     const extra=kind==='offers'?panel('Nachtragsangebot zum Hauptauftrag',`<p>Nachtragspositionen im LV als Nachtrag kennzeichnen, technisch prüfen und freigeben. Ein Nachtragsangebot wird nach seiner Beauftragung in die Abrechnung des Hauptauftrags übernommen.</p><form id="dwp-change-offer" class="quick-form">${field('Hauptangebot',`<select name="baseOfferId" required><option value="">Bitte auswählen</option>${options(originals)}</select>`)}${field('Nachtragsnummer',`<select name="changeNumber">${[...new Set(db.list('lv').filter(r=>r.data.kind==='Nachtrag').map(r=>r.data.changeNumber || ''))].map(n=>`<option value="${esc(n)}">${esc(n || 'Ohne Nachtragsnummer')}</option>`).join('')}</select>`)}${offerTermFields().replace('id="dwp-offer-terms"','id="dwp-change-terms"')}<button class="button button-primary" type="submit">Nachtragsangebot freigeben</button></form>`):panel('Rechnung stornieren',`<p>Das Original bleibt erhalten. Die Stornorechnung führt die Gegenbuchung mit eigenem Beleg und Begründung. Bereits erhaltene Zahlungen bleiben bestehen; Rückzahlungen werden separat auf den Stornobeleg gebucht.</p><form id="dwp-storno" class="quick-form">${field('Rechnung',`<select name="invoiceId" required><option value="">Bitte auswählen</option>${options(originalInvoices)}</select>`)}${field('Stornogrund',`<input name="reason" required>`)}<button class="button button-primary" type="submit">Stornorechnung erzeugen</button></form>`);
-    return panel(kind==='offers'?'Angebotsfassungen':'Rechnungsfassungen',`<p>Jede Ausgabe speichert Kunde, Projekt, Leistungspositionen, Preise und Steuer als feste Fassung. Rechnungen übernehmen beauftragte Preise und freigegebene Aufmaßmengen.</p>${invoiceFields}${kind==='offers'?specialOfferFields()+offerTermFields():''}${btn(kind==='offers'?'Angebot freigeben':'Rechnung freigeben','issue',kind,true)}${table(['Nummer','Art','Netto','USt','Brutto','Ausgabe'],db.list(kind).map(r=>[esc(r.data.number),esc(r.data.title)+(r.module==='offers'?` · ${esc(r.data.changeNumber || 'Hauptangebot')} · Version ${esc(r.data.version || 1)}${db.list('offers').some(next=>next.data.supersedesOfferId===r.id)?' · Ersetzt':''}`:''),money(r.data.net),money(r.data.taxAmount),money(r.data.gross),`${btn('Drucken / PDF','print',r.id)}${btn('CSV','snapshot-csv',r.id)}`]))}`)+extra;
+    return panel(kind==='offers'?'Angebotsfassungen':'Rechnungsfassungen',`<p>Jede Ausgabe speichert Kunde, Projekt, Leistungspositionen, Preise und Steuer als feste Fassung. Rechnungen übernehmen beauftragte Preise und freigegebene Aufmaßmengen.</p>${invoiceFields}${kind==='offers'?specialOfferFields()+offerTermFields():''}${btn(kind==='offers'?'Angebot freigeben':'Rechnung freigeben','issue',kind,true)}${table(['Nummer','Art','Netto','USt','Brutto','Ausgabe'],db.list(kind).map(r=>[esc(r.data.number),esc(r.data.title)+(r.module==='offers'?` · ${esc(r.data.changeNumber || 'Hauptangebot')} · Version ${esc(r.data.version || 1)}${db.list('offers').some(next=>next.data.supersedesOfferId===r.id)?' · Ersetzt':''}`:''),money(r.data.net),money(r.data.taxAmount),money(r.data.gross),`${kind==='offers'?btn('Öffnen','offer-open',r.id):''}${btn('Drucken / PDF','print',r.id)}${btn('CSV','snapshot-csv',r.id)}`]))}`)+extra;
+  }
+  function offerQuestion(message) {
+    return new Promise(resolve=>{
+      const dialog=document.createElement('dialog');dialog.className='dwp-offer-question';
+      dialog.innerHTML=`<h2>${esc(message)}</h2><div class="dwp-actions"><button type="button" class="button button-primary" data-answer="yes">Ja</button><button type="button" class="button button-secondary" data-answer="no">Nein</button></div>`;
+      const done=value=>{dialog.close();dialog.remove();resolve(value);};
+      dialog.addEventListener('click',e=>{const b=e.target.closest('[data-answer]');if(b)done(b.dataset.answer==='yes');});
+      dialog.addEventListener('cancel',e=>{e.preventDefault();done(false);});document.body.append(dialog);dialog.showModal();
+    });
+  }
+  function offerEditor(record,editable) {
+    const groups=[['positions','Hauptpositionen'],['optionalPositions','Bedarfspositionen - separat'],['alternativePositions','Alternativen - separat']];
+    const control=(p,key,label)=>{const value=window.DWPOfferEdit.defaults(p,record.data.company)[key];return field(label,`<input name="${esc(key)}" data-offer-input="${esc(key)}" ${editable?'':'disabled'} ${key==='product'?'maxlength="500"':'inputmode="decimal" required'} value="${esc(value)}">`);};
+    shell('Angebot '+record.data.number,panel(editable?'Angebot bearbeiten':'Angebot ansehen',`<p>Die gespeicherte Fassung bleibt erhalten. Änderungen werden als neuer Entwurf gespeichert. Feste Zielpreise werden bei Kostenänderungen neu berechnet.</p><form id="dwp-offer-edit" data-source="${esc(record.id)}">${groups.filter(([key])=>record.data[key]?.length).map(([key,title])=>`<h3>${esc(title)}</h3>${record.data[key].map(p=>`<fieldset data-offer-row="${esc(p.id)}"><legend>${esc(p.number)} ${esc(p.text)}</legend><p>${esc(p.qty)} ${esc(p.unit)}</p><div class="quick-form dwp-offer-costs">${control(p,'material','Material EUR je Einheit')}${control(p,'minutes','Minuten je Einheit')}${control(p,'wage','Stundenlohn EUR')}${control(p,'product','Kalkuliert mit')}</div><p data-offer-result>EP ${money(p.ep)} · GP ${money(p.gp)}</p></fieldset>`).join('')}`).join('')}<p id="dwp-offer-total">Netto ${money(record.data.net)} · USt ${money(record.data.taxAmount)} · Brutto ${money(record.data.gross)}</p><p>Vor dem Speichern muss die PDF erneuert werden. „Nein“ lässt die Änderungen offen und speichert nichts.</p>${editable?'<button class="button button-primary" type="submit">Speichern</button>':btn('Bearbeiten','offer-edit',record.id)}${btn('Zurück zu Angeboten','open','offers')}</form>`));
+  }
+  function offerInputs(form){return [...form.querySelectorAll('[data-offer-row]')].map(row=>({id:row.dataset.offerRow,...Object.fromEntries([...row.querySelectorAll('[data-offer-input]')].map(el=>[el.dataset.offerInput,el.value]))}));}
+  function updateOfferPreview(form) {
+    const record=db.get(form.dataset.source),inputs=new Map(offerInputs(form).map(p=>[p.id,p]));let net=0;
+    for(const key of ['positions','optionalPositions','alternativePositions'])for(const p of record.data[key] || []){
+      const input=inputs.get(p.id),defaults=window.DWPOfferEdit.defaults(p,record.data.company);
+      const calculated=window.DWPOfferEdit.calculate(p,input,record.data.company);
+      const same=['material','minutes','wage'].every(k=>Number(String(input[k]).replace(',','.'))===Number(defaults[k])) && input.product.trim()===defaults.product;
+      const next=same?p:calculated;
+      const row=[...form.querySelectorAll('[data-offer-row]')].find(row=>row.dataset.offerRow===p.id);
+      row.querySelector('[data-offer-result]').textContent='EP '+money(next.ep)+' · GP '+money(next.gp);if(key==='positions')net+=next.gp;
+    }
+    net=core.round(net);const tax=core.round(net*record.data.tax/100);form.querySelector('#dwp-offer-total').textContent='Netto '+money(net)+' · USt '+money(tax)+' · Brutto '+money(core.round(net+tax));
   }
   function controlling() {
     const c=db.controlling();
@@ -475,6 +502,8 @@
     download(name,'\uFEFF'+rows.map(r=>r.map(cell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
   }
   function printRecord(r) {
+    if(r.pdf?.base64){const bytes=Uint8Array.from(atob(r.pdf.base64),c=>c.charCodeAt(0));download(r.pdf.name,bytes,'application/pdf');return;}
+
     const mod=core.definitions[r.module];
     const signed=r.signatures?.[0]?.snapshot;
     let body='';
@@ -497,6 +526,18 @@
     doc.open();doc.write(window.DWPDocument.render({title:r.data.number || mod.name,body,company,recordId:r.id,createdAt:r.createdAt}));doc.close();
     setTimeout(()=>frame.remove(),60000);
   }
+  main.addEventListener('submit',async event=>{
+    const form=event.target;if(form.id!=='dwp-offer-edit')return;
+    event.preventDefault();event.stopImmediatePropagation();
+    const button=form.querySelector('[type="submit"]');if(button.disabled)return;button.disabled=true;
+    try{
+      const positions=offerInputs(form);updateOfferPreview(form);
+      if(!await offerQuestion('PDF ebenfalls aktualisieren und mit nächster Dokumentnummer speichern?'))return;
+      if(!window.DWPRemote?.active)throw Error('PDF-Erneuerung benötigt die zentrale Anmeldung. Die Eingaben bleiben erhalten.');
+      await window.DWPRemote.run('reviseOffer',[form.dataset.source,{positions,refreshPdf:true}]);
+      state.unsavedChanges=false;notice('Neue Dokumentnummer und erneuerte PDF gemeinsam gespeichert.');openModule('offers');
+    }catch(error){showError(error);}finally{button.disabled=false;}
+  },true);
   main.addEventListener('submit',event=>{
     if(!event.target.id.startsWith('dwp-'))return;
     event.preventDefault();event.stopImmediatePropagation();
@@ -536,6 +577,9 @@
     const target=event.target.closest('[data-dwp]');if(!target)return;
     event.preventDefault();event.stopImmediatePropagation();
     const action=target.dataset.dwp,id=target.dataset.id;
+    if(action==='offer-open' || action==='offer-edit'){
+      if(!confirmPageChange())return;const editable=await offerQuestion('Angebot bearbeiten?');offerEditor(db.get(id),editable);return;
+    }
     try {
       if(action==='module-back'){backModule();return;}
       if(action==='direct-link'){
@@ -676,6 +720,7 @@
   main.addEventListener('input',event=>{
     if(event.target.id==='dwp-module-search'){search=event.target.value;filterModules();return;}
     if(event.target.closest('.dwp-workspace form'))state.unsavedChanges=true;
+    const offerForm=event.target.closest('#dwp-offer-edit');if(offerForm){try{updateOfferPreview(offerForm);main.querySelector('#dwp-error').textContent='';}catch(e){showError(e);}}
   });
   main.addEventListener('dragover',event=>{if(event.target.closest('#dwp-price-drop'))event.preventDefault();});
   main.addEventListener('drop',event=>{
