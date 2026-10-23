@@ -76,6 +76,19 @@
   });
   if(!sheets.length || sheets.length>30)throw Error('Excel: 1 bis 30 Blätter erforderlich.');return {sheets};
  }
+ function bfwProfile(columns){
+  // Headererkennung ohne Dateinamen: erlaubt BFW-/LV-Übergabedateien auch nach Umbenennung.
+  const clean=value=>String(value ?? '').normalize('NFKC').toLocaleLowerCase('de-DE').replace(/[^a-z0-9]/g,'');
+  const headers=columns.map(cell=>clean(cell?.value));
+  const find=(...aliases)=>headers.findIndex(h=>aliases.includes(h));
+  const mapping={
+    number:find('pos','position','positionsnummer'),qty:find('menge'),
+    unit:find('meh','me','einheit'),text:find('kurztext'),
+    longText:find('langtext'),targetEp:find('ep','einheitspreis')
+  };
+  if(mapping.number<0||mapping.qty<0||mapping.unit<0||mapping.text<0||mapping.longText<0)return null;
+  return {mapping,hasPa:find('pa')>=0};
+ }
  function report(book,sheetIndex,headerRow,mapping){
   const sheet=book.sheets[sheetIndex];if(!sheet)throw Error('Excel: Blatt auswählen.');
   if(!Number.isInteger(headerRow) || !sheet.rows.some(r=>r.index===headerRow))throw Error('Excel: Überschriftenzeile auswählen.');
@@ -94,6 +107,11 @@
      }catch{issues.push(key+': Mengen-/Kostenwert prüfen');candidate[key]='';}
     }
    }
+   if(mapping.longText>=0){
+    const shortText=String(candidate.text || '').trim(),longText=String(candidate.longText || '').trim();
+    candidate.text=[shortText,longText].filter((value,index,all)=>value && all.indexOf(value)===index).join(String.fromCharCode(10));
+    delete candidate.longText;
+   }
    if(candidate.kind && !['Hauptleistung','Nachtrag','Bedarfsposition','Grundposition','Alternativposition'].includes(candidate.kind)){issues.push('Leistungsart '+candidate.kind+' benötigt Wandlung');candidate.kind='';}
    if(['Grundposition','Alternativposition'].includes(candidate.kind) && !candidate.choiceGroup)issues.push('Wahlgruppe fehlt');
    if(candidate.choiceGroup && !['Grundposition','Alternativposition'].includes(candidate.kind))issues.push('Wahlgruppe passt nicht zur Leistungsart');
@@ -110,5 +128,5 @@
   }
   if(!rows.length && !findings.length)throw Error('Excel: Keine Datenzeilen nach Überschrift gefunden.');return {rows,findings};
  }
- const api={parse,report,zipBounds};if(typeof module!=='undefined' && module.exports)module.exports=api;else root.DWPSpreadsheetImport=api;
+ const api={parse,report,zipBounds,bfwProfile};if(typeof module!=='undefined' && module.exports)module.exports=api;else root.DWPSpreadsheetImport=api;
 })(typeof window!=='undefined'?window:globalThis);
