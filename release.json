@@ -1,9 +1,9 @@
 {
   "product": "DachWerk Pro by Stephan Mangel",
   "release": "0.5.1",
-  "updated": "2026-10-18",
+  "updated": "2026-10-22",
   "modules": 36,
   "status": "online-partial-module-completion",
   "source": "mangelstephan-beep/-dachwerk-pro",
-  "verifiedModules": 1
+  "verifiedModules": 5
 }

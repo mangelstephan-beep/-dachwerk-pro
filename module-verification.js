@@ -43,20 +43,20 @@
     "remaining": "iPhone-Abnahme und Originaldownload auf freigegebenem iPhone/HP offen; XLS vor Excel 97 sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF/OCR, GAEB X83 XML 3.3, XLSX und XLS BIFF8 live importiert und nach Reload wiedergefunden."
   },
   "contract": {
-    "number": 6,
-    "name": "LV- und Vertragsprüfung",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Live-Abnahme der automatischen LV-Datenprüfung; weitergehende Vertrags- und Regelwerksprüfungen."
+      "number": 6,
+      "name": "LV- und Vertragsprüfung",
+      "verified": false,
+      "checkedAt": "2026-10-21",
+      "evidence": "Automatische LV-Befunde mit gespeicherter Prüfgrundlage und Kennzeichnung veralteter Entscheidungen lokal geprüft.",
+      "remaining": "Live-Abnahme der Prüfgrundlage und Erneuerungsanzeige; weitergehende Vertrags- und Regelwerksprüfungen."
   },
   "calculation": {
     "number": 7,
     "name": "Kalkulation und Zielpreis",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Live-Abnahme von Rabatt, Zielpreis, Grund-/Alternativ- und Bedarfspositionen."
+    "verified": true,
+    "checkedAt": "2026-10-21",
+    "evidence": "Live-Produktion 21.10.2026 im Testdach D: H1 10 m² × 30 EUR Zielpreis abzüglich 10 % Rabatt = 270 EUR; Grundposition G1 80 EUR, Alternative A1 120 EUR separat, Bedarf B1 60 EUR separat. Kalkulationssumme 350 EUR; gewählte Angebotsvariante Alternative plus Bedarf 450 EUR. Zentrale Speicherung und vollständiger Reload bestätigen die vier Positionen und Preise. Server-/DOM-Regressionstests bestanden.",
+    "remaining": ""
   },
   "efb": {
     "number": 8,
@@ -99,20 +99,20 @@
     "remaining": "Excel-/CSV-Spaltenmapping und verbindliche Vorschau lokal geprüft; DATANORM-Parser, Live-/Geräteabnahme und reale Händlerdateien offen."
   },
   "offers": {
-    "number": 13,
-    "name": "Angebote",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Live-Abnahme der Versionen und Angebotsvarianten; Versand und Angebotsbedingungen."
+      "number": 13,
+      "name": "Angebote",
+      "verified": false,
+      "checkedAt": "2026-10-21",
+      "evidence": "Zahlungs-/Ausführungsbedingungen, Gültigkeit, Hinweise und getrennte Haupt-/Nachtragsformulare sowie unveränderliche Ausgabe lokal geprüft.",
+      "remaining": "Live-Abnahme der Versionen, Angebotsvarianten und Bedingungen; Mailversand über Modul 15 offen."
   },
   "orders": {
-    "number": 14,
-    "name": "Auftrag und Bestätigung",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Live-Abnahme der Auftragsbestätigung, Varianten- und Nachtragsbezüge; weitere Auftragsänderungen."
+      "number": 14,
+      "name": "Auftrag und Bestätigung",
+      "verified": false,
+      "checkedAt": "2026-10-21",
+      "evidence": "Angebotsbedingungen und Auftragshinweise werden mit unveränderlicher Auftragsbestätigung gespeichert und gedruckt; Server-/DOM-Test bestanden.",
+      "remaining": "Live-Abnahme von Auftragsbestätigung und Bedingungen; weitergehende Auftragsänderungen."
   },
   "correspondence": {
     "number": 15,
@@ -131,12 +131,12 @@
     "remaining": "Mehrere Materialien pro Position, Bestellversand"
   },
   "logistics": {
-    "number": 17,
-    "name": "Liefertermine und Logistik",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Automatische Terminwarnung, Toleranzregeln"
+      "number": 17,
+      "name": "Liefertermine und Logistik",
+      "verified": true,
+      "checkedAt": "2026-10-21",
+      "evidence": "Live-Produktion 21.10.2026 im Testdach D: Bestellung 100 m² mit begründeter Toleranz 98–105 m². Ohne Vereinbarung serverseitig abgewiesen. Termin 20.10. als überfällig angezeigt; 60 m² ergeben 40 m² offen, weitere 38 m² schließen innerhalb der Minderlieferung ab und zeigen 2 m² Differenz. Weitere 8 m² (gesamt 106) abgewiesen, 7 m² (gesamt 105) angenommen. Projektwechsel trennt Bestände. Automatische Terminwarnungen erfolgen beim Öffnen der Oberfläche; heutige/fehlende Termine und Grenzen zusätzlich im Server-/DOM-Test geprüft. Kein externer Mail-/Pushversand.",
+      "remaining": ""
   },
   "personnel": {
     "number": 18,
@@ -243,12 +243,12 @@
     "remaining": "Monatsperioden, DATEV-Paket"
   },
   "controlling": {
-    "number": 31,
-    "name": "Nachkalkulation und Controlling",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Gemeinkosten, Vollständigkeitskontrolle"
+      "number": 31,
+      "name": "Nachkalkulation und Controlling",
+      "verified": true,
+      "checkedAt": "2026-10-22",
+      "evidence": "Live-Produktion 22.10.2026 im Testdach D: geplante Einzelkosten 120 EUR + zusätzliche Gemeinkosten 200 EUR = 320 EUR. Unfreigegebene Materialrechnung wird nicht als Ist-Kosten gerechnet und als Prüfhinweis angezeigt. Freigegebene Material-/NU-Rechnungen 1000 + 180 EUR ersetzen den vorläufigen NU-Ansatz 200 EUR ohne Doppelzählung. Mit 150 EUR zusätzlichen Ist-Gemeinkosten ergeben sich 1330 EUR Ist-Kosten und bei Umsatz 0 ein vorläufiges Ergebnis -1330 EUR. Fehlende Freigaben und Belegzuordnungen werden angezeigt und nach Klärung aufgelöst. Projektwechsel trennt Kosten. Prüfung betrifft den erfassten Bestand; Buchhaltungsabgleich nicht erfasster Geschäftsvorfälle bleibt fachliche Aufgabe.",
+      "remaining": ""
   },
   "documents": {
     "number": 32,

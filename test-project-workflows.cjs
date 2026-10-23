@@ -23,11 +23,13 @@ const lv=save('lv',{number:'010',text:'Abdichtung',qty:'100',unit:'m²',material
 open('offers');query('[data-dwp="issue"]').click();
 assert.equal(w.DWPWorkspace.store.list('offers').length,1);
 const offer=w.DWPWorkspace.store.list('offers')[0];
+assert.equal(lv.data.useNuMarkup,true);assert.equal(lv.data.subcontractMarkup,15);
+assert.equal(offer.data.positions[0].ep,32.55); // 27.50 non-NU × 1.10 + 2.00 NU × 1.15
 save('orders',{title:'Auftrag',offerId:offer.id,date:'2026-10-12'},true);
 save('measurements',{title:'Dachfläche',positionId:lv.id,length:'11',width:'10',factor:'1',deduction:'0',date:'2026-10-12'},true);
 open('invoices');query('[data-dwp="issue"]').click();
-assert.equal(w.DWPWorkspace.store.list('invoices')[0].data.net,3569.5);
-assert(query('.data-table').textContent.includes('4.247,71'));
+assert.equal(w.DWPWorkspace.store.list('invoices')[0].data.net,3580.5);
+assert(query('.data-table').textContent.includes('4.260,80'));
 for(const m of w.DWPProject.modules) {
   open(m.id);assert.equal(query('h1').textContent,m.name);
   if(m.fields.length && m.id!=='imports')for(const f of m.fields)assert(query(`[name="${f.key}"]`),`${m.id}: ${f.key}`);

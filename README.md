@@ -9,7 +9,7 @@ Produktionsdomain: https://www.dachwerkpro.de/
 
 36 verbundene Arbeitsbereiche. Die Hauptanwendung verwendet serverseitige Anmeldung und zentrale PostgreSQL-Speicherung. Eine Veröffentlichung bedeutet keine vollständige Fachfreigabe aller Module.
 
-**2/36 Modulabnahmen GRÜN**: Betriebs- und Lohnkosten sowie Leistungsverzeichnisse (Live-Prüfung 19.10.2026). Kunden und Projekte wurden am 14.10.2026 wieder auf ROT gesetzt. Die übrigen 32 Module haben noch offene Fachfunktionen oder Abnahmen. Maßgeblich ist `module-verification.js`; die vollständige aktuelle Übersicht wird daraus in [ABNAHMESTAND.md](ABNAHMESTAND.md) erzeugt. [MODULSTATUS.md](MODULSTATUS.md) enthält den Entwicklungsverlauf mit datierten historischen Angaben.
+**5/36 Modulabnahmen GRÜN**: Betriebs- und Lohnkosten, Leistungsverzeichnisse, Kalkulation/Zielpreis, Liefertermine/Logistik und Nachkalkulation/Controlling (Live-Prüfung 22.10.2026). Kunden und Projekte wurden am 14.10.2026 wieder auf ROT gesetzt. Die übrigen 29 Module haben noch offene Fachfunktionen oder Abnahmen. Maßgeblich ist `module-verification.js`; die vollständige aktuelle Übersicht wird daraus in [ABNAHMESTAND.md](ABNAHMESTAND.md) erzeugt. [MODULSTATUS.md](MODULSTATUS.md) enthält den Entwicklungsverlauf mit datierten historischen Angaben.
 
 ## Prüfen und bauen
 
