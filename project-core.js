@@ -576,6 +576,35 @@
       validatePricing(kind,record.data);
       return this.transaction('Dokumentfassung freigegeben',kind,record.id,d=>{d.records.push(record);return record;});
     }
+    reviseOffer(id, options={}) {
+      const source=this.get(id),project=this.project();
+      if(!project || source?.module!=='offers' || source.projectId!==project.id)throw Error('Angebot im aktuellen Projekt auswählen.');
+      if(project.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst wieder öffnen.');
+      if(options.refreshPdf!==true)throw Error('Vor dem Speichern muss die PDF erneuert werden.');
+      if(this.list('offers').some(r=>r.data.supersedesOfferId===id))throw Error('Diese Fassung wurde ersetzt. Bitte die neueste Fassung öffnen.');
+      if(this.list('orders').some(r=>r.status==='Freigegeben' && r.data.offerId===id))throw Error('Beauftragte Angebote bleiben unverändert. Bitte Nachtragsangebot verwenden.');
+      const editor=typeof module!=='undefined'&&module.exports?require('./offer-edit.js'):globalThis.DWPOfferEdit;
+      const groups=['positions','optionalPositions','alternativePositions'];
+      const original=groups.flatMap(k=>source.data[k] || []);
+      if(!Array.isArray(options.positions) || options.positions.length!==original.length || new Set(options.positions.map(p=>p.id)).size!==original.length || options.positions.some(p=>!original.some(o=>o.id===p.id)))throw Error('Positionsauswahl stimmt nicht mit der Angebotsfassung überein.');
+      const inputs=new Map(options.positions.map(p=>[p.id,p]));
+      const data=JSON.parse(JSON.stringify(source.data));
+      let changed=false;
+      for(const key of groups)data[key]=(source.data[key] || []).map(p=>{
+        const input=inputs.get(p.id),prior=editor.defaults(p,data.company);
+        const recalculated=editor.calculate(p,input,data.company);
+        const same=['material','minutes','wage'].every(k=>num(input[k])===num(prior[k])) && String(input.product || '').trim()===prior.product;
+        if(same)return JSON.parse(JSON.stringify(p));
+        changed=true;return recalculated;
+      });
+      if(!changed)throw Error('Keine Änderungen vorhanden. Die bisherige PDF bleibt gültig.');
+      const family=source.data.documentFamily || source.data.number.replace(/\/\d+$/,'');
+      const revision=Math.max(0,...this.list('offers').filter(r=>(r.data.documentFamily || r.data.number.replace(/\/\d+$/,''))===family).map(r=>r.data.documentRevision || 0))+1;
+      Object.assign(data,{number:family+'/'+String(revision).padStart(2,'0'),documentFamily:family,documentRevision:revision,title:'Angebotsentwurf',version:(source.data.version || 1)+1,supersedesOfferId:id});
+      data.net=round(data.positions.reduce((sum,p)=>sum+p.gp,0));data.taxAmount=round(data.net*data.tax/100);data.gross=round(data.net+data.taxAmount);
+      const record={id:uid(),module:'offers',projectId:project.id,status:'Prüfung',owner:options.owner || source.owner,createdAt:new Date().toISOString(),data,pdfPending:true};
+      return this.transaction('Angebotsänderung zur PDF-Erneuerung vorbereitet','offers',record.id,d=>{d.records.push(record);return record;});
+    }
     stornoInvoice(id, options={}) {
       if(this.project()?.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
       const invoice=this.get(id);
