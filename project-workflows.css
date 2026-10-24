@@ -28,3 +28,8 @@
 @media(max-width:650px){.dwp-module-navigation{top:68px;gap:6px}.dwp-module-navigation .button{flex:1;padding-left:8px;padding-right:8px}}
 
 .dwp-offer-question{max-width:min(90vw,32rem);border:0;border-radius:12px;padding:24px}.dwp-offer-question::backdrop{background:#0008}.dwp-offer-question h2{font-size:1.2rem}.dwp-offer-costs input{color:#0057b8;min-height:44px}#dwp-offer-edit fieldset{margin:16px 0;padding:16px;border:1px solid #ccd5df;border-radius:8px}#dwp-offer-edit legend{max-width:100%;overflow-wrap:anywhere}#dwp-offer-total{font-weight:700;font-size:1.1rem}
+.dwp-blanko-material{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0;padding:16px;border:1px solid #a9c7e8;border-radius:8px;scroll-margin-top:160px}
+.dwp-blanko-material legend{color:#0057b8;font-weight:700}
+.dwp-blanko-material input,.dwp-blanko-values td{color:#0057b8}
+.dwp-blanko-material input{min-height:44px}
+@media(max-width:650px){.dwp-blanko-material{grid-template-columns:1fr}}
