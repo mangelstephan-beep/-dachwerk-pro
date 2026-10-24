@@ -86,9 +86,9 @@
     "number": 11,
     "name": "Lieferanten und Preisvergleich",
     "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Gebindeumrechnung, Rabatt, Fracht und Preisbindung lokal geprüft; Live-/Geräteabnahme und automatische Händleranbindungen offen."
+    "checkedAt": "2026-10-24",
+    "evidence": "Server-/DOM-Tests: Gebindeumrechnung, deutsche Dezimalwerte, sofortige Rechenvorschau, unveränderte Eingaben bei fehlgeschlagenem Speichern und gesperrte Übernahme nach Änderung der Artikeleinheit. Vollständige Testsuite, Syntaxprüfung und Build bestanden. Details: docs/LIEFERANTENPREISE_2026-10-24.md.",
+    "remaining": "Gebindeumrechnung, Rabatt, Fracht, Rechenvorschau und Einheitensperre lokal geprüft (24.10.2026); Live-/iPhone-Abnahme und automatische Händleranbindungen offen."
   },
   "pricelists": {
     "number": 12,

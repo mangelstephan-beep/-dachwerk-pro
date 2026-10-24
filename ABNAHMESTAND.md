@@ -16,7 +16,7 @@ Automatisch aus `module-verification.js` erzeugt. Änderungen mit `npm run statu
 | 08 | EFB und Kalkulationsblätter | ROT | Kostenartenzuschläge und Kalkulationsnachweis lokal geprüft; Live-Abnahme und amtliche EFB 221/222/223 mit Feldmapping offen. |
 | 09 | Leistungskatalog und Zeitwerte | ROT | Fachkatalog, Nutzungsrechte |
 | 10 | Material und Systeme | ROT | Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft; Live- und Geräteabnahme sowie fachliche Prüfung der konkreten Systeme offen. |
-| 11 | Lieferanten und Preisvergleich | ROT | Gebindeumrechnung, Rabatt, Fracht und Preisbindung lokal geprüft; Live-/Geräteabnahme und automatische Händleranbindungen offen. |
+| 11 | Lieferanten und Preisvergleich | ROT | Gebindeumrechnung, Rabatt, Fracht, Rechenvorschau und Einheitensperre lokal geprüft (24.10.2026); Live-/iPhone-Abnahme und automatische Händleranbindungen offen. |
 | 12 | DATANORM und Preislisten | ROT | Excel-/CSV-Spaltenmapping und verbindliche Vorschau lokal geprüft; DATANORM-Parser, Live-/Geräteabnahme und reale Händlerdateien offen. |
 | 13 | Angebote | ROT | Live-Abnahme der Versionen, Angebotsvarianten und Bedingungen; Mailversand über Modul 15 offen. |
 | 14 | Auftrag und Bestätigung | ROT | Live-Abnahme von Auftragsbestätigung und Bedingungen; weitergehende Auftragsänderungen. |

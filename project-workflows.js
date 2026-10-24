@@ -179,7 +179,16 @@
   function quotePanel() {
     const materials=db.list('materials'),suppliers=db.list('suppliers');
     const options=records=>`<option value="">Bitte auswählen</option>${records.map(r=>`<option value="${esc(r.id)}">${esc(names(r.id))}</option>`).join('')}`;
-    return panel('Lieferantenpreise vergleichbar erfassen',`<p>Preis und Fracht beziehen sich auf ein Preisgebinde, z. B. eine Rolle oder 100 Stück. Gebindeinhalt in der Einheit des Artikels angeben. EK je Artikeleinheit = (Preis nach Rabatt + Fracht) / Gebindeinhalt.</p><form id="dwp-quote" class="quick-form">${field('Artikel',`<select name="materialId" required>${options(materials)}</select>`)}${field('Lieferant',`<select name="supplierId" required>${options(suppliers)}</select>`)}${field('Listenpreis je Preisgebinde netto',`<input name="price" inputmode="decimal" required>`)}${field('Rabatt %',`<input name="discount" inputmode="decimal" value="0" required>`)}${field('Fracht je Preisgebinde netto',`<input name="freight" inputmode="decimal" value="0" required>`)}${field('Bezeichnung Preisgebinde',`<input name="packageUnit" placeholder="z. B. Rolle, Sack, 100 Stück">`)}${field('Artikeleinheiten je Preisgebinde',`<input name="baseQuantity" inputmode="decimal" value="1" required>`)}${field('Preisbindung bis einschließlich',`<input name="validUntil" type="date">`)}${field('Preisstand',`<input name="date" type="date" required value="${new Date().toISOString().slice(0,10)}">`)}${field('Quelle / Angebotsnummer',`<input name="source" required>`)}<button class="button button-primary" type="submit">Preisvergleich speichern</button></form>`)+panel('Vergleich nach effektivem Einkaufspreis',table(['Artikel','Lieferant / Quelle','Preisgebinde','Preisstand / Bindung','EK je Artikeleinheit','Übernahme'],materials.flatMap(m=>db.quotes(m.id).map(q=>[esc(m.data.name),`${esc(q.supplier)}<br>${esc(q.source)}`,`${esc(q.packageUnit || q.unit)} = ${esc(q.baseQuantity ?? 1)} ${esc(q.unit)}`,`${esc(q.date)}<br>${esc(q.validUntil || 'Keine Preisbindung dokumentiert')}`,`${money(q.effectivePrice)} / ${esc(q.unit)}`,q.expired?'Preisbindung abgelaufen':q.future?'Zukünftiger Preisstand':btn('Artikelpreis freigeben','use-quote',`${q.supplierId}/${q.id}`)]))));
+    return panel('Lieferantenpreise vergleichbar erfassen',`<p>Preis und Fracht beziehen sich auf ein Preisgebinde, z. B. eine Rolle oder 100 Stück. Gebindeinhalt in der Einheit des Artikels angeben. EK je Artikeleinheit = (Preis nach Rabatt + Fracht) / Gebindeinhalt.</p><form id="dwp-quote" class="quick-form">${field('Artikel',`<select name="materialId" required>${options(materials)}</select>`)}${field('Lieferant',`<select name="supplierId" required>${options(suppliers)}</select>`)}${field('Listenpreis je Preisgebinde netto',`<input name="price" inputmode="decimal" required>`)}${field('Rabatt %',`<input name="discount" inputmode="decimal" value="0" required>`)}${field('Fracht je Preisgebinde netto',`<input name="freight" inputmode="decimal" value="0" required>`)}${field('Bezeichnung Preisgebinde',`<input name="packageUnit" placeholder="z. B. Rolle, Sack, 100 Stück">`)}${field('Artikeleinheiten je Preisgebinde',`<input name="baseQuantity" inputmode="decimal" value="1" required>`)}${field('Preisbindung bis einschließlich',`<input name="validUntil" type="date">`)}${field('Preisstand',`<input name="date" type="date" required value="${new Date().toISOString().slice(0,10)}">`)}${field('Quelle / Angebotsnummer',`<input name="source" required>`)}<output id="dwp-quote-preview" class="field-span" aria-live="polite">Artikel und Gebindepreis eingeben, um den Einkaufspreis zu prüfen.</output><button class="button button-primary" type="submit">Preisvergleich speichern</button></form>`)+panel('Vergleich nach effektivem Einkaufspreis',table(['Artikel','Lieferant / Quelle','Preisgebinde','Preisstand / Bindung','EK je Artikeleinheit','Übernahme'],materials.flatMap(m=>db.quotes(m.id).map(q=>[esc(m.data.name),`${esc(q.supplier)}<br>${esc(q.source)}`,`${esc(q.packageUnit || q.unit)} = ${esc(q.baseQuantity ?? 1)} ${esc(q.unit)}`,`${esc(q.date)}<br>${esc(q.validUntil || 'Keine Preisbindung dokumentiert')}`,`${money(q.effectivePrice)} / ${esc(q.unit)}`,q.unitMismatch?'Artikeleinheit geändert – neuen Preisvergleich erfassen':q.expired?'Preisbindung abgelaufen':q.future?'Zukünftiger Preisstand':btn('Artikelpreis freigeben','use-quote',`${q.supplierId}/${q.id}`)]))));
+  }
+  function updateQuotePreview(form) {
+    const output=form.querySelector('#dwp-quote-preview'),values=Object.fromEntries(new FormData(form));
+    const material=db.get(values.materialId);
+    if(!material || !values.price.trim()){output.textContent='Artikel und Gebindepreis eingeben, um den Einkaufspreis zu prüfen.';return;}
+    try {
+      const price=core.supplierQuotePrice(values),quantity=core.num(values.baseQuantity);
+      output.textContent=`Einkaufspreis netto: ${money(price)} / ${material.data.unit} · ${values.packageUnit.trim() || 'Preisgebinde'} = ${quantity} ${material.data.unit}. Fracht gilt je Preisgebinde. Vorschau – noch nicht gespeichert.`;
+    } catch(error){output.textContent=error.message;}
   }
   function schedulePanel() {
     const options=records=>`<option value="">Bitte auswählen</option>${records.map(r=>`<option value="${esc(r.id)}" ${r.id===db.data.selectedProject?'selected':''}>${esc(names(r.id))}</option>`).join('')}`;
@@ -720,6 +729,7 @@
   main.addEventListener('input',event=>{
     if(event.target.id==='dwp-module-search'){search=event.target.value;filterModules();return;}
     if(event.target.closest('.dwp-workspace form'))state.unsavedChanges=true;
+    const quoteForm=event.target.closest('#dwp-quote');if(quoteForm)updateQuotePreview(quoteForm);
     const offerForm=event.target.closest('#dwp-offer-edit');if(offerForm){try{updateOfferPreview(offerForm);main.querySelector('#dwp-error').textContent='';}catch(e){showError(e);}}
   });
   main.addEventListener('dragover',event=>{if(event.target.closest('#dwp-price-drop'))event.preventDefault();});
@@ -731,6 +741,7 @@
   });
   main.addEventListener('change',async event=>{
     try {
+      const quoteForm=event.target.closest('#dwp-quote');if(quoteForm){state.unsavedChanges=true;updateQuotePreview(quoteForm);}
       if(event.target.matches('[data-offer-position]')){updateChoiceTotal();state.unsavedChanges=true;}
       if(event.target.id==='dwp-project') {
         if(!event.target.value){event.target.value=db.data.selectedProject || '';return;}
