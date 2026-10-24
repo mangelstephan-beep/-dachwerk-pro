@@ -116,6 +116,12 @@
     const n=Number(s);if(!Number.isFinite(n))throw Error('Ungültige Zahl.');return n;
   };
   const round = n => {if(!Number.isFinite(n) || Math.abs(n)>Number.MAX_SAFE_INTEGER/100)throw Error('Betrag oder Menge außerhalb des sicheren Zahlenbereichs.');return Math.round((n + Math.sign(n)*Number.EPSILON)*100)/100;};
+  const supplierQuotePrice=values=>{
+    const price=num(values.price),discount=num(values.discount),freight=num(values.freight),baseQuantity=values.baseQuantity===undefined?1:num(values.baseQuantity);
+    if(price<0 || discount<0 || discount>100 || freight<0)throw Error('Preis, Rabatt oder Fracht sind ungültig.');
+    if(baseQuantity<=0 || baseQuantity>Number.MAX_SAFE_INTEGER/100)throw Error('Gebindeinhalt in Artikeleinheiten muss größer als null sein.');
+    return round((price*(1-discount/100)+freight)/baseQuantity);
+  };
   const capacity=values=>{
     const v=Object.fromEntries(['year','headcount','weeklyHours','leaveDays','sickDays','trainingDays','nonproductivePercent'].map(k=>[k,num(values[k])]));
     if(!Number.isInteger(v.year)||v.year<2000||v.year>2100||v.headcount<=0||v.headcount>10000||v.weeklyHours<=0||v.weeklyHours>120||['leaveDays','sickDays','trainingDays'].some(k=>v[k]<0)||v.nonproductivePercent<0||v.nonproductivePercent>=100)throw Error('Produktivstundenmodell enthält ungültige Werte.');
@@ -693,7 +699,7 @@
     }
     quotes(materialId) {
       const today=new Date().toISOString().slice(0,10);
-      return this.list('suppliers').flatMap(s=>(s.quotes || []).filter(q=>q.materialId===materialId).map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:round((q.price*(1-q.discount/100)+q.freight)/(q.baseQuantity ?? 1)),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today}))).sort((a,b)=>a.effectivePrice-b.effectivePrice);
+      return this.list('suppliers').flatMap(s=>(s.quotes || []).filter(q=>q.materialId===materialId).map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:supplierQuotePrice(q),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today,unitMismatch:q.unit!==this.get(materialId)?.data.unit}))).sort((a,b)=>a.effectivePrice-b.effectivePrice);
     }
     quote(supplierId, values) {
       const supplier=this.get(supplierId), material=this.get(values.materialId);
@@ -704,7 +710,7 @@
       const baseQuantity=values.baseQuantity===undefined?1:num(values.baseQuantity),validUntil=String(values.validUntil || '');
       if(baseQuantity<=0 || baseQuantity>Number.MAX_SAFE_INTEGER/100)throw Error('Gebindeinhalt in Artikeleinheiten muss größer als null sein.');
       if(validUntil && (!validDate(validUntil) || validUntil<values.date))throw Error('Preisbindung muss ein gültiges Datum ab Preisstand sein.');
-      round((price*(1-discount/100)+freight)/baseQuantity);
+      supplierQuotePrice({price,discount,freight,baseQuantity});
       const quote={id:uid(),materialId:material.id,unit:material.data.unit,price,discount,freight,baseQuantity,packageUnit:String(values.packageUnit || material.data.unit).trim(),validUntil,date:values.date,source:values.source.trim()};
       return this.transaction('Lieferantenpreis erfasst','suppliers',supplier.id,d=>{d.records.find(r=>r.id===supplier.id).quotes=[...(supplier.quotes || []),quote];return quote;});
     }
@@ -715,7 +721,7 @@
       const today=new Date().toISOString().slice(0,10);
       if(quote.validUntil && quote.validUntil<today)throw Error('Preisbindung abgelaufen. Neues Lieferantenangebot erforderlich.');
       if(quote.date>today)throw Error('Preisstand liegt in der Zukunft.');
-      return this.save('materials',{...material.data,price:round((quote.price*(1-quote.discount/100)+quote.freight)/(quote.baseQuantity ?? 1)),supplier:supplier.data.name,priceDate:quote.date,validUntil:quote.validUntil || '',source:quote.source,priceBasis:`(${quote.price} EUR × (1 − ${quote.discount} / 100) + ${quote.freight} EUR Fracht) / ${quote.baseQuantity ?? 1} ${quote.unit}; Preisgebinde: ${quote.packageUnit || quote.unit}`},{id:material.id,status:'Freigegeben',owner});
+      return this.save('materials',{...material.data,price:supplierQuotePrice(quote),supplier:supplier.data.name,priceDate:quote.date,validUntil:quote.validUntil || '',source:quote.source,priceBasis:`(${quote.price} EUR × (1 − ${quote.discount} / 100) + ${quote.freight} EUR Fracht) / ${quote.baseQuantity ?? 1} ${quote.unit}; Preisgebinde: ${quote.packageUnit || quote.unit}`},{id:material.id,status:'Freigegeben',owner});
     }
     schedule(employeeId, values) {
       const employee=this.get(employeeId),project=this.get(values.projectId);
@@ -844,7 +850,7 @@
       String(p.text || ''),decimal(p.ep),''
     ])];
   };
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows};
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows,supplierQuotePrice};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
