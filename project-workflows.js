@@ -58,10 +58,45 @@
     else db.select(id);
     rememberProject();
   }
+  function projectGestureRows() {
+    const projects=db.list('projects');
+    const canDelete=!window.DWPRemote?.active || state.currentRole==='admin';
+    if(!projects.length)return '<p>Keine Projekte vorhanden.</p>';
+    return `<div class="dwp-project-gesture-list">${projects.map(r=>{
+      const count=db.data.records.filter(x=>x.projectId===r.id).length;
+      return `<div class="dwp-project-gesture" data-project-gesture="${esc(r.id)}" tabindex="0" role="group" aria-label="${esc(r.data.name)}">
+        <div class="dwp-project-gesture-info"><strong>${esc(r.data.name)}</strong><small>${esc(r.data.costCenter || r.data.address || '')} · ${count} Vorgänge${db.data.selectedProject===r.id?' · aktuell':''}</small></div>
+        <div class="dwp-project-gesture-actions">${btn('Öffnen','project-select',r.id)}${canDelete?btn('⋯','project-actions',r.id):''}<button type="button" class="button dwp-project-delete" data-dwp="delete-project" data-id="${esc(r.id)}" hidden>Löschen</button></div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+  function revealProjectDelete(id) {
+    main.querySelectorAll('[data-project-gesture]').forEach(row=>{
+      const visible=row.dataset.projectGesture===id;
+      row.classList.toggle('is-delete-revealed',visible);
+      const button=row.querySelector('[data-dwp="delete-project"]');if(button)button.hidden=!visible;
+    });
+  }
+  async function confirmProjectDeletion(project) {
+    const related=db.data.records.filter(r=>r.projectId===project.id).length;
+    const prompt=`Projekt „${project.data.name}“ endgültig löschen? ${related} zugeordnete Vorgänge und Dateien verschwinden aus allen DachWerkPro-Modulen. Dieser Schritt lässt sich nicht rückgängig machen.`;
+    const dialog=document.createElement('dialog');
+    if(typeof dialog.showModal!=='function')return window.confirm(prompt);
+    return new Promise(resolve=>{
+      dialog.className='dwp-delete-confirm';
+      dialog.innerHTML=`<h2>Projekt endgültig löschen?</h2><p><strong>${esc(project.data.name)}</strong></p><p>${related} zugeordnete Vorgänge einschließlich LV, Kalkulation, Belege und Dateien werden entfernt. Das Löschereignis bleibt im Protokoll. Eine Wiederherstellung ist nicht möglich.</p><div class="dwp-actions"><button type="button" class="button" data-choice="no">Nein, behalten</button><button type="button" class="button dwp-confirm-danger" data-choice="yes">Ja, löschen</button></div>`;
+      document.body.append(dialog);
+      const done=answer=>{dialog.close();dialog.remove();resolve(answer);};
+      dialog.querySelector('[data-choice="no"]').addEventListener('click',()=>done(false));
+      dialog.querySelector('[data-choice="yes"]').addEventListener('click',()=>done(true));
+      dialog.addEventListener('cancel',e=>{e.preventDefault();done(false);});
+      dialog.showModal();
+    });
+  }
   function projectBar() {
     const projects=db.list('projects'),central=window.DWPRemote?.active;
     const hint=db.project()?names(db.project().data.customerId):projects.length?'Bitte ein vorhandenes Projekt auswählen.':central?'In diesem Benutzerbestand sind noch keine Projekte gespeichert.':'Zuerst Kunde und Projekt anlegen';
-    return `<div class="dwp-project-bar"><label>Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}</div></div>`;
+    return `<div class="dwp-project-bar"><label>Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}</div><details class="dwp-current-projects"><summary>Aktuelle Projekte (${projects.length}) · lang drücken oder nach links wischen</summary>${projectGestureRows()}</details></div>`;
   }
   function header(name) {
     return `<nav class="dwp-module-navigation" aria-label="Modulnavigation">${btn('← Zurück','module-back')}${btn('Alle Module','open','dashboard')}<a class="button button-secondary" data-dwp="direct-link" href="${esc(moduleUrl(current).href)}">Direktlink</a></nav><header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.</p></div><div class="header-actions">${btn('Alle Module','open','dashboard')}${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${projectBar()}`;
@@ -168,6 +203,7 @@
       esc(r.owner),esc(r.due),`${btn(r.pendingPrice?'Importpreis prüfen':'Bearbeiten','edit',r.id)}${btn('Drucken / PDF','print',r.id)}${['documents','defects','expert','acceptance','diary'].includes(mod.id)?btn('Datei / Foto','attach',r.id):''}${['acceptance','times'].includes(mod.id)?btn(`Unterschrift${r.signatures?.length?' ('+r.signatures.length+')':''}`,'signature',r.id):''}${mod.id==='services'?btn('Ins LV','service-lv',r.id):''}${r.importFinding && r.status!=='Erledigt'?btn('Wandlung prüfen','convert-import',r.id):''}`
     ]);
     let summary='';
+    if(mod.id==='projects')summary=panel('Aktuelle Projekte',`<p>Projekt gedrückt halten oder nach links wischen, dann „Löschen“ wählen. Bestätigung mit Ja oder Nein. Nur Administratoren können zentral löschen.</p>${projectGestureRows()}`);
     if(mod.id==='contract')summary=panel('Automatische LV-Datenprüfung',`<p>Prüft Mengen, Gliederung, Nachtragsnummern, Kostenansätze und Deckung. Befunde können einzeln als Rückfrage gespeichert werden. Vertragstexte und Fachregeln werden anhand der angegebenen Quelle separat geprüft.</p>${table(['Position','Befund','Rückfrage','Aktion'],db.contractReview().map(f=>[esc(f.number),esc(f.finding),esc(f.question),esc(f.reviewState)+' '+btn('Rückfrage anlegen','contract-finding',f.positionId+'/'+f.code)]))}`);
     if(mod.id==='lv') summary=lvTreePanel()+panel('LV-Gliederung und Zwischensummen',`<p>Gliederung je Position als Gewerk / Titel / Abschnitt erfassen. Übergeordnete Summen enthalten ihre Unterabschnitte; sie werden nicht zusätzlich zur Kalkulationssumme addiert.</p>${table(['Gliederung','Ebene','Positionen','Netto'],db.lvGroups().map(g=>[esc(g.path),esc(g.level),esc(g.positions),money(g.net)]))}`);
     if(mod.id==='measurements') summary=panel('Freigegebenes Aufmaß und Abweichung',table(['Position','LV-Menge','Aufmaß','Differenz'],db.list('lv').map(r=>[esc(r.data.number),`${r.data.qty} ${esc(r.data.unit)}`,`${db.measured(r.id)} ${esc(r.data.unit)}`,esc(core.round(db.measured(r.id)-r.data.qty))])));
@@ -609,6 +645,18 @@
       if(!confirmPageChange())return;const editable=await offerQuestion('Angebot bearbeiten?');offerEditor(db.get(id),editable);return;
     }
     try {
+      if(action==='project-actions'){const row=target.closest('[data-project-gesture]');if(row)revealProjectDelete(row.classList.contains('is-delete-revealed')?'':id);return;}
+      if(action==='project-select'){if(state.unsavedChanges&&!window.confirm('Ungespeicherte Eingaben verwerfen und Projekt wechseln?'))return;selectProject(id);state.unsavedChanges=false;openModule(current);return;}
+      if(action==='delete-project'){
+        if(window.DWPRemote?.active && state.currentRole!=='admin')throw Error('Projekte dürfen nur Administratoren löschen.');
+        const project=db.get(id);
+        if(!project || project.module!=='projects')throw Error('Projekt nicht gefunden. Bitte Liste neu laden.');
+        if(state.unsavedChanges&&!window.confirm('Ungespeicherte Eingaben verwerfen und das Projekt löschen?'))return;
+        if(!await confirmProjectDeletion(project))return;
+        const result=mutate('deleteProject',[project.id,project.data.name],()=>{state.unsavedChanges=false;rememberProject();notice('Projekt aus allen Modulen gelöscht.');openModule('projects');});
+        if(result && typeof result.then==='function')await result;
+        return;
+      }
       if(action==='module-back'){backModule();return;}
       if(action==='direct-link'){
         if(!confirmPageChange())return;
@@ -747,6 +795,29 @@
       if(action==='legacy-import'){if(window.DWPRemote?.active)throw Error('Der alte lokale Importmanager ist ausschließlich im Modultest verfügbar. Für zentrale Daten den geprüften CSV-Import verwenden.');current='legacy';main.innerHTML=calculationView();bindDynamicInteractions();}
     }catch(e){showError(e);}
   },true);
+  let projectGesture=null;
+  const cancelProjectGesture=()=>{if(projectGesture?.timer)clearTimeout(projectGesture.timer);projectGesture=null;};
+  main.addEventListener('pointerdown',event=>{
+    const row=event.target.closest('[data-project-gesture]');
+    if(!row || event.target.closest('button,a,input,select'))return;
+    cancelProjectGesture();
+    const x=event.clientX,y=event.clientY,id=row.dataset.projectGesture;
+    const gesture={id,x,y,timer:setTimeout(()=>{revealProjectDelete(id);projectGesture=null;},600)};
+    projectGesture=gesture;
+  });
+  main.addEventListener('pointermove',event=>{
+    const gesture=projectGesture;if(!gesture)return;
+    if(Math.abs(event.clientX-gesture.x)>12 || Math.abs(event.clientY-gesture.y)>12){
+      clearTimeout(gesture.timer);gesture.timer=null;
+    }
+  });
+  main.addEventListener('pointerup',event=>{
+    const gesture=projectGesture;if(!gesture)return;
+    const dx=event.clientX-gesture.x,dy=event.clientY-gesture.y;
+    if(dx < -65 && Math.abs(dy)<40)revealProjectDelete(gesture.id);
+    cancelProjectGesture();
+  });
+  main.addEventListener('pointercancel',cancelProjectGesture);
   main.addEventListener('input',event=>{
     if(event.target.id==='dwp-module-search'){search=event.target.value;filterModules();return;}
     if(event.target.closest('.dwp-workspace form'))state.unsavedChanges=true;
