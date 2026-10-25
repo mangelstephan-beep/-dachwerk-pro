@@ -1,0 +1,11 @@
+const fs=require('node:fs'),path=require('node:path');
+const destination=path.resolve(__dirname,'../vendor/ocr');
+const engine=path.dirname(require.resolve('tesseract.js/package.json'));
+const core=path.dirname(require.resolve('tesseract.js-core/package.json'));
+const data=path.dirname(require.resolve('@tesseract.js-data/deu/package.json'));
+fs.mkdirSync(path.join(destination,'core'),{recursive:true});fs.mkdirSync(path.join(destination,'lang'),{recursive:true});
+for(const file of ['tesseract.min.js','worker.min.js','tesseract.min.js.LICENSE.txt','worker.min.js.LICENSE.txt'])fs.copyFileSync(path.join(engine,'dist',file),path.join(destination,file));
+for(const file of fs.readdirSync(core).filter(file=>/\.wasm(?:\.js)?$/.test(file)))fs.copyFileSync(path.join(core,file),path.join(destination,'core',file));
+fs.copyFileSync(path.join(core,'LICENSE'),path.join(destination,'core','LICENSE'));
+fs.copyFileSync(path.join(data,'4.0.0_best_int','deu.traineddata.gz'),path.join(destination,'lang','deu.traineddata.gz'));
+console.log('OCR engine, worker, WASM and German language data prepared on the application domain.');

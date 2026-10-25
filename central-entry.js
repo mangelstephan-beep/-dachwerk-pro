@@ -2,7 +2,7 @@
   // The main application uses authenticated, authoritative server writes.
   // The separate server-rendered modultest page explicitly retains local test mode.
   if(document.querySelector('meta[name="dwp-local-preview"]'))return;
-  if(new URLSearchParams(location.search).get('start')==='app' || window.navigator.standalone || window.matchMedia?.('(display-mode: standalone)').matches)showLogin();
+  if(new URLSearchParams(location.search).get('start')==='app' || new URLSearchParams(location.search).has('module') || window.navigator.standalone || window.matchMedia?.('(display-mode: standalone)').matches)showLogin();
   let active=false,busy=false,revision=0;
   async function responseJson(response) {
     const body=await response.json();
@@ -45,8 +45,7 @@
       await call({action:'finish',fileId:upload.fileId,revision});
       await load();
     },
-    async originalFile(recordId,fileId) {
-      const projectId=window.DWPWorkspace.store.data.selectedProject;
+    async originalFile(recordId,fileId,projectId=window.DWPWorkspace.store.data.selectedProject) {
       const call=part=>fetch('/api/files',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'download',recordId,projectId,fileId,part})}).then(responseJson);
       const first=await call(0),parts=[];
       const decode=data=>Uint8Array.from(atob(data.replace(/\s/g,'')),c=>c.charCodeAt(0));
@@ -68,11 +67,17 @@
     async run(method,args) {
       if(!active)throw Error('Bitte zuerst anmelden.');
       if(busy)throw Error('Der vorherige Vorgang wird noch gespeichert.');
-      busy=true;const shell=document.querySelector('#app-shell');shell.inert=true;
+      busy=true;const shell=document.querySelector('#app-shell');
+      shell.setAttribute('aria-busy','true');
+      const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),30000);
       try {
-        const payload=await responseJson(await fetch('/api/projects',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,args,revision,projectId:window.DWPWorkspace.store.data.selectedProject})}));
+        const payload=await responseJson(await fetch('/api/projects',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,args,revision,projectId:window.DWPWorkspace.store.data.selectedProject}),signal:controller.signal}));
         accept(payload);return payload.recordId?window.DWPWorkspace.store.get(payload.recordId):null;
-      }finally{busy=false;shell.inert=false;}
+      }catch(error){
+        if(error.name==='AbortError')throw Error('Die Serverantwort dauert zu lange. Der Speicherstand ist unklar. Bitte Serverbestand neu laden, bevor du erneut speicherst.');
+        throw error;
+      }finally{clearTimeout(timeout);busy=false;shell.inert=false;shell.removeAttribute('aria-busy');}
     },
     async reload(){await load();window.DWPWorkspace.open('dashboard');}
   };

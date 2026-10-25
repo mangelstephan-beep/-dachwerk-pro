@@ -1,6 +1,20 @@
 .dwp-workspace label{display:block;font-size:13px;font-weight:600}.dwp-workspace label input:not([type=checkbox]),.dwp-workspace label select,.dwp-workspace label textarea{display:block;width:100%;padding:10px;border:1px solid #ced8d3;border-radius:7px;background:#fff;color:#15271e;margin-top:6px;font:inherit}.dwp-local-note{padding:12px;border-radius:8px;background:#fff6df;color:#765400;font-size:13px}.dwp-project-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px;background:#eaf7f0;border-radius:10px;margin-bottom:20px}.dwp-project-bar label{min-width:220px;max-width:100%;flex:1}.dwp-panel{margin:18px 0}.dwp-panel h2{margin-bottom:14px}.dwp-panel p{line-height:1.6;margin:12px 0}.dwp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.dwp-metrics{display:flex;gap:16px;flex-wrap:wrap}.dwp-module-grid{margin-top:18px}.dwp-workspace .data-table .button{margin:3px;font-size:12px;padding:7px 9px}.dwp-error{color:#b42318;font-weight:600}.dwp-error:empty{display:none}.dwp-workspace small{display:block;color:#667085}.dwp-workspace textarea{resize:vertical}.dwp-workspace [hidden]{display:none!important}.dwp-print-frame{position:fixed;left:-10000px;top:0;width:900px;height:700px}@media(max-width:600px){.dwp-project-bar .button{flex:1}.dwp-workspace .quick-form{grid-template-columns:1fr}.dwp-workspace .field-span{grid-column:1}.dwp-workspace .header-actions{flex-wrap:wrap;width:100%}.dwp-workspace .header-actions .button{min-height:44px}.dwp-workspace #dwp-module-search{min-height:44px;font-size:16px}.dwp-workspace .data-table{min-width:650px}}
 .dwp-workspace canvas{display:block;width:100%;max-width:640px;height:auto;border:2px solid #26825a;border-radius:8px;background:white;touch-action:none}.dwp-signature-image{display:block;width:320px;max-width:100%;height:auto;border-bottom:1px solid #aaa}
 
+.dwp-project-bar .dwp-project-context{flex-basis:100%;margin:0;overflow-wrap:anywhere}
+.dwp-project-actions{display:flex;flex-wrap:wrap;gap:8px;width:100%}
+.dwp-voice-control{display:flex;flex-shrink:0}
+.dwp-voice-control .button{min-width:44px;min-height:44px;gap:6px}
+@media(max-width:650px){
+  .topbar .global-search{min-width:0;flex:1}
+  .topbar-actions{gap:6px;flex-shrink:0}
+  .dwp-voice-label{display:none}
+  .dwp-voice-control .button{width:44px;padding:0}
+  .dwp-project-bar label{min-width:0;flex-basis:100%}
+  .dwp-project-actions .button{flex:1 1 130px;min-height:44px;white-space:normal}
+}
+@media print{.dwp-voice-control{display:none!important}}
+
 .dwp-file-dialog {max-width:min(90vw,960px);max-height:90vh;overflow:auto;border:1px solid #b4c5b9;border-radius:12px;padding:20px;}
 .dwp-file-dialog::backdrop {background:rgba(0,0,0,.8);}
 .dwp-protected-image {position:relative;user-select:none;}
@@ -9,3 +23,48 @@
 @media print {.dwp-file-dialog,.dwp-protected-image {display:none !important;}}
 
 @media print {body > * {display:none !important;}}
+.dwp-module-navigation{position:sticky;top:84px;z-index:15;display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;background:var(--bg,#f5f6f8);margin-bottom:12px}
+.dwp-module-navigation .button{min-height:44px}
+@media(max-width:650px){.dwp-module-navigation{top:68px;gap:6px}.dwp-module-navigation .button{flex:1;padding-left:8px;padding-right:8px}}
+
+.dwp-offer-question{max-width:min(90vw,32rem);border:0;border-radius:12px;padding:24px}.dwp-offer-question::backdrop{background:#0008}.dwp-offer-question h2{font-size:1.2rem}.dwp-offer-costs input{color:#0057b8;min-height:44px}#dwp-offer-edit fieldset{margin:16px 0;padding:16px;border:1px solid #ccd5df;border-radius:8px}#dwp-offer-edit legend{max-width:100%;overflow-wrap:anywhere}#dwp-offer-total{font-weight:700;font-size:1.1rem}
+.dwp-blanko-material{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0;padding:16px;border:1px solid #a9c7e8;border-radius:8px;scroll-margin-top:160px}
+.dwp-blanko-material legend{color:#0057b8;font-weight:700}
+.dwp-blanko-material input,.dwp-blanko-values td{color:#0057b8}
+.dwp-blanko-material input{min-height:44px}
+@media(max-width:650px){.dwp-blanko-material{grid-template-columns:1fr}}
+
+
+.dwp-project-hold-hint{flex-basis:100%;color:#586e63;font-size:12px}
+.dwp-project-delete-dialog{max-width:min(92vw,34rem);border:1px solid #b9c8bf;border-radius:14px;padding:24px;box-shadow:0 22px 60px #0004}
+.dwp-project-delete-dialog::backdrop{background:rgba(0,0,0,.6)}
+.dwp-project-delete-dialog h2{margin:0 0 12px;font-size:1.25rem}
+.dwp-project-delete-dialog p{line-height:1.6;overflow-wrap:anywhere}
+.dwp-delete-choices{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+.dwp-delete-choices button{flex:1 1 140px;min-height:48px}
+.dwp-delete-choices .button-danger{color:white;background:#ad2323;border-color:#ad2323}
+
+.dwp-current-projects{margin-top:12px;width:100%}
+.dwp-current-projects summary{cursor:pointer;font-weight:600;padding:8px}
+.dwp-project-gesture-list{display:grid;gap:8px;margin:8px 0}
+.dwp-project-gesture{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border:1px solid #c6d4cb;border-radius:9px;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.dwp-project-gesture.is-delete-revealed{border-color:#b42318}
+.dwp-project-gesture-info{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
+.dwp-project-gesture-info small{font-size:12px;color:#52635a}
+.dwp-project-gesture-actions{display:flex;gap:6px;flex-wrap:wrap}
+.dwp-project-gesture-actions [hidden]{display:none!important}
+
+/* Modul 37: iPhone-taugliche Filter, mit horizontal scrollbarem Dokumentenregister. */
+.dwp-register-toolbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin:14px 0}
+.dwp-register-toolbar label{display:flex;flex-direction:column;gap:6px}
+.dwp-register-toolbar input,.dwp-register-toolbar select{width:100%;min-width:0}
+.dwp-register-table{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.dwp-register-table table{min-width:1080px}
+.dwp-register-table td{vertical-align:top}
+.dwp-register-table td small{display:block;color:var(--text-muted,#566170);padding-top:5px}
+.dwp-register-table td .button{margin:2px;white-space:normal;overflow-wrap:anywhere}
+.dwp-register-table th button{font:inherit;color:inherit;cursor:pointer;background:transparent;border:none;text-decoration:underline}
+.dwp-register-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.dwp-register-panel{margin-bottom:14px}
+#dwp-reg-save-status{grid-column:1/-1}
+@media(max-width:640px){.dwp-register-toolbar{grid-template-columns:1fr 1fr}.dwp-register-toolbar label:first-child{grid-column:1/-1}.dwp-register-panel .quick-form{grid-template-columns:1fr}}

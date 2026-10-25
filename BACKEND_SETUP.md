@@ -2,6 +2,10 @@
 
 Die Hauptanwendung verwendet jetzt eine serverseitige Anmeldung und zentrale Schreibvorgänge. Die bisherige clientseitige Master-Hash-Anmeldung und die automatische Freischaltung über `sessionStorage` wurden entfernt. Der separate `/workspace`-Modultest bleibt browserlokal und ist kein Produktionszugang.
 
+## Aktuelle Einordnung
+
+Die spätere Einrichtung von Live-Datenbank und Eigentümerkonto wurde am 13.10.2026 im Entwicklungsverlauf dokumentiert. Am 18.10.2026 antwortete der produktive Sitzungsendpunkt mit HTTP 200/null (ohne angemeldete Sitzung). Das ist kein erfolgreicher Anmelde-/Schreibtest. Aktuelle Modulfreigaben stehen ausschließlich in [ABNAHMESTAND.md](ABNAHMESTAND.md); frühere Einrichtungsaussagen unten sind datiert zu lesen.
+
 ## Bereits implementiert
 
 - Better Auth 1.7.7 mit E-Mail/Passwort, serverseitigen Sitzungen, begrenzter Sitzungsdauer und datenbankgestützter Anmelderatenbegrenzung.
@@ -25,7 +29,7 @@ Die Hauptanwendung verwendet jetzt eine serverseitige Anmeldung und zentrale Sch
 
 Dies ist das implementierte Grundmodell. Projektbezogene Mitgliedschaften, vollständige Personalakten, Rollenverwaltung über eine Administrationsmaske und Einladungen sind noch weiter auszubauen. Die übrigen kaufmännischen Daten sind innerhalb eines Mandanten für angemeldete Rollen lesbar; vor Verwendung in einem Betrieb muss die gewünschte Leserechteverteilung abgestimmt werden.
 
-## Noch nicht eingerichtet
+## Historischer Einrichtungsstand vom 12.10.2026
 
 Im verbundenen Vercel-Konto wurde am 12.10.2026 keine Datenbankintegration gefunden. Es gibt deshalb noch keine zentrale Live-Datenbank und keine Live-Abnahme dieser Betriebsfassung. Die produktive Konfiguration wurde nicht durch Testzugangsdaten ersetzt. Die fehlende Konfiguration führt zu einer Fehlermeldung und öffnet keinen ungeschützten Ersatzmodus.
 
@@ -38,7 +42,7 @@ Im verbundenen Vercel-Konto wurde am 12.10.2026 keine Datenbankintegration gefun
 5. Laufzeitverbindung auf die benötigten Tabellenrechte begrenzen. Die Audit-Tabelle benötigt für die Anwendung SELECT/INSERT, keine UPDATE-/DELETE-Rechte. Ein Datenbank-Owner ist technisch mächtiger als dieses Grundmodell; die Hashverkettung ist kein externer revisionssicherer Archivdienst.
 6. Sign-in → Kunden-/Projektanlage → vollständiger Fachablauf → Sign-out mit der Live-Datenbank prüfen. Erst danach Browserbestände kontrolliert importieren und die ursprüngliche Hauptdomain auf diesen Stand freigeben.
 
-## Abnahme und Grenzen
+## Abnahme und Grenzen (historischer Entwicklungsstand)
 
 Die echten Projekt-Migrations- und Speicheraussagen wurden in einer eingebetteten PostgreSQL-Engine (PGlite) ausgeführt: Datenhaltung, Mandantentrennung, konkurrierende Versionsprüfung und atomarer Audit-Eintrag sind geprüft. Der Auth-HTTP-Adapter und die Fachberechtigungen wurden separat geprüft; das ist noch keine Live-Abnahme von Better Auth gegen eine bereitgestellte PostgreSQL-Datenbank.
 

@@ -566,7 +566,8 @@ function startApp() {
   const initialView = views[state.currentView] ? state.currentView : "dashboard";
   state.viewHistory = [initialView];
   state.historyIndex = 0;
-  renderView(initialView);
+  if (window.DWPWorkspace?.start) window.DWPWorkspace.start();
+  else renderView(initialView);
   requestAnimationFrame(() => document.querySelector(".page-header h1")?.focus?.());
 }
 
@@ -929,16 +930,12 @@ function closeSidebar() {
   sidebarBackdrop.classList.remove("is-open");
 }
 
-document.querySelector("#login-form").addEventListener("submit", async (event) => {
+document.querySelector("#login-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const username = document.querySelector("#username").value.trim().toLocaleLowerCase("de");
-  const password = document.querySelector("#password").value;
-  const error = document.querySelector("#login-error");
-  if (!username || !password) {
-    error.textContent = "Bitte Benutzername und Passwort eingeben.";
-    return;
-  }
-  error.textContent = "Bitte die serverseitige Anmeldung verwenden. Der Anmeldedienst ist noch nicht verfügbar.";
+  // The public landing page must never pretend to authenticate credentials.
+  // The server owns password validation and session cookie handling.
+  document.querySelector("#password").value = "";
+  window.location.assign("/workspace");
 });
 
 document.querySelector("#toggle-password").addEventListener("click", (event) => {

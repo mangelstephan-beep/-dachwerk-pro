@@ -5,7 +5,7 @@ const {JSDOM}=require(process.env.DWP_TEST_JSDOM || 'jsdom');
 const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'});
 const w=dom.window;
 w.scrollTo=()=>{};let moduleListScrolls=0;w.HTMLElement.prototype.scrollIntoView=function(){if(this.id==='dwp-module-search')moduleListScrolls++;};w.confirm=()=>true;
-for(const file of ['app.js','module-fixes.js','project-core.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
+for(const file of ['app.js','module-fixes.js','project-core.js','material-price-import.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
 const open=id=>w.DWPWorkspace.open(id);
 const query=s=>w.document.querySelector('#main-content').querySelector(s);
 function save(id,values,approved=false) {
@@ -23,11 +23,13 @@ const lv=save('lv',{number:'010',text:'Abdichtung',qty:'100',unit:'m²',material
 open('offers');query('[data-dwp="issue"]').click();
 assert.equal(w.DWPWorkspace.store.list('offers').length,1);
 const offer=w.DWPWorkspace.store.list('offers')[0];
+assert.equal(lv.data.useNuMarkup,true);assert.equal(lv.data.subcontractMarkup,15);
+assert.equal(offer.data.positions[0].ep,32.55); // 27.50 non-NU × 1.10 + 2.00 NU × 1.15
 save('orders',{title:'Auftrag',offerId:offer.id,date:'2026-10-12'},true);
 save('measurements',{title:'Dachfläche',positionId:lv.id,length:'11',width:'10',factor:'1',deduction:'0',date:'2026-10-12'},true);
 open('invoices');query('[data-dwp="issue"]').click();
-assert.equal(w.DWPWorkspace.store.list('invoices')[0].data.net,3569.5);
-assert(query('.data-table').textContent.includes('4.247,71'));
+assert.equal(w.DWPWorkspace.store.list('invoices')[0].data.net,3580.5);
+assert(query('.data-table').textContent.includes('4.260,80'));
 for(const m of w.DWPProject.modules) {
   open(m.id);assert.equal(query('h1').textContent,m.name);
   if(m.fields.length && m.id!=='imports')for(const f of m.fields)assert(query(`[name="${f.key}"]`),`${m.id}: ${f.key}`);
@@ -66,6 +68,7 @@ assert.equal(reload.list('lv',project.id).length,2);
 open('pricelists');
 query('#dwp-price-csv').value='name;unit;price;article;manufacturer\nBahn;m²;9,20;ART1;Testhersteller';
 query('#dwp-price-import [name="source"]').value='Testpreise.csv';
+query('[data-dwp="price-csv"]').click();
 query('[data-dwp="price-preview"]').click();
 assert(query('#dwp-price-preview').textContent.includes('9,20'));
 query('#dwp-price-import').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));

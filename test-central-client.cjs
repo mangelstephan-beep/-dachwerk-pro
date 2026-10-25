@@ -25,7 +25,7 @@ const q=s=>w.document.querySelector('#main-content').querySelector(s);
  await tick();assert(w.DWPRemote.active);assert.equal(w.document.querySelector('#profile-button strong').textContent,'Server Admin');
  w.DWPWorkspace.open('customers');q('[name="name"]').value='Serverkunde';
  q('#dwp-record').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
- await tick();assert.equal(w.DWPWorkspace.store.list('customers').length,0,'No optimistic success before server confirmation');assert(w.document.querySelector('#app-shell').inert);
+ await tick();assert.equal(w.DWPWorkspace.store.list('customers').length,0,'No optimistic success before server confirmation');assert(!w.document.querySelector('#app-shell').inert,'Pending writes keep navigation accessible');assert.equal(w.document.querySelector('#app-shell').getAttribute('aria-busy'),'true');
  releaseWrite();await tick();assert.equal(w.DWPWorkspace.store.list('customers').length,1);assert(!w.document.querySelector('#app-shell').inert);
  assert.equal(w.localStorage.getItem('dwp-project-core-v1'),null,'Central records are kept in memory, not silently copied to localStorage');
  failNext=true;w.DWPWorkspace.open('customers');q('[name="name"]').value='Nicht gespeichert';q('#dwp-record').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));

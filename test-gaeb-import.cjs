@@ -13,6 +13,13 @@ assert.equal(rows[0].text,'Abdichtung & Anschluss\nErste Lage\nzweite Lage\nÜbe
 // Namespace prefixes cannot change the interpretation.
 const prefixed=xml.replace(/<(\/?)([A-Za-z][A-Za-z0-9]*)(?=[\s>])/g,'<$1g:$2').replace('xmlns=','xmlns:g=');
 assert.deepEqual(parse(prefixed,Parser),rows);
+// A foreign Item must remain a blocking finding, even when its children use the GAEB namespace.
+const foreignItem=xml.replace('<Item ID=', '<foreign:Item xmlns:foreign="urn:foreign" ID=').replace('</Item>','</foreign:Item>');
+assert.throws(()=>parse(foreignItem,Parser),/nicht unterstützt/);
+const foreignReport=report(foreignItem,Parser);
+assert.equal(foreignReport.rows.length,0);
+assert.equal(foreignReport.findings.length,1);
+assert.match(foreignReport.findings[0].text,/Abdichtung/);
 // Award metadata (including foreign namespace children) must produce blocking review findings.
 for(const extra of ['<AwardInfo><Text>Vergabehinweis</Text></AwardInfo>','<custom:Rules xmlns:custom="urn:external">Vertragsregel</custom:Rules>']){
  const extended=xml.replace('<DP>83</DP>','<DP>83</DP>'+extra);
