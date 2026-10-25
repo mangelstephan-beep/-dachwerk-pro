@@ -208,9 +208,11 @@
       if(!this.get(id) || this.get(id).module!=='projects') throw Error('Projekt nicht gefunden.');
       return this.transaction('Projekt ausgewählt','projects',id,d=>{d.selectedProject=id;});
     }
-    deleteProject(id) {
+    deleteProject(id, expectedName, confirmations) {
+      if(!Array.isArray(confirmations) || confirmations.length!==3 || confirmations.some(v=>v!=='ja'))throw Error('Löschen erfordert dreimal Ja.');
       const project=this.get(id);
       if(!project || project.module!=='projects')throw Error('Projekt nicht gefunden.');
+      if(project.data.name!==expectedName)throw Error('Projektbezeichnung stimmt nicht mehr. Bitte Liste neu laden.');
       return this.transaction('Projekt mit allen Fachvorgängen gelöscht','projects',id,d=>{
         const removed=d.records.filter(r=>r.id===id || r.projectId===id);
         d.records=d.records.filter(r=>r.id!==id && r.projectId!==id);

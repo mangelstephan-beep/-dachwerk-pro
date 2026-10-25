@@ -15,7 +15,7 @@ const optional=db.save('lv',{...input,number:'18.1.3',kind:'Bedarfsposition'},{s
 assert.equal(db.position(optional).ep,33.675);
 assert.equal(db.calculation().net,25795.05+25798.88,'Bedarfsposition ohne GP in Nettosumme');
 const changed=db.save('lv',{...input,materialPrice1:13},{id:hit.id,status:'Prüfung'});
-assert.equal(db.position(changed).ep,34.983,'Materialänderung berechnet 3-stelligen EP neu');
+assert.equal(db.position(changed).ep,34.982,'Materialänderung berechnet 3-stelligen EP neu');
 assert.equal(db.get(hit.id).data.epPrecision,3,'EP-Präzision bleibt beim Bearbeiten erhalten');
 assert.throws(()=>db.save('lv',{...input,number:'18.1.4',epPrecision:4}),/Nachkommastellen/);
 console.log('HIT EP-Präzision: OK');

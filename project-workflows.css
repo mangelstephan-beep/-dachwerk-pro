@@ -43,3 +43,13 @@
 .dwp-delete-choices{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
 .dwp-delete-choices button{flex:1 1 140px;min-height:48px}
 .dwp-delete-choices .button-danger{color:white;background:#ad2323;border-color:#ad2323}
+
+.dwp-current-projects{margin-top:12px;width:100%}
+.dwp-current-projects summary{cursor:pointer;font-weight:600;padding:8px}
+.dwp-project-gesture-list{display:grid;gap:8px;margin:8px 0}
+.dwp-project-gesture{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border:1px solid #c6d4cb;border-radius:9px;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.dwp-project-gesture.is-delete-revealed{border-color:#b42318}
+.dwp-project-gesture-info{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
+.dwp-project-gesture-info small{font-size:12px;color:#52635a}
+.dwp-project-gesture-actions{display:flex;gap:6px;flex-wrap:wrap}
+.dwp-project-gesture-actions [hidden]{display:none!important}
