@@ -54,7 +54,7 @@ async function run(){
   await assert.rejects(execute(repo,admin,{method:'deleteProject',args:[project,'Zu löschen',['ja','ja','ja']],revision:before.state.revision-1,projectId:project}),/Bestand wurde geändert/);
   const result=await send(admin,'deleteProject',[project,'Zu löschen',['ja','ja','ja']],project);
   assert.equal(result.state.records.some(r=>r.projectId===project||r.id===project),false);
-  assert.equal(repo.ledger.at(-1).deletedProjectId,undefined,'Only persisted audit entries are returned in memory ledger');
+  assert.equal(repo.ledger.at(-1).deletedProjectId,project,'Der gelöschte Projektbezug bleibt nur im Änderungsprotokoll');
   assert.equal(repo.ledger.at(-1).method,'deleteProject');
 
   // Real SQL transaction: data records, file storage, chunks and views must all vanish together.
