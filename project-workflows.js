@@ -79,19 +79,25 @@
   }
   async function confirmProjectDeletion(project) {
     const related=db.data.records.filter(r=>r.projectId===project.id).length;
-    const prompt=`Projekt „${project.data.name}“ endgültig löschen? ${related} zugeordnete Vorgänge und Dateien verschwinden aus allen DachWerkPro-Modulen. Dieser Schritt lässt sich nicht rückgängig machen.`;
-    const dialog=document.createElement('dialog');
-    if(typeof dialog.showModal!=='function')return window.confirm(prompt);
-    return new Promise(resolve=>{
-      dialog.className='dwp-delete-confirm';
-      dialog.innerHTML=`<h2>Projekt endgültig löschen?</h2><p><strong>${esc(project.data.name)}</strong></p><p>${related} zugeordnete Vorgänge einschließlich LV, Kalkulation, Belege und Dateien werden entfernt. Das Löschereignis bleibt im Protokoll. Eine Wiederherstellung ist nicht möglich.</p><div class="dwp-actions"><button type="button" class="button" data-choice="no">Nein, behalten</button><button type="button" class="button dwp-confirm-danger" data-choice="yes">Ja, löschen</button></div>`;
-      document.body.append(dialog);
-      const done=answer=>{dialog.close();dialog.remove();resolve(answer);};
-      dialog.querySelector('[data-choice="no"]').addEventListener('click',()=>done(false));
-      dialog.querySelector('[data-choice="yes"]').addEventListener('click',()=>done(true));
-      dialog.addEventListener('cancel',e=>{e.preventDefault();done(false);});
-      dialog.showModal();
-    });
+    const ask=step=>{
+      const prompt=`Bestätigung ${step} von 3: Projekt „${project.data.name}“ mit ${related} Vorgängen und allen zugeordneten Dateien wirklich löschen? Nein bricht ab.`;
+      const dialog=document.createElement('dialog');
+      if(typeof dialog.showModal!=='function')return Promise.resolve(window.confirm(prompt));
+      return new Promise(resolve=>{
+        dialog.className='dwp-delete-confirm';
+        const headings=['Projekt löschen?','Projekt und sämtliche Module löschen?','Letzte Bestätigung – endgültig löschen?'];
+        dialog.innerHTML=`<h2>${headings[step-1]}</h2><p><strong>${esc(project.data.name)}</strong></p><p>Bestätigung <strong>${step} von 3</strong>. ${related} zugeordnete Vorgänge einschließlich LV, Kalkulation, Belege und Dateien werden entfernt. Das Löschereignis bleibt im Protokoll. Eine Wiederherstellung ist nicht möglich.</p><div class="dwp-actions"><button type="button" class="button" data-choice="no">Nein, behalten</button><button type="button" class="button dwp-confirm-danger" data-choice="yes">Ja, ${step===3?'endgültig löschen':'weiter'}</button></div>`;
+        document.body.append(dialog);
+        const done=answer=>{dialog.close();dialog.remove();resolve(answer);};
+        dialog.querySelector('[data-choice="no"]').addEventListener('click',()=>done(false));
+        dialog.querySelector('[data-choice="yes"]').addEventListener('click',()=>done(true));
+        dialog.addEventListener('cancel',e=>{e.preventDefault();done(false);});
+        dialog.showModal();
+      });
+    };
+    // Any Nein or cancel stops before the server receives a deletion command.
+    for(let step=1;step<=3;step++)if(!await ask(step))return false;
+    return true;
   }
   function projectBar() {
     const projects=db.list('projects'),central=window.DWPRemote?.active;
@@ -651,9 +657,9 @@
         if(window.DWPRemote?.active && state.currentRole!=='admin')throw Error('Projekte dürfen nur Administratoren löschen.');
         const project=db.get(id);
         if(!project || project.module!=='projects')throw Error('Projekt nicht gefunden. Bitte Liste neu laden.');
-        if(state.unsavedChanges&&!window.confirm('Ungespeicherte Eingaben verwerfen und das Projekt löschen?'))return;
+        if(state.unsavedChanges){showError(Error('Ungespeicherte Eingaben erst speichern oder verwerfen, bevor ein Projekt gelöscht werden kann.'));return;}
         if(!await confirmProjectDeletion(project))return;
-        const result=mutate('deleteProject',[project.id,project.data.name],()=>{state.unsavedChanges=false;rememberProject();notice('Projekt aus allen Modulen gelöscht.');openModule('projects');});
+        const result=mutate('deleteProject',[project.id,project.data.name,['ja','ja','ja']],()=>{state.unsavedChanges=false;rememberProject();notice('Projekt aus allen Modulen gelöscht.');openModule('projects');});
         if(result && typeof result.then==='function')await result;
         return;
       }
