@@ -53,3 +53,18 @@
 .dwp-project-gesture-info small{font-size:12px;color:#52635a}
 .dwp-project-gesture-actions{display:flex;gap:6px;flex-wrap:wrap}
 .dwp-project-gesture-actions [hidden]{display:none!important}
+
+/* Modul 37: iPhone-taugliche Filter, mit horizontal scrollbarem Dokumentenregister. */
+.dwp-register-toolbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin:14px 0}
+.dwp-register-toolbar label{display:flex;flex-direction:column;gap:6px}
+.dwp-register-toolbar input,.dwp-register-toolbar select{width:100%;min-width:0}
+.dwp-register-table{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.dwp-register-table table{min-width:1080px}
+.dwp-register-table td{vertical-align:top}
+.dwp-register-table td small{display:block;color:var(--text-muted,#566170);padding-top:5px}
+.dwp-register-table td .button{margin:2px;white-space:normal;overflow-wrap:anywhere}
+.dwp-register-table th button{font:inherit;color:inherit;cursor:pointer;background:transparent;border:none;text-decoration:underline}
+.dwp-register-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.dwp-register-panel{margin-bottom:14px}
+#dwp-reg-save-status{grid-column:1/-1}
+@media(max-width:640px){.dwp-register-toolbar{grid-template-columns:1fr 1fr}.dwp-register-toolbar label:first-child{grid-column:1/-1}.dwp-register-panel .quick-form{grid-template-columns:1fr}}
