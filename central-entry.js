@@ -45,8 +45,7 @@
       await call({action:'finish',fileId:upload.fileId,revision});
       await load();
     },
-    async originalFile(recordId,fileId) {
-      const projectId=window.DWPWorkspace.store.data.selectedProject;
+    async originalFile(recordId,fileId,projectId=window.DWPWorkspace.store.data.selectedProject) {
       const call=part=>fetch('/api/files',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'download',recordId,projectId,fileId,part})}).then(responseJson);
       const first=await call(0),parts=[];
       const decode=data=>Uint8Array.from(atob(data.replace(/\s/g,'')),c=>c.charCodeAt(0));
