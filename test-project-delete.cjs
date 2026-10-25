@@ -44,7 +44,7 @@ async function checkCoreAndUI() {
   const selector=w.document.querySelector('#dwp-project');
   selector.dispatchEvent(new w.Event('contextmenu',{bubbles:true,cancelable:true}));
   let dialog=w.document.querySelector('.dwp-project-delete-dialog');
-  assert(dialog && dialog.textContent.includes('Ja, endgültig löschen'));
+  assert(dialog && dialog.textContent.includes('1 von 3'));
   dialog.querySelector('[data-choice="no"]').click();
   assert(local.get(p.id),'No preserves project');
   assert(local.get(lv.id),'No preserves child record');
