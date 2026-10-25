@@ -1,0 +1,16 @@
+/* Projektliste: iPhone-Langdruck und Links-Wischgeste mit bestätigtem Löschen */
+.dwp-current-projects { margin-top: 0.75rem; }
+.dwp-current-projects summary { cursor:pointer; padding:0.55rem; font-weight:600; }
+.dwp-project-gesture-list { display:grid; gap:0.45rem; margin-top:0.65rem; }
+.dwp-project-gesture { display:flex; gap:0.6rem; align-items:center; justify-content:space-between; border:1px solid #cdd6d1; border-radius:0.65rem; padding:0.7rem; background:var(--surface,#fff); touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+.dwp-project-gesture:focus-visible { outline:2px solid #14532d; outline-offset:2px; }
+.dwp-project-gesture-info { display:flex; flex-direction:column; flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+.dwp-project-gesture-info small { font-size:0.82rem; color:var(--muted,#53645a); margin-top:0.25rem; }
+.dwp-project-gesture-actions { display:flex; flex-wrap:wrap; align-items:center; gap:0.25rem; justify-content:flex-end; }
+.dwp-project-delete, .dwp-confirm-danger { color:white !important; background:#b42318 !important; border-color:#b42318 !important; }
+.dwp-project-delete[hidden] { display:none !important; }
+.dwp-project-gesture.is-delete-revealed { border-color:#b42318; }
+.dwp-delete-confirm { width:min(480px,calc(100vw - 2rem)); max-height:calc(100vh - 2rem); border:1px solid #d2d7d3; border-radius:0.8rem; padding:1.5rem; color:#16221b; background:white; }
+.dwp-delete-confirm::backdrop { background:rgba(0,0,0,0.55); }
+.dwp-delete-confirm .dwp-actions { display:flex; flex-wrap:wrap; gap:0.65rem; margin-top:1.25rem; justify-content:flex-end; }
+@media (max-width: 520px) { .dwp-project-gesture { align-items:flex-start; } .dwp-project-gesture-actions { max-width:9.5rem; } }
