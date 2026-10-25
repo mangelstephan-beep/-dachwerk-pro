@@ -27,6 +27,8 @@
         </a>
         <nav class="public-nav" aria-label="Seitennavigation">
           <a href="#einsatz">Einsatz</a>
+          <a href="#promo">Promovideo</a>
+          <a href="https://www.instagram.com/dachwerkpro/" target="_blank" rel="noopener noreferrer" aria-label="DachWerk Pro auf Instagram besuchen">Instagram</a>
           <a href="#vorteile">Vorteile</a>
           <a href="#kontakt">Kontakt</a>
           <button class="button button-secondary" type="button" data-open-login>Anmelden</button>
@@ -53,6 +55,26 @@
               <li><span>03</span><div><strong>Sauber dokumentieren</strong><small>Fotos, Mängel, Schriftverkehr und Abrechnung</small></div></li>
             </ol>
           </div>
+        </section>
+
+
+        <section class="public-section promo-section" id="promo" aria-labelledby="promo-title">
+          <div class="promo-info">
+            <span class="eyebrow">DachWerk Pro in 16 Sekunden</span>
+            <h2 id="promo-title">Sieh dir DachWerk Pro an.</h2>
+            <p>Vom Leistungsverzeichnis über die Kalkulation bis zur Projektübersicht – ein kompakter Einblick in die Branchenlösung für das Dachhandwerk.</p>
+            <div class="promo-actions">
+              <button class="button button-primary button-large" type="button" data-promo-open>▶ Promovideo ansehen</button>
+              <a class="button button-secondary button-large" href="https://www.instagram.com/dachwerkpro/" target="_blank" rel="noopener noreferrer">Instagram · @dachwerkpro</a>
+            </div>
+          </div>
+          <button class="promo-thumbnail" type="button" data-promo-open aria-label="Promovideo von DachWerk Pro öffnen">
+            <span class="promo-thumbnail-label">DACHWERKPRO / DIGITALER WORKFLOW</span>
+            <span class="promo-thumbnail-title">DachWerk <strong>PRO</strong></span>
+            <span class="promo-thumbnail-subtitle">Die digitale Lösung für das Dachhandwerk</span>
+            <span class="promo-play-mark" aria-hidden="true">▶</span>
+            <span class="promo-thumbnail-foot">Jetzt ansehen · Hochkant 9:16</span>
+          </button>
         </section>
 
         <section class="public-section" id="einsatz">
@@ -106,9 +128,28 @@
       <footer class="public-footer">
         <div><strong>DachWerk Pro by Stephan Mangel</strong><span>Das Tool vom Dachhandwerker für Dachhandwerker.</span></div>
         <address>Upsalastraße 48 · 28719 Bremen</address>
+        <a class="footer-instagram" href="https://www.instagram.com/dachwerkpro/" target="_blank" rel="noopener noreferrer">Instagram: @dachwerkpro</a>
         <span>© 2026 DachWerk Pro</span>
       </footer>
     </section>
+
+
+    <div class="promo-modal is-hidden" id="promo-modal">
+      <section class="promo-dialog" role="dialog" aria-modal="true" aria-labelledby="promo-modal-title">
+        <div class="promo-dialog-header">
+          <h2 id="promo-modal-title">DachWerk Pro · Promovideo</h2>
+          <button type="button" class="promo-close" data-promo-close aria-label="Promovideo schließen">×</button>
+        </div>
+        <video id="promo-video" class="promo-video is-hidden" controls playsinline preload="none" poster="/assets/dachwerk-pro-logo.svg" aria-label="DachWerk Pro Promovideo"></video>
+        <div class="promo-fallback" id="promo-fallback">
+          <div class="promo-scene promo-scene-one"><span>DACHWERKPRO · DIGITALER WORKFLOW</span><strong>DachWerk <em>PRO</em></strong><p>Die digitale Lösung für das Dachhandwerk</p></div>
+          <div class="promo-scene promo-scene-two"><span>ARBEITEN MIT DACHWERK PRO</span><strong>LV &amp; <em>KALKULATION</em></strong><p>Positionen. Mengen. Preise.</p></div>
+          <div class="promo-scene promo-scene-three"><span>ALLE PROJEKTE IM BLICK</span><strong>DachWerk <em>PRO</em></strong><p>Vorversion · Januar 2027</p></div>
+        </div>
+        <p class="promo-fallback-note" id="promo-fallback-note">Animierte Kurzvorschau. Weitere Einblicke findest du auf unserem Instagram-Kanal.</p>
+        <a class="promo-instagram-link" href="https://www.instagram.com/dachwerkpro/" target="_blank" rel="noopener noreferrer">DachWerk Pro auf Instagram</a>
+      </section>
+    </div>
 
     <section class="login-screen is-hidden" id="login-screen" aria-label="Anmeldung">
       <div class="login-visual" aria-hidden="true">
@@ -279,6 +320,7 @@
     </div>
 
     <div class="toast-region" id="toast-region" aria-live="polite"></div>
+    <script src="/promo-video.js"></script>
     <script src="/app.js"></script>
     <script src="/password-reset.js"></script>
     <script src="/module-fixes.js"></script>
