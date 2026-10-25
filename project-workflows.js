@@ -824,6 +824,7 @@
     cancelProjectGesture();
   });
   main.addEventListener('pointercancel',cancelProjectGesture);
+  main.addEventListener('contextmenu',event=>{if(event.target.closest('[data-project-gesture]')&&!event.target.closest('button'))event.preventDefault();});
   main.addEventListener('input',event=>{
     if(event.target.id==='dwp-module-search'){search=event.target.value;filterModules();return;}
     if(event.target.closest('.dwp-workspace form'))state.unsavedChanges=true;
