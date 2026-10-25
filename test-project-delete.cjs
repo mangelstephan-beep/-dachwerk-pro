@@ -94,6 +94,7 @@ async function checkPostgres() {
   const pg=new PGlite();
   try{
     await pg.exec(fs.readFileSync('migrations/001-project-store.sql','utf8'));
+    await pg.exec(fs.readFileSync('migrations/002-access-security.sql','utf8'));
     await pg.exec(fs.readFileSync('migrations/003-file-store.sql','utf8'));
     const repo=repository({query:async(sql,params)=>(await pg.query(sql,params)).rows});
     const admin={id:'admin',name:'Admin',role:'admin',tenantId:'t1'};
@@ -106,9 +107,11 @@ async function checkPostgres() {
     const doc=(await call('save',['documents',{title:'PDF',category:'Plan'}],project)).recordId;
     await pg.query("INSERT INTO dwp_files(id,tenant_id,actor,record_id,project_id,name,mime,size,sha256,ready) VALUES('file-1','t1','admin',$1,$2,'test.pdf','application/pdf',1,$3,true)",[doc,project,'a'.repeat(64)]);
     await pg.query("INSERT INTO dwp_file_chunks(file_id,part,data) VALUES('file-1',0,decode('AA==','base64'))");
+    await pg.query("INSERT INTO dwp_file_views(tenant_id,actor,file_id) VALUES('t1','admin','file-1')");
     await call('deleteProject',[project,'Dach',['ja','ja','ja']],project);
     assert.equal((await pg.query("SELECT count(*)::int AS n FROM dwp_files WHERE tenant_id='t1'")).rows[0].n,0);
     assert.equal((await pg.query("SELECT count(*)::int AS n FROM dwp_file_chunks")).rows[0].n,0);
+    assert.equal((await pg.query("SELECT count(*)::int AS n FROM dwp_file_views WHERE file_id='file-1'")).rows[0].n,0);
     assert.equal((await repo.read('t1')).state.records.some(r=>r.id===project||r.projectId===project),false);
     assert.equal((await pg.query("SELECT method FROM dwp_project_audit ORDER BY revision DESC LIMIT 1")).rows[0].method,'deleteProject');
   }finally{await pg.close();}
