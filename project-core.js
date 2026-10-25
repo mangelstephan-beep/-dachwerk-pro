@@ -40,7 +40,7 @@
     ['payments','Zahlung und Kontierung','invoices',[title,f('invoiceId','Ausgangsrechnung','invoice',true),f('direction','Buchungsart','select',false,['Zahlungseingang','Rückzahlung']),date,f('amount','Zahlungsbetrag brutto','number',true),f('account','Konto / Buchungshinweis'),note]],
     ['closing','Monatsabschluss und Export','invoices',[]],
     ['controlling','Nachkalkulation und Controlling','calculation',[]],
-    ['documents','DMS, Scanner, OCR und Barcode','documents',[title,f('category','Kategorie','select',true,['Plan','Foto','Nachweis','Vertrag','Rechnung','Sonstige']),f('barcode','Barcode / Referenz'),f('description','Beschreibung','textarea'),note]],
+    ['documents','DMS, Scanner, OCR und Barcode','documents',[title,f('category','Kategorie','select',true,['Bestellung','Angebot','Brief','Rechnung','Gutachten','Plan','Foto','Nachweis','Vertrag','Sonstige']),f('barcode','Barcode / Referenz'),f('description','Beschreibung','textarea'),f('number','Dokumentnummer'),f('date','Dokumentdatum','date'),f('commission','Kommission'),f('recipient','Empfänger'),f('editor','Bearbeiter'),f('versionOf','Vorgängerversion','record'),note]],
     ['knowledge','Technik und Wissensregister','rules',[title,f('source','Quelle / Fundstelle','text',true),f('edition','Fassung / Stand','text',true),f('scope','Geltungsbereich'),f('conclusion','Projektbezogener Hinweis','textarea'),note]],
     ['tenders','Ausschreibungsmonitor','projects',[title,f('client','Auftraggeber'),f('location','Ort'),f('deadline','Angebotsfrist','date',true),f('url','Fundstelle','url'),f('decision','Teilnahmeentscheidung','select',false,['Offen','Teilnehmen','Nicht teilnehmen']),note]],
     ['expert','Sachverständigenwesen','expert',[title,f('reportNumber','Gutachtennummer','text',true),date,f('assignment','Prüfauftrag','textarea',true),f('finding','Feststellungen','textarea'),f('assessment','Bewertung / Vorbehalt','textarea'),note]],
@@ -265,6 +265,7 @@
         data.groupPath=parts.join(' / ');
       }
       if(module==='lv' && this.list('lv').some(r=>r.id!==options.id && r.data.number===data.number)) throw Error('Positionsnummer bereits vorhanden.');
+      if(module==='documents' && data.number && this.list('documents').some(r=>r.id!==options.id && r.data.number===data.number))throw Error('Dokumentnummer im Projekt bereits vergeben.');
       if(module==='measurements' && data.deduction>data.length*data.width*data.factor) throw Error('Der Abzug überschreitet die gemessene Menge.');
       if(module==='operating' && data.productiveHours<=0) throw Error('Produktive Stunden müssen größer als null sein.');
       if(module==='diary' && data.progress>100) throw Error('Bautenstand höchstens 100 %.');
