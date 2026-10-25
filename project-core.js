@@ -60,6 +60,7 @@
   definitions.projects.fields.push(f('plannedOverhead','Zusätzliche geplante Gemeinkosten netto','number'),f('actualOverhead','Zusätzlich erfasste Ist-Gemeinkosten netto','number'),f('overheadBasis','Gemeinkosten: Abgrenzung und Nachweis','textarea'));
   definitions.purchase.fields.push(f('overDeliveryPercent','Zulässige Mehrlieferung %','number'),f('underDeliveryPercent','Zulässige Minderlieferung %','number'),f('toleranceReason','Vereinbarung zur Mengentoleranz','textarea'));
   definitions.contract.fields.push(f('decision','Prüfentscheidung / Begründung','textarea'));
+  definitions.lv.fields.push(f('epPrecision','EP-Nachkommastellen (0 / 2 = Standard, 3 = LV-Original)','number'));
   definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('useNuMarkup','Eigenen NU-Zuschlag statt globaler AGK/W&G verwenden','checkbox'),f('subcontractMarkup','NU-Zuschlag %','number'));
   // Optional detailed cost structure modelled on the March 2025 blank calculation workbook.
   // Legacy position prices remain untouched until the user explicitly activates this mode.
@@ -86,6 +87,7 @@
     if(module==='offers' && data.validUntil && !validDate(data.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
     if(module==='purchase' && ((data.overDeliveryPercent || 0)>100 || (data.underDeliveryPercent || 0)>=100))throw Error('Mehrlieferung höchstens 100 %, Minderlieferung kleiner als 100 %.');
     if(module==='purchase' && (data.overDeliveryPercent || data.underDeliveryPercent) && !data.toleranceReason?.trim())throw Error('Mengentoleranz benötigt eine dokumentierte Vereinbarung.');
+    if(module==='lv' && data.epPrecision!==undefined && ![0,2,3].includes(data.epPrecision))throw Error('EP-Nachkommastellen: nur Standard (0 / 2) oder 3 zulässig.');
     if(module==='lv' && data.useEfbRates && !(data.efbWage>0))throw Error('Kalkulationslohn für Kostenartenzuschläge muss größer als null sein.');
     if(module==='lv' && data.useDetailedMaterials) {
       if(data.materialId || data.material)throw Error('Vier Materialansätze nicht mit pauschalem Material oder Materialartikel kombinieren. Die Ansätze ersetzen diese Eingabe.');
@@ -376,6 +378,9 @@
     }
     position(record) {
       const p=record.data, s=this.data.settings;
+      const epPrecision=p.epPrecision===3?3:2;
+      const epRound=n=>epPrecision===3?Math.round((n+Math.sign(n)*Number.EPSILON)*1000)/1000:round(n);
+      const componentRound=n=>epPrecision===3?n:round(n);
       const detailed=Boolean(p.useDetailedMaterials);
       const materialBreakdown=detailed?[1,2,3,4].map(i=>{
         const price=p['materialPrice'+i] || 0,cut=p['materialCut'+i] || 1,waste=p['materialWaste'+i] || 0,minutes=p['materialMinutes'+i] || 0;
@@ -393,13 +398,13 @@
       const direct=material+labor+p.equipment+p.subcontract+other;
       const nuMarkupPercent=p.useEfbRates?(p.subcontractMarkup || 0):p.useNuMarkup?(p.subcontractMarkup ?? 15):null;
       const nuSalePrice=round(p.subcontract*(nuMarkupPercent===null?(1+s.agk/100)*(1+s.profit/100):(1+nuMarkupPercent/100)));
-      const priceComponents=p.useEfbRates?Object.fromEntries([['labor',labor,'laborMarkup'],['material',material,'materialMarkup'],['equipment',p.equipment,'equipmentMarkup'],['subcontract',p.subcontract,'subcontractMarkup']].map(([key,value,markup])=>[key,round(value*(1+(p[markup] || 0)/100))])):null;
-      if(priceComponents && other)priceComponents.other=round(other*(1+(p.otherMarkup || 0)/100));
-      const calculatedEp=priceComponents?round(Object.values(priceComponents).reduce((sum,value)=>sum+value,0)):p.useNuMarkup?round((direct-p.subcontract)*(1+s.agk/100)*(1+s.profit/100)+nuSalePrice):round(direct*(1+s.agk/100)*(1+s.profit/100));
-      const undiscountedEp=p.useTargetPrice?round(p.targetEp || 0):calculatedEp;
+      const priceComponents=p.useEfbRates?Object.fromEntries([['labor',labor,'laborMarkup'],['material',material,'materialMarkup'],['equipment',p.equipment,'equipmentMarkup'],['subcontract',p.subcontract,'subcontractMarkup']].map(([key,value,markup])=>[key,componentRound(value*(1+(p[markup] || 0)/100))])):null;
+      if(priceComponents && other)priceComponents.other=componentRound(other*(1+(p.otherMarkup || 0)/100));
+      const calculatedEp=priceComponents?epRound(Object.values(priceComponents).reduce((sum,value)=>sum+value,0)):p.useNuMarkup?epRound((direct-p.subcontract)*(1+s.agk/100)*(1+s.profit/100)+nuSalePrice):epRound(direct*(1+s.agk/100)*(1+s.profit/100));
+      const undiscountedEp=p.useTargetPrice?epRound(p.targetEp || 0):calculatedEp;
       const discountPercent=num(p.discountPercent || 0);
       if(discountPercent<0 || discountPercent>100)throw Error('Positionsrabatt zwischen 0 und 100 %.');
-      const ep=round(undiscountedEp*(1-discountPercent/100));
+      const ep=epRound(undiscountedEp*(1-discountPercent/100));
       return {...p,id:record.id,material,materialBreakdown,totalMinutes,labor,other,direct,priceComponents,nuMarkupPercent,nuSalePrice,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
     }
     materialChecks(record,asOf=new Date().toISOString().slice(0,10)) {
