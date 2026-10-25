@@ -17,7 +17,7 @@
   try {db=new core.Store(localStorage);} catch(error) {
     main.innerHTML=panel('Bestand kann nicht geöffnet werden',`<p>${esc(error.message)}</p><p>Der vorhandene Speicher wird nicht überschrieben.</p>`);return;
   }
-  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings'].includes(id);
+  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings','register'].includes(id);
   const moduleUrl=id=>{const url=new URL(window.location.href);url.searchParams.set('start','app');url.searchParams.set('module',validModule(id)?id:'dashboard');url.hash='';return url;};
   window.DWPWorkspace={get store(){return db;},open:openModule,start(){
     const requested=new URLSearchParams(window.location.search).get('module');
@@ -169,7 +169,7 @@
   }
   function dashboard() {
     const p=db.project(), stats=p?db.controlling():null;
-    shell('Alle Arbeitsmodule',`${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
+    shell('Alle Arbeitsmodule',`${panel('Modul 37 · Schriftverkehr-Sammelpool',btn('Dokumentenregister öffnen','open','register',true))}${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
     filterModules();
   }
   function searchRecords(query) {
@@ -573,11 +573,18 @@
   }
   function renderModule(id) {
     current=id;editing=null;search='';importPreview=null;excelSource=null;
-    const section=core.definitions[id]?.view || (['help','settings'].includes(id)?id:'dashboard');
+    const section=id==='register'?'documents':core.definitions[id]?.view || (['help','settings'].includes(id)?id:'dashboard');
     state.currentView=section;localStorage.setItem('dwp-current-view',section);
     document.querySelectorAll('.nav-item[data-view]').forEach(item=>item.classList.toggle('is-active',item.dataset.view===section));
     if(window.DWPRemote?.active && core.definitions[id])window.DWPRemote.trackModule(id,db.data.selectedProject).catch(e=>showError(Error('Nutzungsprotokoll konnte nicht gespeichert werden: '+e.message)));
     if(id==='dashboard')return dashboard();
+    if(id==='register') {
+      shell('Modul 37 · Schriftverkehr-Sammelpool', '<div id="dwp-register"></div>');
+      if(window.DWPRemote?.active)window.DWPRemote.trackModule('documents',db.data.selectedProject).catch(showError);
+      if(!window.DWPRegister?.mount)return showError(Error('Dokumentenregister konnte nicht geladen werden.'));
+      window.DWPRegister.mount({store:db,root:main.querySelector('#dwp-register'),notify:notice,showError,onSaved:()=>openModule('register')});
+      return;
+    }
     if(id==='workflow')return shell('Gemeinsamer Projektworkflow',workflowPanel());
     if(id==='access')return shell('Zugriff und Modulnutzung',accessPanel());
     if(id==='audit')return shell('Projektlogbuch',panel('Lokales Änderungsjournal',`<p>Im normalen Arbeitsbereich werden keine Einträge gelöscht. Der lokale Testbestand ist technisch veränderbar und daher noch kein revisionssicherer Audit-Trail.</p>${table(['Zeit','Aktion','Bereich','Vorgang'],db.data.audit.filter(r=>!db.project() || r.projectId===db.data.selectedProject || !r.projectId).slice().reverse().map(r=>[esc(new Date(r.at).toLocaleString('de-DE')),esc(r.action),esc(core.definitions[r.module]?.name || r.module),esc(r.recordId || '')]))}`));
