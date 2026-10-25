@@ -29,7 +29,7 @@
   }
   function version(row,byRecord) {
     let v=1,seen=new Set([row.recordId]),parent=row.versionOf;
-    while(parent && !seen.has(parent) && byRecord.has(parent)){
+    while(parent && !seen.has(parent) && byRecord.has(parent) && byRecord.get(parent).projectId===row.projectId){
       v++;seen.add(parent);parent=byRecord.get(parent).data?.versionOf;
     }
     return v;
@@ -80,7 +80,8 @@
       </section>`;
     const $=id=>root.querySelector('#'+id);
     const search=$('dwp-reg-search'),proj=$('dwp-reg-project'),cat=$('dwp-reg-category'),status=$('dwp-reg-status'),tbody=$('dwp-reg-rows');
-    let sort='date',desc=true,busy=false;
+    let sort='date',desc=true,busy=false,pendingUpload=null;
+    const formSignature=form=>JSON.stringify(['projectId','date','category','title','description','commission','recipient','editor','versionOf'].map(key=>form.elements[key].value));
     function draw() {
       const needle=search.value.trim().toLocaleLowerCase('de');
       const filtered=all.filter(r=>(!proj.value||r.projectId===proj.value)&&(!cat.value||r.category===cat.value)&&
@@ -93,12 +94,13 @@
         <td>${esc(r.recipient)}<small>${esc(r.editor)}</small></td>
         <td>${esc(r.status)} · V${version(r,byRecord)}</td>
         <td>${r.fileId?`<button type="button" class="button button-secondary" data-reg-file="${esc(r.id)}">${esc(r.fileName||'Öffnen')}</button>`:'<span>Kein Original</span>'}
-        ${r.sourceModule==='documents'?`<button type="button" class="button button-secondary" data-reg-version="${esc(r.recordId)}">Neue Version</button>`:''}</td>
+        ${r.sourceModule==='documents'?r.fileId?`<button type="button" class="button button-secondary" data-reg-version="${esc(r.recordId)}">Neue Version</button>`:`<button type="button" class="button button-secondary" data-reg-retry="${esc(r.recordId)}">Datei nachreichen</button>`:''}</td>
       </tr>`).join(''):'<tr><td colspan="8">Keine passenden Einträge.</td></tr>';
     }
     [search,proj,cat,status].forEach(el=>el.addEventListener('input',draw));
     root.querySelectorAll('[data-reg-sort]').forEach(el=>el.addEventListener('click',()=>{if(sort===el.dataset.regSort)desc=!desc;else {sort=el.dataset.regSort;desc=sort==='date';}draw();}));
     function clearForm() {
+      pendingUpload=null;
       const form=$('dwp-reg-form');form.reset();form.elements.versionOf.value='';form.elements.date.value=localDate();
       form.elements.projectId.value=store.data.selectedProject||'';
       $('dwp-reg-form-heading').textContent='Neues Dokument erfassen';
@@ -111,13 +113,30 @@
       if(v) {
         const record=byRecord.get(v.dataset.regVersion);if(!record)return;
         const form=$('dwp-reg-form');
-        form.elements.versionOf.value=record.id;form.elements.projectId.value=record.projectId;
+        pendingUpload=null;
+         form.elements.versionOf.value=record.id;form.elements.projectId.value=record.projectId;
         for(const key of ['date','category','title','description','commission','recipient','editor']) {
           if(form.elements[key])form.elements[key].value=record.data?.[key]|| (key==='date'?localDate():'');
         }
         form.elements.file.value='';
         $('dwp-reg-form-heading').textContent='Neue Fassung zu '+(record.data?.number||record.id);
         form.scrollIntoView({block:'start',behavior:'smooth'});return;
+      }
+      const retry=event.target.closest('[data-reg-retry]');
+      if(retry) {
+        const record=byRecord.get(retry.dataset.regRetry);
+        if(!record || record.module!=='documents' || record.attachments?.some(a=>a.storageId))return;
+        const form=$('dwp-reg-form');
+        form.elements.projectId.value=record.projectId;
+        for(const key of ['date','category','title','description','commission','recipient','editor','versionOf']) {
+          if(form.elements[key])form.elements[key].value=record.data?.[key]||'';
+        }
+        form.elements.file.value='';
+        pendingUpload={recordId:record.id,projectId:record.projectId,number:record.data.number,signature:formSignature(form)};
+        $('dwp-reg-form-heading').textContent='Fehlende Originaldatei zu '+(record.data.number||record.id)+' nachreichen';
+        $('dwp-reg-save-status').textContent='Nur die Originaldatei ergänzen. Bereits gespeicherte Dokumentdaten bleiben unverändert.';
+        form.scrollIntoView({block:'start',behavior:'smooth'});
+        return;
       }
       const f=event.target.closest('[data-reg-file]');
       if(!f)return;
@@ -140,6 +159,9 @@
       if(!file){showError(Error('Bitte eine PDF- oder Bilddatei auswählen.'));return;}
       const projectId=form.elements.projectId.value;
       if(!projects.some(p=>p.id===projectId)){showError(Error('Projekt ist nicht verfügbar.'));return;}
+      if(pendingUpload && (pendingUpload.projectId!==projectId || pendingUpload.signature!==formSignature(form))){
+        showError(Error('Dokumentdaten nach der Anlage nicht mehr ändern. Bitte fehlende Datei nachreichen oder Neue Erfassung wählen.'));return;
+      }
       const mime=file.type||({pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'}[file.name.split('.').pop().toLowerCase()]);
       if(!['application/pdf','image/jpeg','image/png','image/webp'].includes(mime)||file.size<1||file.size>67108864){showError(Error('Nur PDF, JPG, PNG oder WebP bis 64 MB.'));return;}
       busy=true;
@@ -147,22 +169,29 @@
       const msg=$('dwp-reg-save-status');
       try{
         store.data.selectedProject=projectId;
-        const year=form.elements.date.value.slice(0,4);
-        const seq=store.data.records.filter(r=>r.module==='documents'&&r.projectId===projectId&&String(r.data?.number||'').startsWith(`DWP-${year}-37-`)).length+1;
-        const number=`DWP-${year}-37-${String(seq).padStart(4,'0')}`;
-        const values={title:form.elements.title.value,number,date:form.elements.date.value,category:form.elements.category.value,
-          description:form.elements.description.value,commission:form.elements.commission.value,recipient:form.elements.recipient.value,
-          editor:form.elements.editor.value,versionOf:form.elements.versionOf.value};
-        msg.textContent='Dokumentdaten werden zentral gespeichert …';
-        const record=await window.DWPRemote.run('save',['documents',values,{status:'Neu',owner:values.editor||''}]);
-        if(!record?.id)throw Error('Server hat keine Dokument-ID bestätigt.');
-        msg.textContent='Datei wird hochgeladen und geprüft …';
-        await window.DWPRemote.uploadFile(record.id,file);
+        let recordId=pendingUpload?.recordId,number=pendingUpload?.number;
+        if(!recordId){
+          const year=form.elements.date.value.slice(0,4),prefix=`DWP-${year}-37-`;
+          const seq=store.data.records.filter(r=>r.module==='documents'&&r.projectId===projectId)
+            .reduce((max,r)=>Math.max(max,Number(String(r.data?.number||'').startsWith(prefix)?String(r.data.number).slice(prefix.length):0)||0),0)+1;
+          number=prefix+String(seq).padStart(4,'0');
+          const values={title:form.elements.title.value,number,date:form.elements.date.value,category:form.elements.category.value,
+            description:form.elements.description.value,commission:form.elements.commission.value,recipient:form.elements.recipient.value,
+            editor:form.elements.editor.value,versionOf:form.elements.versionOf.value};
+          msg.textContent='Dokumentdaten werden zentral gespeichert …';
+          const record=await window.DWPRemote.run('save',['documents',values,{status:'Neu',owner:values.editor||''}]);
+          if(!record?.id)throw Error('Server hat keine Dokument-ID bestätigt.');
+          recordId=record.id;
+          // An upload error must never create another document on retry.
+          pendingUpload={recordId,projectId,number,signature:formSignature(form)};
+        }
+        msg.textContent='Originaldatei wird hochgeladen und geprüft …';
+        await window.DWPRemote.uploadFile(recordId,file);
         msg.textContent='Dokument und Originaldatei zentral gespeichert.';
         notify('Dokument '+number+' mit Originaldatei gespeichert.');
         onSaved();
       }catch(error){
-        msg.textContent='Speichern nicht vollständig: '+error.message+' — bitte die Dokumentliste prüfen, bevor du erneut speicherst.';
+        msg.textContent='Speichern nicht vollständig: '+error.message+(pendingUpload?' — Die Dokumentnummer ist bereits angelegt. Datei hier erneut hochladen, ohne ein zweites Dokument anzulegen.':' — Bitte den Serverbestand prüfen, bevor du erneut speicherst.');
         showError(error);
       }finally{busy=false;button.disabled=false;}
     });
