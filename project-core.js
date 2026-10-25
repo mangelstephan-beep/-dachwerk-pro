@@ -208,6 +208,18 @@
       if(!this.get(id) || this.get(id).module!=='projects') throw Error('Projekt nicht gefunden.');
       return this.transaction('Projekt ausgewählt','projects',id,d=>{d.selectedProject=id;});
     }
+    deleteProject(id) {
+      const project=this.get(id);
+      if(!project || project.module!=='projects')throw Error('Projekt nicht gefunden.');
+      return this.transaction('Projekt mit allen Fachvorgängen gelöscht','projects',id,d=>{
+        const removed=d.records.filter(r=>r.id===id || r.projectId===id);
+        d.records=d.records.filter(r=>r.id!==id && r.projectId!==id);
+        // Personnel is global, but its dated project assignments are not.
+        for(const record of d.records)if(record.module==='personnel' && Array.isArray(record.assignments))record.assignments=record.assignments.filter(a=>a.projectId!==id);
+        if(d.selectedProject===id)d.selectedProject=null;
+        return {id,removedRecords:removed.length};
+      });
+    }
     save(module, values, options={}) {
       const def=definitions[module];
       if(!def || !def.fields.length) throw Error('Dieser Bereich wird aus dem Projektbestand abgeleitet.');
