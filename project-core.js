@@ -204,7 +204,8 @@
     }
     get(id) { return this.data.records.find(r=>r.id===id); }
     project() { return this.get(this.data.selectedProject); }
-    deleteProject(id, expectedName) {
+    deleteProject(id, expectedName, confirmations) {
+      if(!Array.isArray(confirmations) || confirmations.length!==3 || confirmations.some(v=>v!=='ja'))throw Error('Löschen erfordert dreimal Ja.');
       const project=this.get(id);
       if(!project || project.module!=='projects')throw Error('Projekt nicht gefunden.');
       if(typeof expectedName!=='string' || expectedName!==project.data.name)throw Error('Projektbezeichnung stimmt nicht mehr. Bitte die Liste neu laden.');
