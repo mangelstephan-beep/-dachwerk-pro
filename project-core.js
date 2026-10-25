@@ -204,6 +204,21 @@
     }
     get(id) { return this.data.records.find(r=>r.id===id); }
     project() { return this.get(this.data.selectedProject); }
+    deleteProject(id, expectedName) {
+      const project=this.get(id);
+      if(!project || project.module!=='projects')throw Error('Projekt nicht gefunden.');
+      if(typeof expectedName!=='string' || expectedName!==project.data.name)throw Error('Projektbezeichnung stimmt nicht mehr. Bitte die Liste neu laden.');
+      const related=this.data.records.filter(r=>r.projectId===id);
+      // Issued financial documents and signed confirmations must not be silently destroyed.
+      if(related.some(r=>r.signatures?.length || (['invoices','payments','orders'].includes(r.module) && r.status==='Freigegeben')))throw Error('Projekt enthält freigegebene kaufmännische oder unterschriebene Vorgänge. Löschen gesperrt; Aufbewahrung und Archivierung prüfen.');
+      const removed=related.length;
+      return this.transaction('Projekt endgültig gelöscht: '+project.data.name+' ('+removed+' zugeordnete Vorgänge)','projects',id,d=>{
+        d.records=d.records.filter(r=>r.id!==id && r.projectId!==id);
+        for(const record of d.records)if(record.module==='personnel' && Array.isArray(record.assignments))record.assignments=record.assignments.filter(assignment=>assignment.projectId!==id);
+        if(d.selectedProject===id)d.selectedProject=null;
+        return {id,removed};
+      });
+    }
     select(id) {
       if(!this.get(id) || this.get(id).module!=='projects') throw Error('Projekt nicht gefunden.');
       return this.transaction('Projekt ausgewählt','projects',id,d=>{d.selectedProject=id;});
