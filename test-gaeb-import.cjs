@@ -13,6 +13,17 @@ assert.equal(rows[0].text,'Abdichtung & Anschluss\nErste Lage\nzweite Lage\nÜbe
 // Namespace prefixes cannot change the interpretation.
 const prefixed=xml.replace(/<(\/?)([A-Za-z][A-Za-z0-9]*)(?=[\s>])/g,'<$1g:$2').replace('xmlns=','xmlns:g=');
 assert.deepEqual(parse(prefixed,Parser),rows);
+// Award metadata (including foreign namespace children) must produce blocking review findings.
+for(const extra of ['<AwardInfo><Text>Vergabehinweis</Text></AwardInfo>','<custom:Rules xmlns:custom="urn:external">Vertragsregel</custom:Rules>']){
+ const extended=xml.replace('<DP>83</DP>','<DP>83</DP>'+extra);
+ assert.throws(()=>parse(extended,Parser),/Award-Elemente/);
+ const inspected=report(extended,Parser);
+ assert.equal(inspected.rows.length,1);
+ assert.equal(inspected.findings.length,1);
+ assert.equal(inspected.findings[0].number,'Award');
+ assert.match(inspected.findings[0].text,/Vergabehinweis|Vertragsregel/);
+}
+
 for(const [broken,rx] of [
  [xml.replace('</GAEB>',''),/wohlgeformt/],
  [xml.replace('DA83/3.3','DA84/3.3'),/X83/],
