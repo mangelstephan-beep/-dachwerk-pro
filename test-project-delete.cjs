@@ -18,7 +18,9 @@ async function checkCoreAndUI() {
   const second=store.save('projects',{name:'Dach B',customerId:customer.id,phase:'Erfassung'});
   const lvB=store.save('lv',{number:'002',text:'Dämmung',qty:10,unit:'m²'});
   store.select(first.id);
-  const removed=store.deleteProject(first.id);
+  assert.throws(()=>store.deleteProject(first.id,first.data.name,['ja','ja']),/dreimal Ja/);
+  assert.throws(()=>store.deleteProject(first.id,'Falscher Name',['ja','ja','ja']),/Projektbezeichnung/);
+  const removed=store.deleteProject(first.id,first.data.name,['ja','ja','ja']);
   assert.equal(removed.removedRecords,2);
   assert.equal(store.get(first.id),undefined);
   assert.equal(store.get(lvA.id),undefined);
@@ -27,7 +29,7 @@ async function checkCoreAndUI() {
   assert(store.get(customer.id),'Global customer stays available to other projects');
   assert.equal(store.get(worker.id).assignments.length,0,'Personnel assignments are cascaded');
   assert.equal(store.data.selectedProject,null);
-  assert.throws(()=>store.deleteProject(first.id),/nicht gefunden/);
+  assert.throws(()=>store.deleteProject(first.id,first.data.name,['ja','ja','ja']),/nicht gefunden/);
   assert(!new Store(store.storage).get(first.id));
 
   const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'});
@@ -46,10 +48,23 @@ async function checkCoreAndUI() {
   dialog.querySelector('[data-choice="no"]').click();
   assert(local.get(p.id),'No preserves project');
   assert(local.get(lv.id),'No preserves child record');
-  selector.dispatchEvent(new w.Event('contextmenu',{bubbles:true,cancelable:true}));
-  dialog=w.document.querySelector('.dwp-project-delete-dialog');
-  dialog.querySelector('[data-choice="yes"]').click();
-  assert.equal(local.get(p.id),undefined,'Yes removes project');
+  const row=w.document.querySelector('[data-project-gesture="'+p.id+'"]');
+  assert(row,'Projekt erscheint in der Wischliste');
+  const pointer=(type,x,y)=>{
+    const e=new w.Event(type,{bubbles:true,cancelable:true});
+    Object.assign(e,{clientX:x,clientY:y,pointerType:'touch'});
+    row.dispatchEvent(e);
+  };
+  pointer('pointerdown',180,70);pointer('pointermove',95,70);pointer('pointerup',95,70);
+  assert.equal(row.querySelector('[data-dwp="delete-project-row"]').hidden,false,'Links-Wischen zeigt Löschen');
+  row.querySelector('[data-dwp="delete-project-row"]').click();
+  for(let step=1;step<=3;step++){
+    dialog=w.document.querySelector('.dwp-project-delete-dialog');
+    assert(dialog.textContent.includes(step+' von 3'),'Bestätigung '+step);
+    if(step<3)assert(local.get(p.id),'Vor dem dritten Ja darf nichts gelöscht werden');
+    dialog.querySelector('[data-choice="yes"]').click();
+  }
+  assert.equal(local.get(p.id),undefined,'Erst drei Ja entfernen das Projekt');
   assert.equal(local.get(lv.id),undefined,'Yes removes linked data');
   assert.equal(w.document.querySelector('.dwp-project-delete-dialog'),null);
   dom.window.close();
@@ -66,10 +81,11 @@ async function checkServer() {
   const c=(await cmd(admin,'save',['customers',{name:'Kunde'}])).recordId;
   const project=(await cmd(admin,'save',['projects',{name:'Test',customerId:c,phase:'Erfassung',memberIds:'e'}])).recordId;
   await cmd(admin,'save',['lv',{number:'01',text:'Dach',qty:1,unit:'m²'}],project);
-  await assert.rejects(cmd(editor,'deleteProject',[project],project),e=>e.status===403);
-  await assert.rejects(cmd(admin,'deleteProject',[project],'other'),e=>e.status===400);
+  await assert.rejects(cmd(editor,'deleteProject',[project,'Test',['ja','ja','ja']],project),e=>e.status===403);
+  await assert.rejects(cmd(admin,'deleteProject',[project,'Test',['ja','ja']],project),e=>e.status===400);
+  await assert.rejects(cmd(admin,'deleteProject',[project,'Unbekannt',['ja','ja','ja']],project),e=>e.status===422);
   assert.equal((await db.read('main')).state.records.length,3);
-  await cmd(admin,'deleteProject',[project],project);
+  await cmd(admin,'deleteProject',[project,'Test',['ja','ja','ja']],project);
   assert.equal((await db.read('main')).state.records.filter(r=>r.id===project||r.projectId===project).length,0);
   assert(db.ledger.some(e=>e.method==='deleteProject'));
 }
@@ -90,7 +106,7 @@ async function checkPostgres() {
     const doc=(await call('save',['documents',{title:'PDF',category:'Plan'}],project)).recordId;
     await pg.query("INSERT INTO dwp_files(id,tenant_id,actor,record_id,project_id,name,mime,size,sha256,ready) VALUES('file-1','t1','admin',$1,$2,'test.pdf','application/pdf',1,$3,true)",[doc,project,'a'.repeat(64)]);
     await pg.query("INSERT INTO dwp_file_chunks(file_id,part,data) VALUES('file-1',0,decode('AA==','base64'))");
-    await call('deleteProject',[project],project);
+    await call('deleteProject',[project,'Dach',['ja','ja','ja']],project);
     assert.equal((await pg.query("SELECT count(*)::int AS n FROM dwp_files WHERE tenant_id='t1'")).rows[0].n,0);
     assert.equal((await pg.query("SELECT count(*)::int AS n FROM dwp_file_chunks")).rows[0].n,0);
     assert.equal((await repo.read('t1')).state.records.some(r=>r.id===project||r.projectId===project),false);
