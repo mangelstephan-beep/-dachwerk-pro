@@ -61,8 +61,43 @@
   function projectBar() {
     const projects=db.list('projects'),central=window.DWPRemote?.active;
     const hint=db.project()?names(db.project().data.customerId):projects.length?'Bitte ein vorhandenes Projekt auswählen.':central?'In diesem Benutzerbestand sind noch keine Projekte gespeichert.':'Zuerst Kunde und Projekt anlegen';
-    return `<div class="dwp-project-bar"><label>Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}</div></div>`;
+    return `<div class="dwp-project-bar"><label title="Projekt lange drücken, um es zu löschen">Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}${db.project() && (!central || state.currentRole==='admin')?btn('Projekt löschen','delete-project'):''}</div>${db.project()?'<small class="dwp-project-hold-hint">Projekt lange drücken zum Löschen · nur mit Ja bestätigen.</small>':''}</div>`;
   }
+
+  function promptProjectDeletion() {
+    const project=db.project();
+    if(!project)return;
+    if(window.DWPRemote?.active && state.currentRole!=='admin'){notice('Nur Administratoren dürfen ein Projekt löschen.');return;}
+    if(state.unsavedChanges && !confirm('Ungespeicherte Eingaben verwerfen und Löschabfrage öffnen?'))return;
+    const dialog=document.createElement('dialog');
+    dialog.className='dwp-project-delete-dialog';
+    dialog.setAttribute('aria-label','Projekt löschen');
+    dialog.innerHTML=`<h2>Projekt wirklich löschen?</h2><p><strong>${esc(project.data.name)}</strong> wird mit allen zugeordneten Vorgängen in sämtlichen Arbeitsmodulen entfernt – einschließlich LV, Kalkulation, Angeboten, Rechnungen und Dokumenten. Dieser Schritt kann nicht rückgängig gemacht werden.</p><div class="dwp-delete-choices"><button class="button button-secondary" type="button" data-choice="no">Nein, behalten</button><button class="button button-danger" type="button" data-choice="yes">Ja, endgültig löschen</button></div>`;
+    function dismiss(){if(dialog.open && typeof dialog.close==='function')dialog.close();dialog.remove();}
+    dialog.addEventListener('click',event=>{
+      const button=event.target.closest('[data-choice]');if(!button)return;
+      if(button.dataset.choice==='no'){dismiss();return;}
+      dismiss();
+      mutate('deleteProject',[project.id],()=>{state.unsavedChanges=false;openModule('dashboard');notice('Projekt und zugeordnete Vorgänge entfernt.');});
+    });
+    dialog.addEventListener('cancel',()=>{dialog.remove();});
+    document.body.append(dialog);
+    if(typeof dialog.showModal==='function')dialog.showModal();
+    else dialog.setAttribute('open','');
+    dialog.querySelector('[data-choice="no"]').focus();
+  }
+  let projectDeleteHold=null;
+  function cancelProjectDeleteHold(){if(projectDeleteHold!==null){clearTimeout(projectDeleteHold);projectDeleteHold=null;}}
+  main.addEventListener('pointerdown',event=>{
+    if(!event.target.closest('.dwp-project-bar > label') || !db.project() || (event.pointerType==='mouse' && event.button!==0))return;
+    cancelProjectDeleteHold();
+    projectDeleteHold=setTimeout(()=>{projectDeleteHold=null;promptProjectDeletion();},750);
+  });
+  for(const eventType of ['pointerup','pointercancel','pointerleave'])main.addEventListener(eventType,cancelProjectDeleteHold);
+  main.addEventListener('contextmenu',event=>{
+    if(!event.target.closest('.dwp-project-bar > label') || !db.project())return;
+    event.preventDefault();cancelProjectDeleteHold();promptProjectDeletion();
+  });
   function header(name) {
     return `<nav class="dwp-module-navigation" aria-label="Modulnavigation">${btn('← Zurück','module-back')}${btn('Alle Module','open','dashboard')}<a class="button button-secondary" data-dwp="direct-link" href="${esc(moduleUrl(current).href)}">Direktlink</a></nav><header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.</p></div><div class="header-actions">${btn('Alle Module','open','dashboard')}${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${projectBar()}`;
   }
@@ -610,6 +645,7 @@
     }
     try {
       if(action==='module-back'){backModule();return;}
+      if(action==='delete-project'){promptProjectDeletion();return;}
       if(action==='direct-link'){
         if(!confirmPageChange())return;
         window.location.assign(moduleUrl(current).href);return;
