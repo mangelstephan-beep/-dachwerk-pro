@@ -68,3 +68,5 @@
 .dwp-register-panel{margin-bottom:14px}
 #dwp-reg-save-status{grid-column:1/-1}
 @media(max-width:640px){.dwp-register-toolbar{grid-template-columns:1fr 1fr}.dwp-register-toolbar label:first-child{grid-column:1/-1}.dwp-register-panel .quick-form{grid-template-columns:1fr}}
+
+.dwp-project-finder{padding:10px 0 8px;max-width:520px}.dwp-project-finder input{display:block;min-height:44px;font-size:16px}.dwp-project-finder p{min-height:16px;margin:6px 0;color:#765400;font-size:13px}
