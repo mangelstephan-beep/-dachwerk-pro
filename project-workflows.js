@@ -62,7 +62,7 @@
     const projects=db.list('projects');
     if(!projects.length)return '<p>Keine Projekte vorhanden.</p>';
     const canDelete=!window.DWPRemote?.active || state.currentRole==='admin';
-    return `<div class="dwp-project-gesture-list">${projects.map(r=>`<div class="dwp-project-gesture" data-project-gesture="${esc(r.id)}" tabindex="0" role="group" aria-label="${esc(r.data.name)}"><div class="dwp-project-gesture-info"><strong>${esc(r.data.name)}</strong><small>${esc(r.data.costCenter || r.data.address || '')} · ${db.data.records.filter(x=>x.projectId===r.id).length} Vorgänge</small></div><div class="dwp-project-gesture-actions">${btn('Öffnen','project-select',r.id)}${canDelete?btn('⋯','project-actions',r.id):''}<button type="button" class="button button-danger" data-dwp="delete-project-row" data-id="${esc(r.id)}" hidden>Löschen</button></div></div>`).join('')}</div>`;
+    return `<div class="dwp-project-gesture-list" id="dwp-project-gesture-list">${projects.map(r=>`<div class="dwp-project-gesture" data-project-gesture="${esc(r.id)}" data-project-search="${esc([r.data.name,r.data.number,r.data.costCenter,r.data.address].filter(Boolean).join(' ').toLocaleLowerCase('de'))}" tabindex="0" role="group" aria-label="${esc(r.data.name)}"><div class="dwp-project-gesture-info"><strong>${esc(r.data.name)}</strong><small>${esc(r.data.costCenter || r.data.address || '')} · ${db.data.records.filter(x=>x.projectId===r.id).length} Vorgänge</small></div><div class="dwp-project-gesture-actions">${btn('Öffnen','project-select',r.id)}${canDelete?btn('⋯','project-actions',r.id):''}<button type="button" class="button button-danger" data-dwp="delete-project-row" data-id="${esc(r.id)}" hidden>Löschen</button></div></div>`).join('')}</div>`;
   }
   function revealProjectDelete(id) {
     main.querySelectorAll('[data-project-gesture]').forEach(row=>{
@@ -74,7 +74,7 @@
   function projectBar() {
     const projects=db.list('projects'),central=window.DWPRemote?.active;
     const hint=db.project()?names(db.project().data.customerId):projects.length?'Bitte ein vorhandenes Projekt auswählen.':central?'In diesem Benutzerbestand sind noch keine Projekte gespeichert.':'Zuerst Kunde und Projekt anlegen';
-    return `<div class="dwp-project-bar"><label title="Projekt lange drücken, um es zu löschen">Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}${db.project() && (!central || state.currentRole==='admin')?btn('Projekt löschen','delete-project'):''}</div><details class="dwp-current-projects"><summary>Aktuelle Projekte (${projects.length}) · lang drücken oder nach links wischen</summary>${projectGestureRows()}</details></div>`;
+    return `<div class="dwp-project-bar"><label title="Projekt lange drücken, um es zu löschen">Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}${db.project() && (!central || state.currentRole==='admin')?btn('Projekt löschen','delete-project'):''}</div><details class="dwp-current-projects"><summary>Aktuelle Projekte (${projects.length}) · lang drücken oder nach links wischen</summary><div class="dwp-project-finder"><label>Projekt suchen (Name, Nummer oder Kostenstelle)<input id="dwp-project-filter" type="search" autocomplete="off" placeholder="z. B. HIT 80008" aria-controls="dwp-project-gesture-list"></label><p id="dwp-project-filter-feedback" role="status" aria-live="polite"></p></div>${projectGestureRows()}</details></div>`;
   }
 
   function promptProjectDeletion(projectId=db.data.selectedProject) {
@@ -833,6 +833,19 @@
     }catch(e){showError(e);}
   },true);
   main.addEventListener('input',event=>{
+    if(event.target.id==='dwp-project-filter'){
+      const term=event.target.value.trim().toLocaleLowerCase('de');
+      const rows=Array.from(main.querySelectorAll('[data-project-gesture]'));
+      let matches=0;
+      rows.forEach(row=>{
+        const visible=!term || (row.dataset.projectSearch || '').includes(term);
+        row.hidden=!visible;
+        if(visible)matches++;
+      });
+      const message=main.querySelector('#dwp-project-filter-feedback');
+      if(message)message.textContent=matches?term?`${matches} von ${rows.length} Projekten gefunden.`:'':window.DWPRemote?.active?'Kein Projekt gefunden. Bitte „Projekte neu laden“ wählen. Wenn es weiter fehlt, Mandant und Projektfreigabe prüfen.':'Kein Projekt in diesem Bestand gefunden.';
+      return;
+    }
     if(event.target.id==='dwp-module-search'){search=event.target.value;filterModules();return;}
     if(event.target.closest('.dwp-workspace form'))state.unsavedChanges=true;
     const quoteForm=event.target.closest('#dwp-quote');if(quoteForm)updateQuotePreview(quoteForm);
