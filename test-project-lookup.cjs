@@ -1,0 +1,30 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const {JSDOM} = require('jsdom');
+const dom = new JSDOM(fs.readFileSync('index.html','utf8'), {url:'https://dachwerk.test',runScripts:'outside-only'});
+const w = dom.window;
+w.scrollTo = () => {};
+w.HTMLElement.prototype.scrollIntoView = () => {};
+for(const file of ['app.js','module-fixes.js','project-core.js','project-workflows.js']) {
+  vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
+}
+const store = w.DWPWorkspace.store;
+const customer = store.save('customers',{name:'Testkunde'});
+const project = store.save('projects',{name:'HIT Hildesheim',number:'80008',costCenter:'HIT-80008',customerId:customer.id,phase:'Erfassung'});
+w.DWPWorkspace.open('dashboard');
+const input = w.document.querySelector('#dwp-project-filter');
+const row = w.document.querySelector('[data-project-gesture="'+project.id+'"]');
+assert(input && row,'Suchfeld und Projektzeile vorhanden');
+input.value='80008';
+input.dispatchEvent(new w.Event('input',{bubbles:true}));
+assert.equal(row.hidden,false,'Die Projektnummer ist suchbar');
+input.value='unbekannt';
+input.dispatchEvent(new w.Event('input',{bubbles:true}));
+assert.equal(row.hidden,true,'Ein anderer Suchtext blendet das Projekt aus');
+assert.match(w.document.querySelector('#dwp-project-filter-feedback').textContent,/Kein Projekt/);
+input.value='HIT Hildesheim';
+input.dispatchEvent(new w.Event('input',{bubbles:true}));
+assert.equal(row.hidden,false,'Projekt nach Name wiedergefunden');
+w.close();
+console.log('iPhone-Projektsuche: Nummer, Name und kein Treffer geprüft.');
