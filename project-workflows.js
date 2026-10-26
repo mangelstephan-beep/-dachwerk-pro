@@ -714,7 +714,7 @@
       if(action==='open'){
         openModule(id);
         // The dashboard button is already on the dashboard; reveal the module cards instead.
-        if(id==='dashboard')main.querySelector('#dwp-module-search')?.scrollIntoView({behavior:'smooth',block:'start'});
+        if(id==='dashboard')main.querySelector('#dwp-module-search')?.scrollIntoView?.({behavior:'smooth',block:'start'});
         if(['customers','projects'].includes(id) && current===id){
           // Put the opened form on screen without raising the mobile keyboard.
           const form=main.querySelector('#dwp-record');
@@ -899,4 +899,3 @@
   window.addEventListener('storage',event=>{if(!window.DWPRemote?.active && event.key===db.key){try{db=new core.Store(localStorage);if(state.unsavedChanges)showError(Error('Änderung aus einem anderen Fenster. Eingaben vor dem Speichern prüfen.'));else openModule(current);}catch(e){showError(e);}}});
   if(!document.querySelector('#app-shell').classList.contains('is-hidden'))openModule(viewsToModule[state.currentView] || 'dashboard');
 })();
-
