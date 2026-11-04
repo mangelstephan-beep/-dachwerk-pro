@@ -830,11 +830,13 @@
       let staging=this.backup();
       const staged=new Store({getItem:()=>staging,setItem:(_k,v)=>{staging=v;}});
       const seen=new Set();
+      const clean=value=>String(value ?? '').trim();
+      const articleKey=data=>JSON.stringify([clean(data.manufacturer),clean(data.article) || clean(data.name),clean(data.supplier),clean(data.unit)]);
       const imported=rows.map(row=>{
-        let values={...row,source:source.source,priceDate:source.priceDate,validUntil:row.validUntil || source.validUntil || '',supplier:row.supplier || source.supplier || ''};
-        const key=[values.manufacturer || '',values.article || values.name,values.supplier,values.unit].join('|');
+        let values={...row,source:source.source,priceDate:source.priceDate,validUntil:row.validUntil || source.validUntil || '',supplier:clean(row.supplier) || clean(source.supplier)};
+        const key=articleKey(values);
         if(seen.has(key))throw Error('Doppelter Artikel innerhalb der Preisliste.');seen.add(key);
-        const existing=staged.list('materials').find(m=>[m.data.manufacturer,m.data.article || m.data.name,m.data.supplier,m.data.unit].join('|')===key);
+        const existing=staged.list('materials').find(m=>articleKey(m.data)===key);
         if(existing)values={...existing.data,...values};
         if(existing?.status==='Freigegeben') {
           // Validate the proposed price in isolation without invalidating approved live prices.
