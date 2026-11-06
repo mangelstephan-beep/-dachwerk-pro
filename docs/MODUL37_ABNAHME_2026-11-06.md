@@ -10,6 +10,12 @@
 - Diese Änderung: Datei vor Metadatenzuordnung als abrufbar markieren, nach Upload zentralen Wiederabruf prüfen und erst dann Erfolg melden.
 - Diese Änderung: Klick auf Tabellenzeile bzw. Enter/Leertaste öffnet den geschützten Originalabruf; zusätzlich geschützter XLSX-Export.
 
+### Bestandsdaten wiederverwenden (Erweiterung)
+- Im Register vorhandene Vorgänge als Metadatenvorlage für **neue unabhängige** Belege auswählen; ursprüngliche Datei, Dokumentnummer und Version bleiben unverändert.
+- Bei Wiederverwendung im selben Projekt werden Titel, Kategorie, Beschreibung, Kommission, Empfänger und Bearbeiter vorausgefüllt; die neue Belegnummer wird separat erzeugt.
+- Bei Wiederverwendung aus einem anderen freigegebenen Projekt werden nur allgemeiner Titel und Kategorie vorausgefüllt, nicht projektspezifische Inhalte oder Empfänger.
+- Für jeden neu erfassten Beleg ist weiterhin ein eigener bestätigter Datei-Upload erforderlich. **Kein automatischer Zugriff auf die ChatGPT-Dateibibliothek**; deren Originale sind nur nach bestätigtem Import im App-Backend verfügbar.
+
 ### Automatisch zu prüfen
 - `npm ci && npm test && npm run check && npm run build`
 - `test-document-register.cjs`: Nummerierung über zwei Projekte, wirklicher XLSX-Export mit Projektfilter, CSV-Formelschutz, fehlende Datei nachreichen, Upload nach Fehler fortsetzen.
