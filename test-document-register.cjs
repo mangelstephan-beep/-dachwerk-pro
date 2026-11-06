@@ -79,6 +79,51 @@ assert(fs.readFileSync('lib/access-security.cjs','utf8').includes("if(body.kind=
   browser.window.close();
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
+(async function testSafeTemplateReuse(){
+  const {JSDOM}=require('jsdom');
+  const dom=new JSDOM('<main id="register"></main>',{url:'https://www.dachwerkpro.de',runScripts:'outside-only'});
+  const w=dom.window;
+  w.HTMLElement.prototype.scrollIntoView=function(){};
+  w.eval(fs.readFileSync('document-register.js','utf8'));
+  const same={...base,id:'source-same',data:{...base.data,title:'Altes Gutachten',description:'Befund aus alter Akte',recipient:'Auftraggeber',commission:'p1',editor:'Prüfer'}};
+  const foreign={...base,id:'source-cross',projectId:'p2',data:{...base.data,title:'Musterbericht',description:'Fremdprojekt intern',recipient:'Vertraulicher Empfänger',commission:'Fremdkostenstelle',editor:'Fremder Bearbeiter'}};
+  const store={data:{records:[project('p1','A'),project('p2','B'),same,foreign],selectedProject:'p1'}};
+  let creates=0,uploads=0,values;
+  w.DWPRemote={active:true,async run(method,args){creates++;values=args[1];return {id:'new-beleg',data:{number:'DWP-2026-37-0042'}};},
+    async uploadFile(id,file){uploads++;assert.equal(id,'new-beleg');assert.equal(file.name,'neue-datei.pdf');}};
+  const root=w.document.querySelector('#register');
+  w.DWPRegister.mount({store,root,notify:()=>{},showError:error=>{throw error;},onSaved:()=>{}});
+  const form=root.querySelector('#dwp-reg-form');
+  root.querySelector('[data-reg-template="source-cross:a1"]').click();
+  assert.equal(form.elements.projectId.value,'p1','Destination project unchanged');
+  assert.equal(form.elements.category.value,'Bestellung','Reuse category');
+  assert.equal(form.elements.title.value,'Musterbericht','Reuse generic title');
+  assert.equal(form.elements.description.value,'','No cross-project description copied');
+  assert.equal(form.elements.commission.value,'','No cross-project commission copied');
+  assert.equal(form.elements.recipient.value,'','No cross-project recipient copied');
+  assert.equal(form.elements.editor.value,'','No cross-project editor copied');
+  assert.equal(form.elements.versionOf.value,'','New document must not become a version');
+  assert.equal(form.elements.file.required,true,'New original is mandatory');
+  assert.match(root.querySelector('#dwp-reg-save-status').textContent,/anderen Projekt/);
+  root.querySelector('[data-reg-template="source-same:a1"]').click();
+  assert.equal(form.elements.title.value,'Altes Gutachten');
+  assert.equal(form.elements.description.value,'Befund aus alter Akte');
+  assert.equal(form.elements.recipient.value,'Auftraggeber');
+  assert.equal(form.elements.commission.value,'p1');
+  assert.equal(form.elements.editor.value,'Prüfer');
+  assert.equal(form.elements.versionOf.value,'');
+  Object.defineProperty(form.elements.file,'files',{configurable:true,value:[new w.File(['%PDF-1.7'],'neue-datei.pdf',{type:'application/pdf'})]});
+  form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,20));
+  assert.equal(creates,1,'Create an independent record exactly once');
+  assert.equal(uploads,1,'Upload a distinct new file');
+  assert.equal(values.versionOf,'');
+  assert.equal(values.title,'Altes Gutachten');
+  assert.match(values.notes,/Quelle: DWP-2026-37-0001/);
+  dom.window.close();
+  console.log('Modul 37: vorhandene Metadaten sicher wiederverwenden, Projektgrenzen beachten, neues Original verlangen');
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
 (async function testTenantSequenceAndXlsx(){
   const {execute,memoryRepository}=require('./lib/project-service.cjs');
   const {xlsx}=require('./lib/document-register.cjs');
