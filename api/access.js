@@ -29,7 +29,9 @@ function createHandler(deps={sessionFromRequest,repository,accessRepository:secu
    }
    if(body.action==='export') {
     await security.requireExport(actor,req,audit);
-    const current=await deps.repository().read(actor.tenantId),output=security.exportData(current.state,body);
+    const current=await deps.repository().read(actor.tenantId),output=body.kind==='register-xlsx'
+      ?await require('../lib/document-register.cjs').xlsx(current.state,{projectId:body.projectId||undefined})
+      :security.exportData(current.state,body);
     await audit.event(actor,'export',{projectId:body.projectId,userAgent:req.headers['user-agent']});
     return res.status(200).json(output);
    }

@@ -54,7 +54,7 @@
           <th><button type="button" data-reg-sort="date">Datum ↕</button></th><th><button type="button" data-reg-sort="documentNumber">Dok.-Nr. ↕</button></th>
           <th>Kategorie</th><th>Beschreibung / Kommission</th><th>Projekt</th><th>Empfänger / Bearbeiter</th><th>Status / Version</th><th>Datei / Aktion</th>
         </tr></thead><tbody id="dwp-reg-rows"></tbody></table></div>
-        <div class="dwp-register-actions"><button class="button button-secondary" type="button" id="dwp-reg-export">CSV exportieren (freigegebenes Gerät)</button><button class="button button-secondary" type="button" id="dwp-reg-refresh">Serverbestand neu laden</button></div>
+        <div class="dwp-register-actions"><button class="button button-secondary" type="button" id="dwp-reg-export">CSV exportieren (freigegebenes Gerät)</button><button class="button button-secondary" type="button" id="dwp-reg-export-xlsx">Excel (.xlsx) exportieren</button><button class="button button-secondary" type="button" id="dwp-reg-refresh">Serverbestand neu laden</button></div>
       </section>
       <section class="panel panel-pad dwp-register-panel">
         <h2 id="dwp-reg-form-heading">Neues Dokument erfassen</h2>
@@ -88,7 +88,7 @@
         (!status.value||(status.value==='file'?Boolean(r.fileId):!r.fileId))&&(!needle||[r.documentNumber,r.description,r.commission,r.projectName,r.recipient,r.editor,r.fileName].some(s=>String(s).toLocaleLowerCase('de').includes(needle))));
       filtered.sort((a,b)=>(String(a[sort]).localeCompare(String(b[sort]),'de',{numeric:true}) || a.id.localeCompare(b.id))*(desc?-1:1));
       $('dwp-reg-count').textContent=filtered.length+' von '+all.length+' Dokumenteinträgen';
-      tbody.innerHTML=filtered.length?filtered.map(r=>`<tr>
+      tbody.innerHTML=filtered.length?filtered.map(r=>`<tr ${r.fileId?`data-reg-row="${esc(r.id)}" tabindex="0" title="Originaldatei öffnen"`:''}>
         <td>${esc(r.date)}</td><td><strong>${esc(r.documentNumber)}</strong></td><td>${esc(r.category)}</td>
         <td>${esc(r.description)}<small>${esc(r.commission)}</small></td><td>${esc(r.projectName)}</td>
         <td>${esc(r.recipient)}<small>${esc(r.editor)}</small></td>
@@ -138,9 +138,9 @@
         form.scrollIntoView({block:'start',behavior:'smooth'});
         return;
       }
-      const f=event.target.closest('[data-reg-file]');
+      const f=event.target.closest('[data-reg-file]') || (event.target.closest('button')?null:event.target.closest('[data-reg-row]'));
       if(!f)return;
-      const row=all.find(r=>r.id===f.dataset.regFile);
+      const row=all.find(r=>r.id===(f.dataset.regFile || f.dataset.regRow));
       if(!row?.fileId)return;
       if(!window.DWPRemote?.active){showError(Error('Bitte zentral anmelden.'));return;}
       const newTab=window.open('about:blank','_blank');
@@ -150,6 +150,13 @@
         if(newTab){newTab.location.href=url;setTimeout(()=>URL.revokeObjectURL(url),60000);}
         else {const a=document.createElement('a');a.href=url;a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
       }catch(error){if(newTab)newTab.close();showError(error);}
+    });
+    root.addEventListener('keydown',event=>{
+      const row=event.target.closest('[data-reg-row]');
+      if(event.target===row && (event.key==='Enter'||event.key===' ')){
+        event.preventDefault();
+        row.querySelector('[data-reg-file]')?.click();
+      }
     });
     $('dwp-reg-form').addEventListener('submit',async event=>{
       event.preventDefault();
@@ -182,6 +189,8 @@
           const record=await window.DWPRemote.run('save',['documents',values,{status:'Neu',owner:values.editor||''}]);
           if(!record?.id)throw Error('Server hat keine Dokument-ID bestätigt.');
           recordId=record.id;
+          // The server allocates the globally unique number across all projects.
+          number=record.data?.number || number;
           // An upload error must never create another document on retry.
           pendingUpload={recordId,projectId,number,signature:formSignature(form)};
         }
@@ -201,6 +210,18 @@
         const result=await window.DWPRemote.export({kind:'register',projectId:proj.value||null});
         const blob=new Blob(['\uFEFF'+result.text],{type:'text/csv;charset=utf-8'});
         const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='DWP_Modul37_Register.csv';a.click();
+        setTimeout(()=>URL.revokeObjectURL(url),5000);
+      }catch(error){showError(error);}
+    });
+    $('dwp-reg-export-xlsx').addEventListener('click',async()=>{
+      try {
+        if(!window.DWPRemote?.active)throw Error('Export erfordert zentrale Anmeldung.');
+        const output=await window.DWPRemote.export({kind:'register-xlsx',projectId:proj.value||null});
+        if(!output.base64)throw Error('Excel-Datei konnte nicht erstellt werden.');
+        const decoded=atob(output.base64),bytes=new Uint8Array(decoded.length);
+        for(let i=0;i<decoded.length;i++)bytes[i]=decoded.charCodeAt(i);
+        const blob=new Blob([bytes],{type:output.type}),url=URL.createObjectURL(blob);
+        const a=document.createElement('a');a.href=url;a.download=output.name || 'DWP_Modul37_Register.xlsx';a.click();
         setTimeout(()=>URL.revokeObjectURL(url),5000);
       }catch(error){showError(error);}
     });

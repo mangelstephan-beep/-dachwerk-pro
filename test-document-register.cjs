@@ -79,5 +79,38 @@ assert(fs.readFileSync('lib/access-security.cjs','utf8').includes("if(body.kind=
   browser.window.close();
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
+(async function testTenantSequenceAndXlsx(){
+  const {execute,memoryRepository}=require('./lib/project-service.cjs');
+  const {xlsx}=require('./lib/document-register.cjs');
+  const XLSX=require('xlsx');
+  const db=memoryRepository(),actor={id:'test-owner',name:'Test',role:'admin',tenantId:'mod37-tests'};
+  let revision=0;
+  const save=async(module,data,projectId)=>{
+    const result=await execute(db,actor,{method:'save',args:[module,data],projectId,revision});
+    revision=result.state.revision;
+    return result.recordId;
+  };
+  const customer=await save('customers',{name:'Testkunde'});
+  const first=await save('projects',{name:'Projekt A',customerId:customer,phase:'Erfassung'});
+  const second=await save('projects',{name:'Projekt B',customerId:customer,phase:'Erfassung'});
+  const input={title:'Original',category:'Nachweis',date:'2026-11-06',number:'DWP-2026-37-0001'};
+  const ids=[
+    await save('documents',input,first),
+    await save('documents',input,second),
+    await save('documents',input,first)
+  ];
+  const persisted=(await db.read(actor.tenantId)).state;
+  const numbers=ids.map(id=>persisted.records.find(r=>r.id===id)?.data.number);
+  assert.deepEqual(numbers,['DWP-2026-37-0001','DWP-2026-37-0002','DWP-2026-37-0003'],'Server sequence must not repeat between projects');
+  const result=await xlsx(persisted,{projectId:second});
+  assert.equal(result.name,'DWP_Modul37_Register.xlsx');
+  const workbook=XLSX.read(Buffer.from(result.base64,'base64'),{type:'buffer'});
+  const values=XLSX.utils.sheet_to_json(workbook.Sheets.Schriftverkehr,{header:1});
+  assert.equal(values.length,2,'Only project B document should be exported');
+  assert.equal(values[1][1],'DWP-2026-37-0002');
+  assert.equal(values[1][5],'Projekt B');
+  console.log('Modul 37: mandantenweit eindeutige Nummern + echter XLSX-Export geprüft');
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
 console.log('Modul 37: Projektfilter, CSV-Export, CSV-Formelschutz, Navigation und Dokumentzugriff geprüft');
 })();
