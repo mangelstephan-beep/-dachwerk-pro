@@ -44,6 +44,11 @@
       }
       await call({action:'finish',fileId:upload.fileId,revision});
       await load();
+      const persisted=window.DWPWorkspace.store.get(recordId);
+      if(!persisted?.attachments?.some(item=>item.storageId===upload.fileId)){
+        throw Error('Upload ist nicht im zentralen Dokumentbestand nachgewiesen. Bitte Serverbestand erneut prüfen.');
+      }
+      return {fileId:upload.fileId};
     },
     async originalFile(recordId,fileId,projectId=window.DWPWorkspace.store.data.selectedProject) {
       const call=part=>fetch('/api/files',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'download',recordId,projectId,fileId,part})}).then(responseJson);
