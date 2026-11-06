@@ -58,7 +58,7 @@
       </section>
       <section class="panel panel-pad dwp-register-panel">
         <h2 id="dwp-reg-form-heading">Neues Dokument erfassen</h2>
-        <p>Eine neue Fassung erhält eine eigene Dokumentnummer. Vorherige Fassungen und ihre Dateien bleiben erhalten.</p>
+        <p>Für neue Belege kannst du vorhandene Registereinträge als Vorlage nutzen. Nur Metadaten werden übernommen; Dokumentnummer und Originaldatei werden für den neuen Beleg neu erzeugt. Neue Fassungen eines vorhandenen Belegs behalten ihren Versionsbezug.</p>
         <form id="dwp-reg-form" class="quick-form">
           <input name="versionOf" type="hidden">
           <label>Projekt<select name="projectId" required><option value="">Bitte auswählen</option>${projectOptions}</select></label>
@@ -80,8 +80,8 @@
       </section>`;
     const $=id=>root.querySelector('#'+id);
     const search=$('dwp-reg-search'),proj=$('dwp-reg-project'),cat=$('dwp-reg-category'),status=$('dwp-reg-status'),tbody=$('dwp-reg-rows');
-    let sort='date',desc=true,busy=false,pendingUpload=null;
-    const formSignature=form=>JSON.stringify(['projectId','date','category','title','description','commission','recipient','editor','versionOf'].map(key=>form.elements[key].value));
+    let sort='date',desc=true,busy=false,pendingUpload=null,reuseSource=null;
+    const formSignature=form=>JSON.stringify([...['projectId','date','category','title','description','commission','recipient','editor','versionOf'].map(key=>form.elements[key].value),reuseSource?.recordId||'']);
     function draw() {
       const needle=search.value.trim().toLocaleLowerCase('de');
       const filtered=all.filter(r=>(!proj.value||r.projectId===proj.value)&&(!cat.value||r.category===cat.value)&&
@@ -94,13 +94,14 @@
         <td>${esc(r.recipient)}<small>${esc(r.editor)}</small></td>
         <td>${esc(r.status)} · V${version(r,byRecord)}</td>
         <td>${r.fileId?`<button type="button" class="button button-secondary" data-reg-file="${esc(r.id)}">${esc(r.fileName||'Öffnen')}</button>`:'<span>Kein Original</span>'}
-        ${r.sourceModule==='documents'?r.fileId?`<button type="button" class="button button-secondary" data-reg-version="${esc(r.recordId)}">Neue Version</button>`:`<button type="button" class="button button-secondary" data-reg-retry="${esc(r.recordId)}">Datei nachreichen</button>`:''}</td>
+        ${r.sourceModule==='documents'?r.fileId?`<button type="button" class="button button-secondary" data-reg-version="${esc(r.recordId)}">Neue Version</button>`:`<button type="button" class="button button-secondary" data-reg-retry="${esc(r.recordId)}">Datei nachreichen</button>`:''}
+        <button type="button" class="button button-secondary" data-reg-template="${esc(r.id)}">Als Vorlage</button></td>
       </tr>`).join(''):'<tr><td colspan="8">Keine passenden Einträge.</td></tr>';
     }
     [search,proj,cat,status].forEach(el=>el.addEventListener('input',draw));
     root.querySelectorAll('[data-reg-sort]').forEach(el=>el.addEventListener('click',()=>{if(sort===el.dataset.regSort)desc=!desc;else {sort=el.dataset.regSort;desc=sort==='date';}draw();}));
     function clearForm() {
-      pendingUpload=null;
+      pendingUpload=null;reuseSource=null;
       const form=$('dwp-reg-form');form.reset();form.elements.versionOf.value='';form.elements.date.value=localDate();
       form.elements.projectId.value=store.data.selectedProject||'';
       $('dwp-reg-form-heading').textContent='Neues Dokument erfassen';
@@ -109,12 +110,36 @@
     }
     $('dwp-reg-clear').addEventListener('click',clearForm);
     root.addEventListener('click',async event=>{
+      const template=event.target.closest('[data-reg-template]');
+      if(template) {
+        const source=all.find(row=>row.id===template.dataset.regTemplate);
+        if(!source)return;
+        const form=$('dwp-reg-form');
+        const selected=form.elements.projectId.value || store.data.selectedProject;
+        const destination=projects.some(p=>p.id===selected)?selected:source.projectId;
+        clearForm();
+        form.elements.projectId.value=destination;
+        form.elements.date.value=localDate();
+        form.elements.category.value=source.category;
+        form.elements.title.value=String(source.record.data?.title || source.description || 'Neuer Beleg').slice(0,240);
+        const sameProject=destination===source.projectId;
+        for(const key of ['description','commission','recipient','editor']) {
+          form.elements[key].value=sameProject?String(source.record.data?.[key] || '').slice(0,key==='description'?600:240):'';
+        }
+        form.elements.versionOf.value='';
+        form.elements.file.value='';
+        reuseSource={recordId:source.recordId,number:source.documentNumber,sameProject};
+        $('dwp-reg-form-heading').textContent='Neuer Beleg aus vorhandener Vorlage';
+        $('dwp-reg-save-status').textContent='Metadaten aus dem Register übernommen. Bestehende Dokumentnummer und Originaldatei bleiben unverändert. Für den neuen Beleg ist eine eigene PDF- oder Bilddatei erforderlich.'+(sameProject?'':' Angaben aus dem anderen Projekt wurden bewusst nicht übernommen.');
+        form.scrollIntoView({block:'start',behavior:'smooth'});
+        return;
+      }
       const v=event.target.closest('[data-reg-version]');
       if(v) {
         const record=byRecord.get(v.dataset.regVersion);if(!record)return;
         const form=$('dwp-reg-form');
-        pendingUpload=null;
-         form.elements.versionOf.value=record.id;form.elements.projectId.value=record.projectId;
+        pendingUpload=null;reuseSource=null;
+        form.elements.versionOf.value=record.id;form.elements.projectId.value=record.projectId;
         for(const key of ['date','category','title','description','commission','recipient','editor']) {
           if(form.elements[key])form.elements[key].value=record.data?.[key]|| (key==='date'?localDate():'');
         }
@@ -127,6 +152,7 @@
         const record=byRecord.get(retry.dataset.regRetry);
         if(!record || record.module!=='documents' || record.attachments?.some(a=>a.storageId))return;
         const form=$('dwp-reg-form');
+        reuseSource=null;
         form.elements.projectId.value=record.projectId;
         for(const key of ['date','category','title','description','commission','recipient','editor','versionOf']) {
           if(form.elements[key])form.elements[key].value=record.data?.[key]||'';
@@ -184,7 +210,8 @@
           number=prefix+String(seq).padStart(4,'0');
           const values={title:form.elements.title.value,number,date:form.elements.date.value,category:form.elements.category.value,
             description:form.elements.description.value,commission:form.elements.commission.value,recipient:form.elements.recipient.value,
-            editor:form.elements.editor.value,versionOf:form.elements.versionOf.value};
+            editor:form.elements.editor.value,versionOf:form.elements.versionOf.value,
+            notes:reuseSource?'Aus vorhandenen Metadaten als neuer Beleg erfasst.'+(reuseSource.sameProject?' Quelle: '+reuseSource.number:'') :''};
           msg.textContent='Dokumentdaten werden zentral gespeichert …';
           const record=await window.DWPRemote.run('save',['documents',values,{status:'Neu',owner:values.editor||''}]);
           if(!record?.id)throw Error('Server hat keine Dokument-ID bestätigt.');
