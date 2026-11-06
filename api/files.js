@@ -29,8 +29,11 @@ function createHandler(deps={sessionFromRequest,repository,fileRepository,access
     if(!['admin','manager','editor'].includes(actor.role)||file.actor!==actor.id)throw failure('Uploadberechtigung fehlt.',403);
     if(body.action==='chunk')return res.status(200).json(await files.put(actor,file.id,body.part,body.data));
     await files.validate(actor,file.id);
-    if(!record.attachments?.some(a=>a.storageId===file.id))await execute(db,actor,{method:'attach',args:[record.id,{id:file.id,storageId:file.id,name:file.name,mime:file.mime,size:file.size,sha256:file.sha256}],projectId:record.projectId,revision:body.revision},{allowStoredFile:true});
+    // The original must be readable before the document is marked as having
+    // a centrally stored attachment. If attaching fails, an unreferenced
+    // ready file can be retried; the register must never show a missing blob.
     await files.ready(actor,file.id);
+    if(!record.attachments?.some(a=>a.storageId===file.id))await execute(db,actor,{method:'attach',args:[record.id,{id:file.id,storageId:file.id,name:file.name,mime:file.mime,size:file.size,sha256:file.sha256}],projectId:record.projectId,revision:body.revision},{allowStoredFile:true});
     await access.event(actor,'file_uploaded',{projectId:record.projectId,userAgent:req.headers['user-agent']});
     return res.status(200).json({ok:true,fileId:file.id});
    }
