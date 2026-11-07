@@ -205,13 +205,14 @@
 
   function recordForm(mod) {
     const r=editing?db.get(editing):null, values=r?.pendingPrice?.data || r?.data || defaults(mod.id);
+    const priceReview=mod.id==='materials' && r?.pendingPrice?`<div class="field-span dwp-panel"><p>Bisheriger Preis: <strong>${money(r.data.price)} / ${esc(r.data.unit)}</strong>. Importvorschlag: <strong>${money(values.price)} / ${esc(values.unit)}</strong>.</p><label><input type="checkbox" name="approveImportedPrice"> Ich habe den Importpreis und meine Änderungen geprüft und bestätige die Übernahme bei Status „Freigegeben“.</label></div>`:'';
     const fields=mod.fields.map(f=>{
       const material=f.key.match(/^materialName([1-4])$/);
       if(mod.id==='lv' && material){const i=material[1];return `<fieldset class="field-span dwp-blanko-material"><legend>Material ${i}</legend>${mod.fields.filter(item=>new RegExp('^material(Name|Price|Cut|Waste|Minutes)'+i+'$').test(item.key)).map(item=>field(item.label,input(item,values[item.key]))).join('')}</fieldset>`;}
       if(mod.id==='lv' && /^material(Price|Cut|Waste|Minutes)[1-4]$/.test(f.key))return '';
       return field(f.label,input(f,values[f.key]));
     }).join('');
-    return panel(r?'Vorgang bearbeiten':'Vorgang anlegen',`${mod.id==='lv'?`<p>${btn('Vorlage 03/25 · vier Materialien · 62 €/h','blanko-prepare')} · Eingaben werden erst mit „Speichern“ übernommen. Zuschläge separat prüfen.</p>`:''}<form id="dwp-record" class="quick-form"><input type="hidden" name="module" value="${esc(mod.id)}">${fields}${field('Status',`<select name="status">${core.statuses.map(s=>`<option ${s===(r?.status || 'Neu')?'selected':''}>${esc(s)}</option>`).join('')}</select>`)}${field('Verantwortlich',`<input name="owner" value="${esc(r?.owner || '')}" placeholder="Name / Rolle">`)}${field('Rückmeldefrist',`<input name="due" type="date" value="${esc(r?.due)}">`)}<div class="field-span dwp-actions"><button class="button button-primary" type="submit">Speichern</button>${r?btn('Bearbeitung abbrechen','cancel'):''}</div></form>`);
+    return panel(r?'Vorgang bearbeiten':'Vorgang anlegen',`${mod.id==='lv'?`<p>${btn('Vorlage 03/25 · vier Materialien · 62 €/h','blanko-prepare')} · Eingaben werden erst mit „Speichern“ übernommen. Zuschläge separat prüfen.</p>`:''}<form id="dwp-record" class="quick-form"><input type="hidden" name="module" value="${esc(mod.id)}">${priceReview}${fields}${field('Status',`<select name="status">${core.statuses.map(s=>`<option ${s===(r?.status || 'Neu')?'selected':''}>${esc(s)}</option>`).join('')}</select>`)}${field('Verantwortlich',`<input name="owner" value="${esc(r?.owner || '')}" placeholder="Name / Rolle">`)}${field('Rückmeldefrist',`<input name="due" type="date" value="${esc(r?.due)}">`)}<div class="field-span dwp-actions"><button class="button button-primary" type="submit">Speichern</button>${r?btn('Bearbeitung abbrechen','cancel'):''}</div></form>`);
   }
   function prepareBlanko() {
     const form=main.querySelector('#dwp-record');
@@ -657,6 +658,7 @@
       if(form.id==='dwp-reopen')command=['reopenProject',values.reason];
       if(form.id==='dwp-record') {
         const mod=values.module;core.definitions[mod].fields.filter(f=>f.type==='checkbox').forEach(f=>values[f.key]=form.elements.namedItem(f.key).checked);
+        if(mod==='materials' && db.get(editing)?.pendingPrice && values.status==='Freigegeben' && !form.elements.namedItem('approveImportedPrice')?.checked)throw Error('Bitte den Importpreis prüfen und die Freigabe ausdrücklich bestätigen.');
         command=['save',mod,values,{id:editing,status:values.status,owner:values.owner,due:values.due}];
       }
       if(['dwp-settings','dwp-company'].includes(form.id))command=['settings',values];
@@ -833,6 +835,10 @@
       if(action==='legacy-import'){if(window.DWPRemote?.active)throw Error('Der alte lokale Importmanager ist ausschließlich im Modultest verfügbar. Für zentrale Daten den geprüften CSV-Import verwenden.');current='legacy';main.innerHTML=calculationView();bindDynamicInteractions();}
     }catch(e){showError(e);}
   },true);
+  for(const eventName of ['input','change'])main.addEventListener(eventName,event=>{
+    const form=event.target.form,confirmation=form?.elements.namedItem('approveImportedPrice');
+    if(form?.id==='dwp-record' && confirmation && event.target!==confirmation)confirmation.checked=false;
+  });
   main.addEventListener('input',event=>{
     if(event.target.id==='dwp-project-filter'){
       const term=event.target.value.trim().toLocaleLowerCase('de');
