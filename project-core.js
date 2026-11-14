@@ -82,6 +82,13 @@
   definitions.materials.fields.push(f('validUntil','Preisbindung bis einschließlich','date'),f('system','Dach- / Abdichtungssystem'),f('documentUrl','Herstellerunterlage (https://)','url'),f('documentEdition','Unterlagenstand / Fassung'),f('compatibility','Systemverträglichkeit','select',false,['','Ungeprüft','Geeignet laut Nachweis','Nicht geeignet']),f('compatibilityEvidence','Eignungsnachweis / geprüfter Aufbau','textarea'));
   definitions.materials.fields.push(f('priceBasis','Preisberechnung / Bezugsmenge','textarea'));
   const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
+  // Belegnummern (festgelegt 14.11.2026): DWP-<Art>-JJJJMM-NNNN/Version, z. B. DWP-A-202611-0100/1.
+  // A = Angebot, AB = Auftragsbestätigung, R = Rechnung. Jede Art hat einen eigenen,
+  // über Monate und Jahre fortlaufenden Zähler; JJJJMM ist der Belegmonat. Die Version
+  // hinter dem Schrägstrich zählt Überarbeitungen derselben Nummer (/1, /2, …).
+  const DOC_NUMBER=/^DWP-([A-Z]{1,3})-(\d{6})-(\d{4,})(?:\/(\d+))?$/;
+  const DOC_NUMBER_START=100;
+  const berlinDay=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(new Date());
   function validatePricing(module,data) {
     if(module==='projects' && (data.plannedOverhead || data.actualOverhead) && !data.overheadBasis?.trim())throw Error('Zusätzliche Gemeinkosten benötigen Abgrenzung und Nachweis.');
     if(module==='offers' && data.validUntil && !validDate(data.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
@@ -241,6 +248,20 @@
     }
     get(id) { return this.data.records.find(r=>r.id===id); }
     project() { return this.get(this.data.selectedProject); }
+    // Allocates against every record of the tenant (the server runs this on the full
+    // state, so hidden projects are counted too) and never against visible row counts.
+    nextDocumentNumber(type, date) {
+      if(!['A','AB','R'].includes(type))throw Error('Belegart für Nummernvergabe ungültig.');
+      const day=validDate(date)?date:berlinDay();
+      const start=Number.isInteger(this.data.settings.documentNumberStart)?this.data.settings.documentNumberStart:DOC_NUMBER_START;
+      let max=start-1;
+      for(const r of this.data.records)for(const value of [r.data?.number,r.confirmation?.number]) {
+        const match=DOC_NUMBER.exec(String(value || ''));
+        if(match && match[1]===type)max=Math.max(max,Number(match[3]));
+      }
+      if(max>=9999)throw Error('Nummernkreis '+type+' ist ausgeschöpft.');
+      return 'DWP-'+type+'-'+day.slice(0,4)+day.slice(5,7)+'-'+String(max+1).padStart(4,'0')+'/1';
+    }
     select(id) {
       if(!this.get(id) || this.get(id).module!=='projects') throw Error('Projekt nicht gefunden.');
       return this.transaction('Projekt ausgewählt','projects',id,d=>{d.selectedProject=id;});
@@ -367,7 +388,7 @@
       if(module==='materials')delete record.pendingPrice;
       if(module==='orders' && status==='Freigegeben') {
         const offer=this.get(data.offerId);
-        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
+        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',number:before?.confirmation?.number || this.nextDocumentNumber('AB',data.date),documentFamily:undefined,documentRevision:1,offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
       }
       return this.transaction(before?'Geändert':'Angelegt',module,record.id,d=>{
         if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,validUntil:before.data.validUntil || '',priceBasis:before.data.priceBasis || '',supplier:before.data.supplier,source:before.data.source}] : [])].slice(-3);
@@ -382,6 +403,13 @@
       const clean={...this.data.settings, ...values};
       if(values.capacity)clean.capacity=capacity(values.capacity);
       for(const k of ['wage','agk','profit','tax']) { clean[k]=num(clean[k]); if(clean[k]<0 || (k==='tax' && clean[k]>100)) throw Error('Ungültige Kalkulationswerte.'); }
+      if(values.documentNumberStart!==undefined) {
+        if(String(values.documentNumberStart).trim()==='')delete clean.documentNumberStart;
+        else {
+          clean.documentNumberStart=Number(values.documentNumberStart);
+          if(!Number.isInteger(clean.documentNumberStart) || clean.documentNumberStart<1 || clean.documentNumberStart>9999)throw Error('Belegnummern-Start: ganze Zahl von 1 bis 9999.');
+        }
+      }
       return this.transaction('Einstellungen gespeichert','operating',null,d=>{d.settings=clean;});
     }
     blockers(moduleIds) {
@@ -646,7 +674,7 @@
       const net=round(positions.reduce((n,p)=>n+p.gp,0));
       const previouslyNet=round(previous.reduce((n,r)=>n+r.data.net,0)),previouslyTax=round(previous.reduce((n,r)=>n+r.data.taxAmount,0));
       const taxAmount=round(round((previouslyNet+net)*tax/100)-previouslyTax);
-      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:`${kind==='offers'?'AN':'RE'}-${new Date().getFullYear()}-${String(this.data.records.filter(r=>r.module===kind).length+1).padStart(4,'0')}`,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount)}};
+      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:this.nextDocumentNumber(kind==='offers'?'A':'R'),documentRevision:1,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount)}};
       Object.assign(record.data,terms);
       validatePricing(kind,record.data);
       return this.transaction('Dokumentfassung freigegeben',kind,record.id,d=>{d.records.push(record);return record;});
@@ -674,8 +702,8 @@
       });
       if(!changed)throw Error('Keine Änderungen vorhanden. Die bisherige PDF bleibt gültig.');
       const family=source.data.documentFamily || source.data.number.replace(/\/\d+$/,'');
-      const revision=Math.max(0,...this.list('offers').filter(r=>(r.data.documentFamily || r.data.number.replace(/\/\d+$/,''))===family).map(r=>r.data.documentRevision || 0))+1;
-      Object.assign(data,{number:family+'/'+String(revision).padStart(2,'0'),documentFamily:family,documentRevision:revision,title:'Angebotsentwurf',version:(source.data.version || 1)+1,supersedesOfferId:id});
+      const revision=Math.max(1,...this.list('offers').filter(r=>(r.data.documentFamily || r.data.number.replace(/\/\d+$/,''))===family).map(r=>r.data.documentRevision || 1))+1;
+      Object.assign(data,{number:family+'/'+revision,documentFamily:family,documentRevision:revision,title:'Angebotsentwurf',version:(source.data.version || 1)+1,supersedesOfferId:id});
       data.net=round(data.positions.reduce((sum,p)=>sum+p.gp,0));data.taxAmount=round(data.net*data.tax/100);data.gross=round(data.net+data.taxAmount);
       const record={id:uid(),module:'offers',projectId:project.id,status:'Prüfung',owner:options.owner || source.owner,createdAt:new Date().toISOString(),data,pdfPending:true};
       return this.transaction('Angebotsänderung zur PDF-Erneuerung vorbereitet','offers',record.id,d=>{d.records.push(record);return record;});
@@ -688,7 +716,7 @@
       if(this.list('invoices').some(r=>r.data.stornoOf===id))throw Error('Rechnung wurde bereits storniert.');
       const data=JSON.parse(JSON.stringify(invoice.data));
       data.title='Stornorechnung';data.invoiceType='Stornorechnung';data.stornoOf=id;data.originalNumber=invoice.data.number;data.reason=options.reason.trim();
-      data.number=`RE-${new Date().getFullYear()}-${String(this.data.records.filter(r=>r.module==='invoices').length+1).padStart(4,'0')}`;
+      data.number=this.nextDocumentNumber('R');data.documentRevision=1;delete data.documentFamily;
       data.net=-data.net;data.taxAmount=-data.taxAmount;data.gross=-data.gross;data.positions=data.positions.map(p=>({...p,qty:-p.qty,gp:-p.gp}));
       const record={id:uid(),module:'invoices',projectId:invoice.projectId,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data};
       return this.transaction('Rechnung storniert','invoices',record.id,d=>{d.records.push(record);return record;});
