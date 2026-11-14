@@ -129,6 +129,17 @@
     const c=customer || {},city=[c.postalCode,c.location || c.city].map(s=>String(s || '').trim()).filter(Boolean).join(' ');
     return [c.address,city,c.country && c.country!=='DE'?c.country:''].map(s=>String(s || '').trim()).filter(Boolean);
   };
+  // Module 02: what a new project may take over from its customer. The form only fills empty fields.
+  const projectDefaultsFromCustomer=customer=>{
+    const c=customer || {};
+    return {address:customerAddressLines(c).join(', '),buyerReference:String(c.buyerReference || '').trim()};
+  };
+  // Stable list order for customers and projects; all other modules keep their recorded order.
+  const compareText=(a,b)=>String(a ?? '').localeCompare(String(b ?? ''),'de',{numeric:true,sensitivity:'base'});
+  const sortRecords=(module,records)=>[...records].sort((a,b)=>
+    module==='customers'?(!a.data.customerNumber)-(!b.data.customerNumber) || compareText(a.data.customerNumber,b.data.customerNumber) || compareText(a.data.name,b.data.name)
+    : module==='projects'?(a.data.phase==='Abgeschlossen')-(b.data.phase==='Abgeschlossen') || compareText(a.data.name,b.data.name) || compareText(a.data.costCenter,b.data.costCenter)
+    : 0);
   const num = value => {
     if (typeof value === 'number') { if (!Number.isFinite(value)) throw Error('Ungültige Zahl.'); return value; }
     let s=String(value ?? '').trim().replace(/\s/g,'');
@@ -282,6 +293,11 @@
         if(assigned && data.customerNumber && data.customerNumber!==assigned)throw Error('Die Kundennummer bleibt unverändert, weil Belege und Exporte darauf verweisen.');
         data.customerNumber=data.customerNumber || assigned || nextCustomerNumber(this.data.records);
         if(this.data.records.some(r=>r.module==='customers' && r.id!==before?.id && String(r.data.customerNumber || '').toLowerCase()===data.customerNumber.toLowerCase()))throw Error(`Kundennummer ${data.customerNumber} ist bereits vergeben.`);
+      }
+      if(module==='projects') {
+        const center=data.costCenter.toLocaleLowerCase('de');
+        if(center && center!==String(before?.data.costCenter || '').trim().toLocaleLowerCase('de') && this.data.records.some(r=>r.module==='projects' && r.id!==before?.id && String(r.data.costCenter || '').trim().toLocaleLowerCase('de')===center))throw Error(`Kostenstelle ${data.costCenter} ist bereits einem anderen Projekt zugeordnet.`);
+        if(before && data.customerId!==before.data.customerId && this.data.records.some(r=>r.projectId===before.id && ['offers','orders','invoices','payments'].includes(r.module)))throw Error('Der Kunde kann nach ausgestellten Angeboten, Aufträgen oder Rechnungen nicht mehr gewechselt werden. Bitte ein neues Projekt anlegen.');
       }
       if(module==='projects' && !before && data.phase!=='Erfassung')throw Error('Neue Projekte beginnen in der Erfassung.');
       if(module==='projects' && before && data.phase!==before.data.phase) {
@@ -920,7 +936,7 @@
       String(p.text || ''),decimal(p.ep),''
     ])];
   };
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber};
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

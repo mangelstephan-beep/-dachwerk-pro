@@ -59,7 +59,7 @@
     rememberProject();
   }
   function projectGestureRows() {
-    const projects=db.list('projects');
+    const projects=core.sortRecords('projects',db.list('projects'));
     if(!projects.length)return '<p>Keine Projekte vorhanden.</p>';
     const canDelete=!window.DWPRemote?.active || state.currentRole==='admin';
     return `<div class="dwp-project-gesture-list" id="dwp-project-gesture-list">${projects.map(r=>`<div class="dwp-project-gesture" data-project-gesture="${esc(r.id)}" data-project-search="${esc([r.data.name,r.data.number,r.data.costCenter,r.data.address].filter(Boolean).join(' ').toLocaleLowerCase('de'))}" tabindex="0" role="group" aria-label="${esc(r.data.name)}"><div class="dwp-project-gesture-info"><strong>${esc(r.data.name)}</strong><small>${esc(r.data.costCenter || r.data.address || '')} · ${db.data.records.filter(x=>x.projectId===r.id).length} Vorgänge</small></div><div class="dwp-project-gesture-actions">${btn('Öffnen','project-select',r.id)}${canDelete?btn('⋯','project-actions',r.id):''}<button type="button" class="button button-danger" data-dwp="delete-project-row" data-id="${esc(r.id)}" hidden>Löschen</button></div></div>`).join('')}</div>`;
@@ -72,7 +72,7 @@
     });
   }
   function projectBar() {
-    const projects=db.list('projects'),central=window.DWPRemote?.active;
+    const projects=core.sortRecords('projects',db.list('projects')),central=window.DWPRemote?.active;
     const hint=db.project()?names(db.project().data.customerId):projects.length?'Bitte ein vorhandenes Projekt auswählen.':central?'In diesem Benutzerbestand sind noch keine Projekte gespeichert.':'Zuerst Kunde und Projekt anlegen';
     return `<div class="dwp-project-bar"><label title="Projekt lange drücken, um es zu löschen">Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}${db.project() && (!central || state.currentRole==='admin')?btn('Projekt löschen','delete-project'):''}</div><details class="dwp-current-projects"><summary>Aktuelle Projekte (${projects.length}) · lang drücken oder nach links wischen</summary><div class="dwp-project-finder"><label>Projekt suchen (Name, Nummer oder Kostenstelle)<input id="dwp-project-filter" type="search" autocomplete="off" placeholder="z. B. HIT 80008" aria-controls="dwp-project-gesture-list"></label><p id="dwp-project-filter-feedback" role="status" aria-live="polite"></p></div>${projectGestureRows()}</details></div>`;
   }
@@ -183,7 +183,7 @@
   function optionsFor(type) {
     const mod={customer:'customers',position:'lv',material:'materials',employee:'personnel',offer:'offers',purchase:'purchase',invoice:'invoices',subcontract:'subcontracts'}[type];
     if(type==='record')return db.data.records.filter(r=>r.projectId===db.data.selectedProject || !r.projectId);
-    return db.list(mod).filter(r=>!['material','offer'].includes(type)||r.status==='Freigegeben');
+    return core.sortRecords(mod,db.list(mod)).filter(r=>!['material','offer'].includes(type)||r.status==='Freigegeben');
   }
   function input(f,value) {
     const attr=`name="${f.key}" ${f.required?'required':''}`;
@@ -234,7 +234,7 @@
     return panel('Hierarchischer LV-Baum',`<p>Bis zu fünf aufklappbare Titelstufen. Die Zwischensumme einer Gruppe enthält ihre Untergruppen bereits; sie wird nicht erneut zum Gesamtbetrag addiert. Bedarfs- und Alternativpositionen erscheinen zur Prüfung, jedoch nicht in den Grundsummen.</p>${tree.length?`<ul class="dwp-lv-branches" aria-label="LV-Titelhierarchie">${tree.map(renderNode).join('')}</ul>`:'<p>Für dieses Projekt sind noch keine LV-Positionen vorhanden.</p>'}`);
   }
   function records(mod) {
-    const list=db.list(mod.id);
+    const list=core.sortRecords(mod.id,db.list(mod.id));
     const rows=list.map(r=>[
       `<strong>${esc(names(r.id))}</strong><small>${esc(r.id.slice(0,8))}</small>`,
       `<span class="status-pill ${r.status==='Freigegeben'?'status-green':'status-grey'}">${esc(r.status)}</span>`,
@@ -862,6 +862,13 @@
   main.addEventListener('change',async event=>{
     try {
       const quoteForm=event.target.closest('#dwp-quote');if(quoteForm){state.unsavedChanges=true;updateQuotePreview(quoteForm);}
+      const recordForm=event.target.closest('#dwp-record');
+      if(recordForm?.elements.module.value==='projects' && event.target.name==='customerId' && event.target.value) {
+        const taken=Object.entries(core.projectDefaultsFromCustomer(db.get(event.target.value)?.data)).filter(([key,value])=>value && recordForm.elements[key] && !recordForm.elements[key].value.trim());
+        taken.forEach(([key,value])=>{recordForm.elements[key].value=value;});
+        state.unsavedChanges=true;
+        if(taken.length)notice(`Vom Kunden übernommen: ${taken.map(([key])=>key==='address'?'Objektanschrift':'Leitweg-ID / Käuferreferenz').join(', ')}. Bitte prüfen und speichern.`);
+      }
       if(event.target.matches('[data-offer-position]')){updateChoiceTotal();state.unsavedChanges=true;}
       if(event.target.id==='dwp-project') {
         if(!event.target.value){event.target.value=db.data.selectedProject || '';return;}

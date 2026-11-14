@@ -16,7 +16,7 @@
     "verified": false,
     "checkedAt": "2026-10-19",
     "evidence": "Live 19.10.2026: Testprojekt mit Kunde und Kostenstelle gespeichert; Wechsel zwischen Projekten und Auswahl nach Seitenreload bestätigt. iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl weiterhin offen.",
-    "remaining": "iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl offen; Desktop-Anlage, Wechsel und Wiederabruf am 19.10.2026 bestanden."
+    "remaining": "iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl offen; Desktop-Anlage, Wechsel und Wiederabruf am 19.10.2026 bestanden. Erweiterung 14.11.2026 (Übernahme von Kundenanschrift/Leitweg-ID, eindeutige Kostenstelle, Kundenwechsel nach Belegen gesperrt, sortierte Kunden-/Projektlisten) nur lokal geprüft; Abnahme nach docs/MODUL02_PROJEKTE_2026-11-14.md offen."
   },
   "operating": {
     "number": 3,
