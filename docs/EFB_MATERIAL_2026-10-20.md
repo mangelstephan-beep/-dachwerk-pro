@@ -8,7 +8,7 @@ Je LV-Position kann die Kostenartenrechnung aktiviert werden. Kalkulationslohn u
 
 Lohn-EK = Minuten / 60 × Kalkulationslohn. Jeder Kostenbestandteil einschließlich seines Zuschlags wird auf Cent gerundet. Die Summe der vier Preisbestandteile ergibt den kalkulierten EP. Zielpreis und Rabatt folgen danach. GP = Menge × endgültiger EP. Bei 6 Minuten, 54 €/h und 12,30 € Stoffen mit 35 % Stoffzuschlag ergeben sich 5,40 € Lohn, 16,61 € Stoffpreis und 22,01 € EP. Für dieses Beispiel ist kein zusätzlicher Lohnzuschlag angesetzt. Die Referenz enthält daneben 32,44 €/h KL und 35 % Lohnzuschlag; diese widersprüchlichen Ansätze werden nicht stillschweigend zusammengeführt.
 
-Im Modul 08 sind Kostenbestandteile und Preise sichtbar, die Ansätze werden über die zugehörige LV-Position bearbeitet. Bestehende Angebots-/Rechnungsfassungen bleiben unverändert. Amtliche EFB 221/222/223 und ihre Feldzuordnung sind weiterhin offen.
+Im Modul 08 sind Kostenbestandteile und Preise sichtbar, die Ansätze werden über die zugehörige LV-Position bearbeitet. Bestehende Angebots-/Rechnungsfassungen bleiben unverändert. EFB 221/222/223: seit 14.11.2026 als Übertragungshilfe mit Feldzuordnung umgesetzt, siehe `MODUL08_EFB_2026-11-14.md`.
 
 ## Modul 10
 

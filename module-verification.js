@@ -64,7 +64,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Kostenartenzuschläge und Kalkulationsnachweis lokal geprüft; Live-Abnahme und amtliche EFB 221/222/223 mit Feldmapping offen."
+    "remaining": "Kostenartenzuschläge und Kalkulationsnachweis lokal geprüft. Erweiterung 14.11.2026: EFB-Preis 221/222/223 als Übertragungshilfe mit Feldzuordnung, Druck und CSV (223) nur automatisiert geprüft; Live-/iPhone-Abnahme und fachlicher Abgleich mit einem echten Formblatt aus Vergabeunterlagen nach docs/MODUL08_EFB_2026-11-14.md offen. Mittellohn-Aufteilung (1.1–1.3) und Aufteilung BGK/AGK/W&G bei Kostenartenzuschlägen werden nicht erfasst."
   },
   "services": {
     "number": 9,

@@ -519,6 +519,63 @@
       const sum=k=>round(included.reduce((n,p)=>n+p.qty*p[k],0));
       return {positions,optionalNet:round(positions.filter(p=>p.kind==='Bedarfsposition').reduce((n,p)=>n+p.gp,0)),net:round(included.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),other:sum('other'),direct:sum('direct')};
     }
+    // Modul 08: Daten für EFB-Preis 221/222/223 aus der freigegebenen Kalkulationslogik.
+    // Ergebnis ist eine Übertragungshilfe für die Formblätter des Auftraggebers, kein amtliches Formular.
+    efbForms() {
+      const calc=this.calculation(),s=this.data.settings,warnings=[];
+      const keys=['labor','material','equipment','other','subcontract'];
+      const pct=n=>Math.round(n*10000)/100;
+      const rows=calc.positions.map(p=>{
+        const digits=p.epPrecision===3?3:2,r=n=>Math.round((n+Math.sign(n)*Number.EPSILON)*10**digits)/10**digits;
+        const factor=(1+s.agk/100)*(1+s.profit/100);
+        const raw=p.useEfbRates?Object.fromEntries(keys.map(k=>[k,(p[k] || 0)*(1+(p[k+'Markup'] || 0)/100)])):{labor:p.labor*factor,material:p.material*factor,equipment:(p.equipment || 0)*factor,other:(p.other || 0)*factor,subcontract:p.nuMarkupPercent===null?(p.subcontract || 0)*factor:p.nuSalePrice};
+        const notes=[];
+        let parts;
+        if(p.calculatedEp>0) {
+          const scale=p.ep/p.calculatedEp;
+          if(Math.abs(scale-1)>1e-9)notes.push(p.useTargetPrice?'Zielpreis anteilig auf die Kostenarten verteilt':'Rabatt anteilig auf die Kostenarten verteilt');
+          parts=Object.fromEntries(keys.map(k=>[k,r(raw[k]*scale)]));
+        } else {
+          parts=Object.fromEntries(keys.map(k=>[k,0]));
+          if(p.ep>0){parts.other=p.ep;notes.push('Keine Einzelkosten: EP vollständig unter Sonstiges');warnings.push(`Position ${p.number}: EP ${p.ep} ohne Einzelkosten – Aufgliederung nicht aussagekräftig.`);}
+        }
+        const diff=r(p.ep-keys.reduce((n,k)=>n+parts[k],0));
+        if(diff!==0){const k=keys.reduce((a,b)=>Math.abs(parts[b])>Math.abs(parts[a])?b:a);parts[k]=r(parts[k]+diff);notes.push(`Rundungsausgleich ${diff.toFixed(digits).replace('.',',')} € in ${({labor:'Lohn',material:'Stoffe',equipment:'Geräte',other:'Sonstiges',subcontract:'Nachunternehmer'})[k]}`);}
+        return {id:p.id,number:p.number,text:String(p.text || '').split('\n')[0].slice(0,120),qty:p.qty,unit:p.unit,kind:p.kind || 'Hauptleistung',hours:Math.round(p.totalMinutes/60*1000)/1000,...parts,ep:p.ep,gp:p.gp,mode:p.useEfbRates?'Kostenartenzuschläge':'Globale Kalkulationsbasis',notes};
+      });
+      // 221: einheitliche Zuschläge je Kostenart; abweichende Positionen werden gemeldet.
+      const efb=calc.positions.filter(p=>p.useEfbRates),global=calc.positions.filter(p=>!p.useEfbRates);
+      if(efb.length && global.length)warnings.push('Positionen mit Kostenartenzuschlägen und mit globaler Kalkulationsbasis gemischt – EFB 221 ist nicht eindeutig. EFB 222 verwenden oder Kalkulation vereinheitlichen.');
+      const distinct=(list,fn)=>[...new Set(list.map(fn))];
+      const wages=distinct(efb,p=>p.efbWage);
+      if(wages.length>1)warnings.push(`Unterschiedliche Kalkulationslöhne (${wages.join(' / ')} €/h) – EFB 221 nicht eindeutig.`);
+      const total=global.length && !efb.length?pct((1+s.agk/100)*(1+s.profit/100)-1):null;
+      const columns=Object.fromEntries(keys.map(k=>{
+        if(efb.length && !global.length) {
+          const values=distinct(efb,p=>p[k+'Markup'] || 0);
+          if(values.length>1)warnings.push(`Zuschlag ${({labor:'Lohn',material:'Stoffe',equipment:'Geräte',other:'Sonstiges',subcontract:'Nachunternehmer'})[k]} je Position unterschiedlich (${values.join(' / ')} %).`);
+          return [k,{bgk:null,agk:null,wg:null,total:values.length===1?values[0]:null}];
+        }
+        if(k==='subcontract' && global.some(p=>p.nuMarkupPercent!==null)) {
+          const values=distinct(global,p=>p.nuMarkupPercent===null?total:p.nuMarkupPercent);
+          if(values.length>1)warnings.push(`Nachunternehmer-Zuschlag je Position unterschiedlich (${values.join(' / ')} %).`);
+          return [k,{bgk:null,agk:null,wg:null,total:values.length===1?values[0]:null}];
+        }
+        return [k,total===null?{bgk:null,agk:null,wg:null,total:null}:{bgk:0,agk:s.agk,wg:pct(s.profit/100*(1+s.agk/100)),total}];
+      }));
+      const wage=efb.length && !global.length?(wages.length===1?wages[0]:null):global.length && !efb.length?s.wage:null;
+      const laborTotal=columns.labor.total;
+      const f221={wage,laborMarkup:laborTotal,billingWage:wage!==null && laborTotal!==null?round(wage*(1+laborTotal/100)):null,columns};
+      // 222: Einzelkosten der Teilleistungen und Angebotssumme (ohne Bedarfs-/Alternativpositionen).
+      const included=calc.positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
+      const sum=fn=>round(included.reduce((n,p)=>n+p.qty*fn(p),0));
+      const direct={hours:Math.round(included.reduce((n,p)=>n+p.qty*p.totalMinutes/60,0)*100)/100,labor:sum(p=>p.labor),material:sum(p=>p.material),equipment:sum(p=>p.equipment || 0),other:sum(p=>p.other || 0),subcontract:sum(p=>p.subcontract || 0)};
+      direct.total=round(direct.labor+direct.material+direct.equipment+direct.other+direct.subcontract);
+      const markup=round(calc.net-direct.total);
+      const f222={direct,net:calc.net,markup,markupPercent:direct.total>0?pct(markup/direct.total):null,optionalNet:calc.optionalNet,plannedOverhead:this.project()?.data.plannedOverhead || 0};
+      if(f222.plannedOverhead)warnings.push('Zusätzliche geplante Gemeinkosten des Projekts sind nicht im EP enthalten und erscheinen nicht als Baustellengemeinkosten.');
+      return {f221,f222,f223:rows,warnings:[...new Set(warnings)]};
+    }
     lvGroups() {
       const groups=new Map();
       for(const position of this.calculation().positions) {

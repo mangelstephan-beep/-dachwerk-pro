@@ -64,6 +64,13 @@ const {JSDOM}=require('jsdom');
   for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
   w.DWPWorkspace.open('efb');
   assert(w.document.querySelector('#main-content').textContent.includes('22,01'));
+  // EFB 221/222/223 Übertragungshilfe sichtbar; CSV ohne Formelausführung.
+  const efbText=w.document.querySelector('#main-content').textContent;
+  assert(efbText.includes('EFB 221 – Preisermittlung bei Zuschlagskalkulation'));assert(efbText.includes('EFB 223 – Aufgliederung der Einheitspreise'));
+  assert(w.document.querySelector('[data-dwp="efb-print"][data-id="223"]'));
+  let efbCsv;w.URL.createObjectURL=blob=>{efbCsv=blob;return 'blob:efb';};w.URL.revokeObjectURL=()=>{};const anchorClick=w.HTMLAnchorElement.prototype.click;w.HTMLAnchorElement.prototype.click=function(){};
+  w.document.querySelector('[data-dwp="efb-csv"]').click();assert(efbCsv,'EFB-223-CSV erzeugt');assert.match(await efbCsv.text(),/OZ.*Kurzbezeichnung[\s\S]*22,01/);
+  w.HTMLAnchorElement.prototype.click=anchorClick;
   w.document.querySelector(`[data-dwp="edit"][data-id="${position.id}"]`).click();
   assert.equal(w.document.querySelector('#dwp-record [name="efbWage"]').value,'54');
   assert(w.document.querySelector('#dwp-record [name="useEfbRates"]').checked);
