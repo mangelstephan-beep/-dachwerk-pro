@@ -70,3 +70,8 @@
 @media(max-width:640px){.dwp-register-toolbar{grid-template-columns:1fr 1fr}.dwp-register-toolbar label:first-child{grid-column:1/-1}.dwp-register-panel .quick-form{grid-template-columns:1fr}}
 
 .dwp-project-finder{padding:10px 0 8px;max-width:520px}.dwp-project-finder input{display:block;min-height:44px;font-size:16px}.dwp-project-finder p{min-height:16px;margin:6px 0;color:#765400;font-size:13px}
+
+/* Stammdaten-Module ohne Projektbezug, ruhige Überschrift nach Seitenwechsel und Platz für die iPhone-Browserleiste. */
+.dwp-global-note{padding:14px 16px;margin:0 0 20px;border-radius:10px;background:#eaf7f0;color:#1d4a33;font-size:14px;line-height:1.5}
+.dwp-workspace h1[tabindex="-1"]:focus,.dwp-workspace h1[tabindex="-1"]:focus-visible{outline:none;box-shadow:none}
+@media(max-width:650px){.dwp-workspace{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}}
