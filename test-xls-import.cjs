@@ -45,7 +45,7 @@ const bytes=require('./test-xls-fixture.cjs'),tick=()=>new Promise(resolve=>setI
  assert.equal(xls.parse(engine.CFB.write(umlautCfb,{type:'buffer'}),{engine}).sheets[0].rows[1].values[0].value,'Überhangsblech für Gaube');
  const change5=change=>{const c=engine.CFB.read(biff5,{type:'buffer'}),entry=c.FileIndex.find(e=>e.name==='Book');entry.content=change(Buffer.from(entry.content));entry.size=entry.content.length;return engine.CFB.write(c,{type:'buffer'});};
  assert.throws(()=>xls.parse(change5(b=>{b.writeUInt16LE(0x0600,4);return b;}),{engine}),/BIFF5/);
- assert.throws(()=>xls.parse(change5(b=>Buffer.concat([b.subarray(0,20),Buffer.from([0x2f,0,0,0]),b.subarray(20)])),{engine}),/Verschlüsselte/);
+ assert.throws(()=>xls.parse(change5(b=>Buffer.concat([b.subarray(0,4+b.readUInt16LE(2)),Buffer.from([0x2f,0,0,0]),b.subarray(4+b.readUInt16LE(2))])),{engine}),/Verschlüsselte/);
  const macro5=engine.CFB.read(biff5,{type:'buffer'});engine.CFB.utils.cfb_add(macro5,'/_VBA_PROJECT/dir',Buffer.from([1,2,3]));
  assert.throws(()=>xls.parse(engine.CFB.write(macro5,{type:'buffer'}),{engine}),/Makro/);
  const biff2=engine.write(legacyBook(),{type:'buffer',bookType:'biff2'});
