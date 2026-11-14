@@ -47,6 +47,7 @@
       for(const [key,col] of selected){const cell=row.values[col];candidate[key]=String(cell?.value ?? '').trim();if(cell?.issue || cell?.formula)issues.push(`${cell.address}: ${cell.issue || 'Formel benötigt Prüfung'}`);}
       for(const key of ['name','unit','price'])if(!candidate[key])issues.push(fields[key]+' fehlt');
       try{
+        if(Number.isInteger(mapping.baseQuantity) && mapping.baseQuantity>=0 && !candidate.baseQuantity)throw Error('Gebindeinhalt fehlt: zugeordnete Spalte ausfüllen oder die Zuordnung für Einzelpreise aufheben');
         const price=num(candidate.price),discount=num(candidate.discount),freight=num(candidate.freight),baseQuantity=candidate.baseQuantity?num(candidate.baseQuantity):1;
         if(price<0 || freight<0 || discount<0 || discount>100 || baseQuantity<=0)throw Error('Preis, Rabatt, Fracht oder Gebindeinhalt ungültig');
         const effective=round((price*(1-discount/100)+freight)/baseQuantity);

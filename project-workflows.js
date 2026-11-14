@@ -11,7 +11,7 @@
   const btn=(label,action,id='',primary=false)=>`<button type="button" class="button button-${primary?'primary':'secondary'}" data-dwp="${action}" data-id="${esc(id)}" ${action==='open'&&verified(id)?'data-dwp-verified="true"':''}>${esc(label)}</button>`;
   const field=(label,control)=>`<div><label>${esc(label)}${control}</label></div>`;
   const panel=(title,body)=>`<section class="panel panel-pad dwp-panel"><h2>${esc(title)}</h2>${body}</section>`;
-  const names=id=>{const r=db.get(id);return r ? (r.data.number?`${r.data.number} · `:'')+(r.data.name || r.data.title || r.data.text || '') : '';};
+  const names=id=>{const r=db.get(id);const number=r?.module==='customers'?r.data.customerNumber:r?.data.number;return r ? (number?`${number} · `:'')+(r.data.name || r.data.title || r.data.text || '') : '';};
   const viewsToModule={customers:'customers',projects:'projects',services:'services',prices:'materials',calculation:'calculation',gaeb:'imports',measurements:'measurements',safety:'safety','site-docs':'diary',defects:'defects',documents:'documents',invoices:'invoices',communication:'correspondence','ai-check':'technical',expert:'expert',energy:'energy',rules:'knowledge',help:'help',users:'personnel',settings:'settings'};
   const special=new Set(['calculation','efb','offers','invoices','closing','controlling','imports']);
   try {db=new core.Store(localStorage);} catch(error) {
@@ -59,7 +59,7 @@
     rememberProject();
   }
   function projectGestureRows() {
-    const projects=db.list('projects');
+    const projects=core.sortRecords('projects',db.list('projects'));
     if(!projects.length)return '<p>Keine Projekte vorhanden.</p>';
     const canDelete=!window.DWPRemote?.active || state.currentRole==='admin';
     return `<div class="dwp-project-gesture-list" id="dwp-project-gesture-list">${projects.map(r=>`<div class="dwp-project-gesture" data-project-gesture="${esc(r.id)}" data-project-search="${esc([r.data.name,r.data.number,r.data.costCenter,r.data.address].filter(Boolean).join(' ').toLocaleLowerCase('de'))}" tabindex="0" role="group" aria-label="${esc(r.data.name)}"><div class="dwp-project-gesture-info"><strong>${esc(r.data.name)}</strong><small>${esc(r.data.costCenter || r.data.address || '')} · ${db.data.records.filter(x=>x.projectId===r.id).length} Vorgänge</small></div><div class="dwp-project-gesture-actions">${btn('Öffnen','project-select',r.id)}${canDelete?btn('⋯','project-actions',r.id):''}<button type="button" class="button button-danger" data-dwp="delete-project-row" data-id="${esc(r.id)}" hidden>Löschen</button></div></div>`).join('')}</div>`;
@@ -72,7 +72,7 @@
     });
   }
   function projectBar() {
-    const projects=db.list('projects'),central=window.DWPRemote?.active;
+    const projects=core.sortRecords('projects',db.list('projects')),central=window.DWPRemote?.active;
     const hint=db.project()?names(db.project().data.customerId):projects.length?'Bitte ein vorhandenes Projekt auswählen.':central?'In diesem Benutzerbestand sind noch keine Projekte gespeichert.':'Zuerst Kunde und Projekt anlegen';
     return `<div class="dwp-project-bar"><label title="Projekt lange drücken, um es zu löschen">Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}${db.project() && (!central || state.currentRole==='admin')?btn('Projekt löschen','delete-project'):''}</div><details class="dwp-current-projects"><summary>Aktuelle Projekte (${projects.length}) · lang drücken oder nach links wischen</summary><div class="dwp-project-finder"><label>Projekt suchen (Name, Nummer oder Kostenstelle)<input id="dwp-project-filter" type="search" autocomplete="off" placeholder="z. B. HIT 80008" aria-controls="dwp-project-gesture-list"></label><p id="dwp-project-filter-feedback" role="status" aria-live="polite"></p></div>${projectGestureRows()}</details></div>`;
   }
@@ -183,7 +183,7 @@
   function optionsFor(type) {
     const mod={customer:'customers',position:'lv',material:'materials',employee:'personnel',offer:'offers',purchase:'purchase',invoice:'invoices',subcontract:'subcontracts'}[type];
     if(type==='record')return db.data.records.filter(r=>r.projectId===db.data.selectedProject || !r.projectId);
-    return db.list(mod).filter(r=>!['material','offer'].includes(type)||r.status==='Freigegeben');
+    return core.sortRecords(mod,db.list(mod)).filter(r=>!['material','offer'].includes(type)||r.status==='Freigegeben');
   }
   function input(f,value) {
     const attr=`name="${f.key}" ${f.required?'required':''}`;
@@ -195,23 +195,24 @@
     }
     if(f.type==='checkbox') return `<input ${attr} type="checkbox" ${value?'checked':''}>`;
     if(f.type==='textarea') return `<textarea ${attr} rows="3">${esc(value)}</textarea>`;
-    if(f.type==='select') return `<select ${attr}>${f.options.map(v=>`<option ${v===value?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
+    if(f.type==='select') return `<select ${attr}>${f.blank?`<option value="" ${value?'':'selected'}>Nicht angegeben</option>`:''}${f.options.map(v=>`<option ${v===value?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
     if(['customer','position','material','employee','offer','purchase','invoice','subcontract','record'].includes(f.type)) return `<select ${attr}><option value="">Bitte auswählen</option>${optionsFor(f.type).map(r=>`<option value="${esc(r.id)}" ${r.id===value?'selected':''}>${esc(names(r.id))}</option>`).join('')}</select>`;
     return `<input ${attr} type="${f.type==='number'?'text':f.type}" ${f.type==='number'?'inputmode="decimal"':''} value="${esc(value ?? '')}">`;
   }
   function defaults(module) {
-    return {date:new Date().toISOString().slice(0,10),unit:'m²',qty:1,length:1,width:1,factor:1,consumption:1,tax:19,rate:db.data.settings.wage,phase:'Erfassung',productiveHours:db.data.settings.capacity?.productiveHours || 1,...(module==='lv'?{useNuMarkup:true,subcontractMarkup:15}:{})};
+    return {date:new Date().toISOString().slice(0,10),unit:'m²',qty:1,length:1,width:1,factor:1,consumption:1,tax:19,rate:db.data.settings.wage,phase:'Erfassung',...(module==='customers'?{country:'DE'}:{}),productiveHours:db.data.settings.capacity?.productiveHours || 1,...(module==='lv'?{useNuMarkup:true,subcontractMarkup:15}:{})};
   }
 
   function recordForm(mod) {
     const r=editing?db.get(editing):null, values=r?.pendingPrice?.data || r?.data || defaults(mod.id);
+    const priceReview=mod.id==='materials' && r?.pendingPrice?`<div class="field-span dwp-panel"><p>Bisheriger Preis: <strong>${money(r.data.price)} / ${esc(r.data.unit)}</strong>. Importvorschlag: <strong>${money(values.price)} / ${esc(values.unit)}</strong>.</p><label><input type="checkbox" name="approveImportedPrice"> Ich habe den Importpreis und meine Änderungen geprüft und bestätige die Übernahme bei Status „Freigegeben“.</label></div>`:'';
     const fields=mod.fields.map(f=>{
       const material=f.key.match(/^materialName([1-4])$/);
       if(mod.id==='lv' && material){const i=material[1];return `<fieldset class="field-span dwp-blanko-material"><legend>Material ${i}</legend>${mod.fields.filter(item=>new RegExp('^material(Name|Price|Cut|Waste|Minutes)'+i+'$').test(item.key)).map(item=>field(item.label,input(item,values[item.key]))).join('')}</fieldset>`;}
       if(mod.id==='lv' && /^material(Price|Cut|Waste|Minutes)[1-4]$/.test(f.key))return '';
       return field(f.label,input(f,values[f.key]));
     }).join('');
-    return panel(r?'Vorgang bearbeiten':'Vorgang anlegen',`${mod.id==='lv'?`<p>${btn('Vorlage 03/25 · vier Materialien · 62 €/h','blanko-prepare')} · Eingaben werden erst mit „Speichern“ übernommen. Zuschläge separat prüfen.</p>`:''}<form id="dwp-record" class="quick-form"><input type="hidden" name="module" value="${esc(mod.id)}">${fields}${field('Status',`<select name="status">${core.statuses.map(s=>`<option ${s===(r?.status || 'Neu')?'selected':''}>${esc(s)}</option>`).join('')}</select>`)}${field('Verantwortlich',`<input name="owner" value="${esc(r?.owner || '')}" placeholder="Name / Rolle">`)}${field('Rückmeldefrist',`<input name="due" type="date" value="${esc(r?.due)}">`)}<div class="field-span dwp-actions"><button class="button button-primary" type="submit">Speichern</button>${r?btn('Bearbeitung abbrechen','cancel'):''}</div></form>`);
+    return panel(r?'Vorgang bearbeiten':'Vorgang anlegen',`${mod.id==='lv'?`<p>${btn('Vorlage 03/25 · vier Materialien · 62 €/h','blanko-prepare')} · Eingaben werden erst mit „Speichern“ übernommen. Zuschläge separat prüfen.</p>`:''}<form id="dwp-record" class="quick-form"><input type="hidden" name="module" value="${esc(mod.id)}">${priceReview}${fields}${field('Status',`<select name="status">${core.statuses.map(s=>`<option ${s===(r?.status || 'Neu')?'selected':''}>${esc(s)}</option>`).join('')}</select>`)}${field('Verantwortlich',`<input name="owner" value="${esc(r?.owner || '')}" placeholder="Name / Rolle">`)}${field('Rückmeldefrist',`<input name="due" type="date" value="${esc(r?.due)}">`)}<div class="field-span dwp-actions"><button class="button button-primary" type="submit">Speichern</button>${r?btn('Bearbeitung abbrechen','cancel'):''}</div></form>`);
   }
   function prepareBlanko() {
     const form=main.querySelector('#dwp-record');
@@ -234,13 +235,14 @@
     return panel('Hierarchischer LV-Baum',`<p>Bis zu fünf aufklappbare Titelstufen. Die Zwischensumme einer Gruppe enthält ihre Untergruppen bereits; sie wird nicht erneut zum Gesamtbetrag addiert. Bedarfs- und Alternativpositionen erscheinen zur Prüfung, jedoch nicht in den Grundsummen.</p>${tree.length?`<ul class="dwp-lv-branches" aria-label="LV-Titelhierarchie">${tree.map(renderNode).join('')}</ul>`:'<p>Für dieses Projekt sind noch keine LV-Positionen vorhanden.</p>'}`);
   }
   function records(mod) {
-    const list=db.list(mod.id);
+    const list=core.sortRecords(mod.id,db.list(mod.id));
     const rows=list.map(r=>[
       `<strong>${esc(names(r.id))}</strong><small>${esc(r.id.slice(0,8))}</small>`,
       `<span class="status-pill ${r.status==='Freigegeben'?'status-green':'status-grey'}">${esc(r.status)}</span>`,
       esc(r.owner),esc(r.due),`${btn(r.pendingPrice?'Importpreis prüfen':'Bearbeiten','edit',r.id)}${btn('Drucken / PDF','print',r.id)}${['documents','defects','expert','acceptance','diary'].includes(mod.id)?btn('Datei / Foto','attach',r.id):''}${['acceptance','times'].includes(mod.id)?btn(`Unterschrift${r.signatures?.length?' ('+r.signatures.length+')':''}`,'signature',r.id):''}${mod.id==='services'?btn('Ins LV','service-lv',r.id):''}${r.importFinding && r.status!=='Erledigt'?btn('Wandlung prüfen','convert-import',r.id):''}`
     ]);
     let summary='';
+    if(mod.id==='customers')summary=panel('Kundenübersicht und Projektbezug',`<p>Je Kunde: Anschrift, verknüpfte Projekte sowie freigegebene Angebote, Rechnungen und Zahlungen aus den sichtbaren Projekten. Offene Beträge stammen ausschließlich aus freigegebenen Rechnungen und Zahlungen.</p>${list.length?table(['Kundennr.','Kunde / Anschrift','Projekte','Angebote','Rechnungen brutto','Bezahlt','Offen'],list.map(r=>{const o=db.customerOverview(r.id);return [esc(o.customerNumber || 'Wird beim nächsten Speichern vergeben'),`<strong>${esc(o.name)}</strong>${o.address.length?'<br>'+o.address.map(esc).join('<br>'):''}`,o.projects.length?o.projects.map(p=>`${esc(p.name)} (${esc(p.phase)})`).join('<br>'):'Kein Projekt',`${o.offers} · ${money(o.offerNet)} netto`,`${o.invoices} · ${money(o.gross)}`,money(o.paid),money(o.outstanding)];})):'<p>Noch keine Kunden erfasst.</p>'}`);
     if(mod.id==='projects')summary=panel('Aktuelle Projekte',`<p>Projekt gedrückt halten oder nach links wischen, dann „Löschen“ wählen. Danach dreimal Ja bestätigen.</p>${projectGestureRows()}`);
     if(mod.id==='contract')summary=panel('Automatische LV-Datenprüfung',`<p>Prüft Mengen, Gliederung, Nachtragsnummern, Kostenansätze und Deckung. Befunde können einzeln als Rückfrage gespeichert werden. Vertragstexte und Fachregeln werden anhand der angegebenen Quelle separat geprüft.</p>${table(['Position','Befund','Rückfrage','Aktion'],db.contractReview().map(f=>[esc(f.number),esc(f.finding),esc(f.question),esc(f.reviewState)+' '+btn('Rückfrage anlegen','contract-finding',f.positionId+'/'+f.code)]))}`);
     if(mod.id==='lv') summary=lvTreePanel()+panel('LV-Gliederung und Zwischensummen',`<p>Gliederung je Position als Gewerk / Titel / Abschnitt erfassen. Übergeordnete Summen enthalten ihre Unterabschnitte; sie werden nicht zusätzlich zur Kalkulationssumme addiert.</p>${table(['Gliederung','Ebene','Positionen','Netto'],db.lvGroups().map(g=>[esc(g.path),esc(g.level),esc(g.positions),money(g.net)]))}`);
@@ -552,7 +554,7 @@
   }
   function settings() {
     const s=db.data.settings;
-    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}<p class="field-span">Original-DachWerkPro-Briefpapier mit Logo, roter Kopf- und Fußlinie. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+panel('Sicherung und Wiederherstellung',`<p>Eine Sicherung enthält sämtliche lokalen Projektakten und zugeordneten Testdateien. Eine Wiederherstellung ersetzt den Arbeitsbestand nach ausdrücklicher Bestätigung; das aktuelle Logbuch bleibt erhalten.</p>${btn('Sicherung herunterladen','backup')}<label>Sicherung auswählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>`);
+    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}${field('Umsatzsteuer',`<select name="smallBusiness"><option value="false" ${s.smallBusiness===true?'':'selected'}>Regelbesteuerung (USt laut Kalkulationsbasis)</option><option value="true" ${s.smallBusiness===true?'selected':''}>Kleinunternehmer – § 19 UStG, keine USt</option></select>`)}${field('Belegnummern fortlaufend ab',`<input name="documentNumberStart" inputmode="numeric" pattern="[0-9]{1,4}" value="${esc(s.documentNumberStart ?? '')}" placeholder="0100">`)}<p class="field-span">Format: DWP-A-JJJJMM-NNNN/Version (A Angebot, AB Auftragsbestätigung, R Rechnung). Jede Belegart zählt fortlaufend weiter; ist bereits eine höhere Nummer vergeben, wird dort weitergezählt. Vor dem ersten neuen Beleg den letzten außerhalb der App vergebenen Zähler + 1 eintragen.</p><p class="field-span">Original-DachWerkPro-Briefpapier mit Logo, roter Kopf- und Fußlinie. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+panel('Sicherung und Wiederherstellung',`<p>Eine Sicherung enthält sämtliche lokalen Projektakten und zugeordneten Testdateien. Eine Wiederherstellung ersetzt den Arbeitsbestand nach ausdrücklicher Bestätigung; das aktuelle Logbuch bleibt erhalten.</p>${btn('Sicherung herunterladen','backup')}<label>Sicherung auswählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>`);
   }
   function openModule(id) {
     if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und Bereich wechseln?')) return;
@@ -618,7 +620,7 @@
     let body='';
     if(['offers','invoices'].includes(r.module) || r.module==='orders' && r.confirmation) {
       const d=r.confirmation || r.data;
-      body=`<h1>${esc(d.title)} ${esc(d.number)}</h1>${r.confirmation?`<p>Bezug: Angebot ${esc(d.offerNumber)} · AG-Auftrag ${esc(d.orderNumber || 'ohne Nummer')} · Datum ${esc(d.date)}</p>`:''}${r.module==='offers'?`<p>Version ${esc(d.version || 1)}</p>`:''}${d.baseOfferId?`<p>Nachtrag ${esc(d.changeNumber || 'Ohne Nummer')} · Version ${esc(d.version || 1)}</p>`:''}<p>${esc(d.customer.name)}<br>${esc(d.customer.address)}</p><h2>${esc(d.project.name)}</h2><p>${esc(d.project.address)}</p>${d.buyerReference?`<p>Käuferreferenz: ${esc(d.buyerReference)}</p>`:''}${table(['Pos.','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto'],d.positions.map(p=>[esc(p.number),esc(p.groupPath || ''),esc(p.text),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}${r.module==='offers'?[['Bedarfspositionen – nicht in Summe',d.optionalPositions || []],['Nicht gewählte Ausführungen – nicht in Summe',d.alternativePositions || []]].filter(([,rows])=>rows.length).map(([label,rows])=>`<h2>${esc(label)}</h2>${table(['Pos.','Leistung','Wahlgruppe','Menge','Einheit','EP netto','GP separat'],rows.map(p=>[esc(p.number),esc(p.text),esc(p.choiceGroup),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}`).join(''):''}<p>Netto: ${money(d.net)}<br>USt ${d.tax}%: ${money(d.taxAmount)}<br><strong>Brutto: ${money(d.gross)}</strong></p>`;
+      body=`<h1>${esc(d.title)} ${esc(d.number)}</h1>${r.confirmation?`<p>Bezug: Angebot ${esc(d.offerNumber)} · AG-Auftrag ${esc(d.orderNumber || 'ohne Nummer')} · Datum ${esc(d.date)}</p>`:''}${r.module==='offers'?`<p>Version ${esc(d.version || 1)}</p>`:''}${d.baseOfferId?`<p>Nachtrag ${esc(d.changeNumber || 'Ohne Nummer')} · Version ${esc(d.version || 1)}</p>`:''}<p>${[d.customer.name,...core.customerAddressLines(d.customer)].map(esc).join('<br>')}</p>${d.customer.customerNumber||d.customer.vatId?`<p>${[d.customer.customerNumber?'Kundennr. '+esc(d.customer.customerNumber):'',d.customer.vatId?'USt-IdNr. '+esc(d.customer.vatId):''].filter(Boolean).join(' · ')}</p>`:''}<h2>${esc(d.project.name)}</h2><p>${esc(d.project.address)}</p>${d.buyerReference?`<p>Käuferreferenz: ${esc(d.buyerReference)}</p>`:''}${table(['Pos.','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto'],d.positions.map(p=>[esc(p.number),esc(p.groupPath || ''),esc(p.text),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}${r.module==='offers'?[['Bedarfspositionen – nicht in Summe',d.optionalPositions || []],['Nicht gewählte Ausführungen – nicht in Summe',d.alternativePositions || []]].filter(([,rows])=>rows.length).map(([label,rows])=>`<h2>${esc(label)}</h2>${table(['Pos.','Leistung','Wahlgruppe','Menge','Einheit','EP netto','GP separat'],rows.map(p=>[esc(p.number),esc(p.text),esc(p.choiceGroup),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}`).join(''):''}${d.smallBusiness?`<p><strong>Gesamtbetrag: ${money(d.gross)}</strong></p><p>${esc(d.taxNote || 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.')}</p>`:`<p>Netto: ${money(d.net)}<br>USt ${d.tax}%: ${money(d.taxAmount)}<br><strong>Brutto: ${money(d.gross)}</strong></p>`}`;
       if(r.module==='offers' || r.confirmation)body+=[['Gültig bis einschließlich',d.validUntil],['Zahlungsbedingungen',d.paymentTerms],['Ausführungsbedingungen / Termine',d.executionTerms],['Angebotshinweise',d.offerNotes],...(r.confirmation?[['Auftragshinweise',d.notes]]:[])].filter(([,value])=>value).map(([label,value])=>`<h2>${esc(label)}</h2><p style="white-space:pre-wrap">${esc(value)}</p>`).join('');
       if(d.stornoOf)body+=`<p>Storno zu ${esc(d.originalNumber)} · Grund: ${esc(d.reason)}</p>`;
       else if(d.previouslyNet)body+=`<p>Zuvor berechnet netto: ${money(d.previouslyNet)}<br>Kumulativ einschließlich dieser Rechnung netto: ${money(core.round(d.previouslyNet+d.net))}</p>`;
@@ -656,6 +658,7 @@
       if(form.id==='dwp-reopen')command=['reopenProject',values.reason];
       if(form.id==='dwp-record') {
         const mod=values.module;core.definitions[mod].fields.filter(f=>f.type==='checkbox').forEach(f=>values[f.key]=form.elements.namedItem(f.key).checked);
+        if(mod==='materials' && db.get(editing)?.pendingPrice && values.status==='Freigegeben' && !form.elements.namedItem('approveImportedPrice')?.checked)throw Error('Bitte den Importpreis prüfen und die Freigabe ausdrücklich bestätigen.');
         command=['save',mod,values,{id:editing,status:values.status,owner:values.owner,due:values.due}];
       }
       if(['dwp-settings','dwp-company'].includes(form.id))command=['settings',values];
@@ -832,6 +835,10 @@
       if(action==='legacy-import'){if(window.DWPRemote?.active)throw Error('Der alte lokale Importmanager ist ausschließlich im Modultest verfügbar. Für zentrale Daten den geprüften CSV-Import verwenden.');current='legacy';main.innerHTML=calculationView();bindDynamicInteractions();}
     }catch(e){showError(e);}
   },true);
+  for(const eventName of ['input','change'])main.addEventListener(eventName,event=>{
+    const form=event.target.form,confirmation=form?.elements.namedItem('approveImportedPrice');
+    if(form?.id==='dwp-record' && confirmation && event.target!==confirmation)confirmation.checked=false;
+  });
   main.addEventListener('input',event=>{
     if(event.target.id==='dwp-project-filter'){
       const term=event.target.value.trim().toLocaleLowerCase('de');
@@ -861,6 +868,13 @@
   main.addEventListener('change',async event=>{
     try {
       const quoteForm=event.target.closest('#dwp-quote');if(quoteForm){state.unsavedChanges=true;updateQuotePreview(quoteForm);}
+      const recordForm=event.target.closest('#dwp-record');
+      if(recordForm?.elements.module.value==='projects' && event.target.name==='customerId' && event.target.value) {
+        const taken=Object.entries(core.projectDefaultsFromCustomer(db.get(event.target.value)?.data)).filter(([key,value])=>value && recordForm.elements[key] && !recordForm.elements[key].value.trim());
+        taken.forEach(([key,value])=>{recordForm.elements[key].value=value;});
+        state.unsavedChanges=true;
+        if(taken.length)notice(`Vom Kunden übernommen: ${taken.map(([key])=>key==='address'?'Objektanschrift':'Leitweg-ID / Käuferreferenz').join(', ')}. Bitte prüfen und speichern.`);
+      }
       if(event.target.matches('[data-offer-position]')){updateChoiceTotal();state.unsavedChanges=true;}
       if(event.target.id==='dwp-project') {
         if(!event.target.value){event.target.value=db.data.selectedProject || '';return;}
