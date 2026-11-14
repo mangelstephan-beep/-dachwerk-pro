@@ -48,7 +48,7 @@
       "verified": false,
       "checkedAt": "2026-10-21",
       "evidence": "Automatische LV-Befunde mit gespeicherter Prüfgrundlage und Kennzeichnung veralteter Entscheidungen lokal geprüft.",
-      "remaining": "Live-Abnahme der Prüfgrundlage und Erneuerungsanzeige; weitergehende Vertrags- und Regelwerksprüfungen."
+      "remaining": "Live-Abnahme der Prüfgrundlage und Erneuerungsanzeige. Erweiterung 14.11.2026 (LV-Datenprüfung v3: Pauschal-/Stückmengen, kurze und doppelte Leistungstexte, bauseits, Leitfabrikat/Gleichwertigkeit, Aufwand/Stundenlohn, Einschlussklauseln, Bedarfspositionen, Wahlgruppen) nur automatisiert geprüft; Abnahme nach docs/MODUL06_LV_PRUEFUNG_2026-11-14.md offen. Vertragsbedingungen (VOB/B, Fristen, Sicherheiten, Vertragsstrafe) und Regelwerksbezüge weiterhin nur über die angegebene Quelle manuell."
   },
   "calculation": {
     "number": 7,

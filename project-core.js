@@ -567,6 +567,31 @@
           if(priced.direct===0)add(r,'costs','Keine Einzelkosten angesetzt.','Material, Zeit, Gerät oder Fremdleistung prüfen.');
           if(priced.ep<priced.direct)add(r,'margin','Angebots-EP liegt unter den Einzelkosten.','Zielpreis und Rabatt fachlich prüfen und begründen.');
         } catch(e) { add(r,'material',e.message,'Materialquelle und Preisfreigabe prüfen.'); }
+        // LV-Datenprüfung v3 (Modul 06, 14.11.2026): Hinweise zur Rückfrage, keine rechtliche Bewertung.
+        const text=String(p.text || ''),unit=String(p.unit || '').trim().toLowerCase();
+        if(text.replace(/\s+/g,'').length<10)add(r,'text-short','Leistungsbeschreibung sehr kurz oder unvollständig.','Vollständigen Leistungstext (Langtext) beim Auftraggeber anfordern bzw. aus dem Original-LV ergänzen.');
+        if(/^(psch|pauschal|pschl)\.?$/.test(unit) && p.qty!==1 && p.qty!==0)add(r,'lump-sum-qty',`Pauschalposition mit Menge ${p.qty}.`,'Pauschale ist üblicherweise 1 psch – Mengenangabe oder Einheit beim Auftraggeber klären.');
+        if(/^(st|stk|stck|stück)\.?$/.test(unit) && Number.isFinite(p.qty) && !Number.isInteger(p.qty))add(r,'piece-qty',`Stückzahl ${p.qty} ist nicht ganzzahlig.`,'Menge oder Einheit prüfen (z. B. m statt St).');
+        if(/\bbauseit/i.test(text))add(r,'text-bauseits','Leistungstext nennt bauseitige Leistungen.','Leistungsgrenze und Schnittstelle zum Auftraggeber bzw. Vorgewerk klären und im Angebot ausdrücklich benennen.');
+        if(/gleichwertig|leitfabrikat|fabrikat\s*:|erzeugnis\s*:|bieterangabe|vom bieter (einzutragen|anzugeben)/i.test(text))add(r,'text-product','Leitfabrikat, Gleichwertigkeit oder Bieterangabe gefordert.','Angebotenes Fabrikat und Typ eintragen; bei Abweichung Gleichwertigkeit mit Nachweis (z. B. technisches Datenblatt, Systemzulassung) belegen.');
+        if(/nach aufwand|stundenlohn|auf nachweis|nach nachweis/i.test(text))add(r,'text-effort','Abrechnung nach Aufwand bzw. Stundenlohn.','Verrechnungssatz, Nachweisform (Stundenzettel, Regiebericht) und Anerkennung durch den Auftraggeber vor Ausführung klären.');
+        if(/(einschl(\.|ießlich)|inkl(\.|usive))\s+(aller|sämtlicher|aller erforderlichen|sämtlicher erforderlichen)\b/i.test(text))add(r,'text-inclusive','Pauschale Einschlussformulierung („einschließlich aller …“).','Prüfen, ob damit Besondere Leistungen nach VOB/C ohne gesonderte Vergütung einbezogen werden; Umfang im Angebot abgrenzen oder Rückfrage stellen.');
+        if(p.kind==='Bedarfsposition')add(r,'optional','Bedarfsposition (Eventualposition).','Klären, ob und mit welcher Menge die Leistung beauftragt wird und ob sie in die Wertung bzw. Angebotssumme eingeht.');
+      }
+      // Positionsübergreifende Prüfungen: doppelte Leistungstexte und Wahlgruppen.
+      const lv=this.list('lv'),norm=value=>String(value || '').toLowerCase().replace(/\s+/g,' ').trim();
+      const seen=new Map();
+      for(const r of lv) {
+        const key=norm(r.data.text)+'|'+norm(r.data.unit);
+        if(norm(r.data.text).replace(/\s/g,'').length<10 || r.data.choiceGroup)continue;
+        if(seen.has(key))add(r,'duplicate-text',`Gleicher Leistungstext wie Position ${seen.get(key).data.number}.`,'Doppelte Leistung oder Abgrenzung (Bauabschnitt, Dachfläche, Gebäudeteil) mit dem Auftraggeber klären.');
+        else seen.set(key,r);
+      }
+      const groups=new Map();
+      for(const r of lv)if(r.data.choiceGroup)groups.set(r.data.choiceGroup,[...(groups.get(r.data.choiceGroup) || []),r]);
+      for(const [group,members] of groups) {
+        if(members.length<2)add(members[0],'choice-single',`Wahlgruppe ${group} enthält nur eine Position.`,'Fehlende Grund- oder Alternativposition ergänzen oder Wahlgruppe entfernen.');
+        else if(!members.some(r=>r.data.kind==='Grundposition'))add(members[0],'choice-base',`Wahlgruppe ${group} ohne Grundposition.`,'Grundposition bestimmen; Alternativen werden nur auf Anordnung des Auftraggebers ausgeführt.');
       }
       return findings;
     }
