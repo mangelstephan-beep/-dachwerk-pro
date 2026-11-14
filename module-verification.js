@@ -96,7 +96,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Excel-/CSV-Spaltenmapping und verbindliche Vorschau lokal geprüft; DATANORM-Parser, Live-/Geräteabnahme und reale Händlerdateien offen."
+    "remaining": "Excel-/CSV-Spaltenmapping und verbindliche Vorschau lokal geprüft. Erweiterung 14.11.2026: DATANORM 4 (Artikel-, Zusatz-, Preis- und Rabattsätze, DOS-Zeichensatz, Preiseinheit 1/10/100/1000, Listen-/Nettopreis, Rabattgruppen, Filter, Abgleich mit dem Materialstamm) nur automatisiert mit nachgebauten Dateien geprüft; Abnahme mit echter Händlerdatei auf HP und iPhone nach docs/MODUL12_DATANORM_2026-11-14.md sowie DATANORM 5 und Langtexte offen."
   },
   "offers": {
       "number": 13,

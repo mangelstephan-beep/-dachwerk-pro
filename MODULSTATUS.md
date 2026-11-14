@@ -47,7 +47,7 @@ Kunde → Projekt → LV → Material-/Zeitansätze → Kalkulation → freigege
 | 09 | Leistungskatalog und Zeitwerte | Quelle, Zeitansatz, Übernahme ins LV | Fachkatalog, Nutzungsrechte |
 | 10 | Material und Systeme | Artikel, Quelle, Preisfreigabe, Historie | Systemkompatibilität, Herstellerunterlagen |
 | 11 | Lieferanten und Preisvergleich | Artikelbezogener Vergleich, Rabatt/Fracht, Preisquelle | Automatische Händleranbindungen, Gebindeumrechnung |
-| 12 | DATANORM und Preislisten | CSV-Vorschau, Artikelabgleich, Prüffreigabe, Quellenregister | DATANORM-Parser, Excel-Spaltenmapping |
+| 12 | DATANORM und Preislisten | CSV/XLSX/XLS mit Spaltenzuordnung, DATANORM 4 (A/B/P/R-Sätze, DOS-Zeichensatz, Preiseinheit, Rabattgruppen), Filter, Materialstamm-Abgleich, Prüffreigabe, Quellenregister | DATANORM 5, Langtexte (T-Sätze), Abnahme mit echter Händlerdatei |
 | 13 | Angebote | Unveränderliche Preisfassung, Druck, CSV | Versand, Angebotsvarianten, Bedingungen |
 | 14 | Auftrag und Bestätigung | Haupt- und Nachtragsangebote beauftragen, gemeinsamer Rechnungsbezug | Weitere Auftragsänderungen und Bestätigungsdokument |
 | 15 | Schriftverkehr und E-Mail | Nachrichtentwurf, Projektbezug | Mailkonto, Versand, Rücklauf, Zustellnachweis |

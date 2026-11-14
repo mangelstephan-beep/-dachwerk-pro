@@ -87,7 +87,7 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
   // The real UI requires a fresh validated preview, commits all rows or none and preserves approved prices.
   w.localStorage.setItem('dwp-project-core-v1',store.backup());w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
   w.TextDecoder=TextDecoder;w.fflate=fflate;
-  for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','spreadsheet-import.js','material-price-import.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
+  for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','spreadsheet-import.js','material-price-import.js','datanorm-import.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
   w.DWPWorkspace.open('pricelists');
   const form=w.document.querySelector('#dwp-price-import'),click=action=>w.document.querySelector(`[data-dwp="${action}"]`).click();
   const submit=()=>form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
