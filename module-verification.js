@@ -80,7 +80,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft; Live- und Geräteabnahme sowie fachliche Prüfung der konkreten Systeme offen."
+    "remaining": "Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft. Erweiterung 14.11.2026 (Prüfliste mit Fristwarnung 14 Tage, Preissprung ab 10 %, Verwendung im Projekt, Systemübersicht, CSV) nur automatisiert geprüft; Live- und Geräteabnahme nach docs/MODUL10_MATERIAL_2026-11-14.md sowie fachliche Prüfung der konkreten Systeme offen."
   },
   "suppliers": {
     "number": 11,

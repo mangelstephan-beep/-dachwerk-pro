@@ -513,6 +513,35 @@
       if(d.system && d.compatibility!=='Geeignet laut Nachweis' && d.compatibility!=='Nicht geeignet')issues.push('Systemverträglichkeit ungeprüft');
       return issues;
     }
+    // Modul 10: Prüfliste für Materialien – sperrende Prüfungen (materialChecks) plus nicht sperrende Hinweise.
+    materialOverview(asOf=new Date().toISOString().slice(0,10),soonDays=14,jumpPercent=10) {
+      if(!validDate(asOf))throw Error('Prüfdatum ungültig.');
+      const day=d=>Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))/86400000;
+      const lv=this.data.selectedProject?this.list('lv'):[];
+      const rows=this.list('materials').map(r=>{
+        const d=r.data,blocking=this.materialChecks(r,asOf),hints=[];
+        const daysLeft=d.validUntil && validDate(d.validUntil)?day(d.validUntil)-day(asOf):null;
+        if(daysLeft!==null && daysLeft>=0 && daysLeft<=soonDays)hints.push(daysLeft===0?'Preisbindung endet heute':`Preisbindung endet in ${daysLeft} Tag${daysLeft===1?'':'en'} (${d.validUntil})`);
+        if(!d.validUntil)hints.push('Keine Preisbindung dokumentiert');
+        const previous=(r.history || []).filter(h=>Number.isFinite(h.price) && h.price>0).at(-1);
+        const change=previous && Number.isFinite(d.price)?Math.round((d.price-previous.price)/previous.price*1000)/10:null;
+        if(change!==null && Math.abs(change)>=jumpPercent)hints.push(`Preissprung ${change>0?'+':''}${String(change).replace('.',',')} % gegenüber ${previous.priceDate || 'vorherigem Preisstand'}`);
+        if(d.system && !d.documentUrl)hints.push('Systemzuordnung ohne Herstellerunterlage');
+        const usage=lv.filter(p=>p.data.materialId===r.id).map(p=>({id:p.id,number:p.data.number,text:String(p.data.text || '').split('\n')[0],qty:p.data.qty,unit:p.data.unit,status:p.status}));
+        const rank=blocking.length?0:hints.some(h=>/^Preisbindung endet|^Preissprung/.test(h))?1:2;
+        return {id:r.id,name:d.name,article:d.article || '',manufacturer:d.manufacturer || '',supplier:d.supplier || '',unit:d.unit,price:d.price,priceDate:d.priceDate,validUntil:d.validUntil || '',daysLeft,previousPrice:previous?.price ?? null,change,system:d.system || '',compatibility:d.compatibility || '',status:r.status,blocking,hints,usage,rank};
+      }).sort((a,b)=>a.rank-b.rank || (a.daysLeft ?? 1e9)-(b.daysLeft ?? 1e9) || String(a.name).localeCompare(String(b.name),'de'));
+      // Systemübersicht: alle Artikel eines Systems müssen einzeln nachgewiesen sein.
+      const systems=new Map();
+      for(const m of rows.filter(m=>m.system)) {
+        const key=m.system.trim().toLowerCase(),g=systems.get(key) || {system:m.system.trim(),materials:[],suitable:0,unsuitable:0,open:0};
+        g.materials.push(m.name);
+        if(m.compatibility==='Geeignet laut Nachweis')g.suitable++;else if(m.compatibility==='Nicht geeignet')g.unsuitable++;else g.open++;
+        systems.set(key,g);
+      }
+      const systemRows=[...systems.values()].map(g=>({...g,state:g.unsuitable?'Nicht geeignet':g.open?'Nachweis offen':'Alle Artikel nachgewiesen'})).sort((a,b)=>a.system.localeCompare(b.system,'de'));
+      return {asOf,rows,systems:systemRows,counts:{blocking:rows.filter(r=>r.blocking.length).length,expiring:rows.filter(r=>r.hints.some(h=>/^Preisbindung endet/.test(h))).length,jumps:rows.filter(r=>r.hints.some(h=>/^Preissprung/.test(h))).length}};
+    }
     calculation() {
       const positions=this.list('lv').map(r=>this.position(r));
       const included=positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));

@@ -78,6 +78,7 @@ const {JSDOM}=require('jsdom');
   assert(w.document.querySelector('[name="validUntil"]'));
   assert.equal(w.document.querySelector('a[href="https://example.org/produkt.pdf"]').rel,'noopener noreferrer');
   assert(w.document.querySelector('#main-content').textContent.includes('00123'));
+  assert(w.document.querySelector('[data-dwp="material-csv"]'),'Prüfliste als CSV');assert(w.document.querySelector('#main-content').textContent.includes('Sperrende Prüfung'));
   const db=w.DWPWorkspace.store;
   db.importMaterials([{...materialData,price:15}],{source:'Neuer Prüfpreis',priceDate:'2026-03-01',supplier:'Händler'});
   w.DWPWorkspace.open('materials');
