@@ -1,30 +1,55 @@
 (function(root){
  'use strict';
- function parse(input,{engine=root.XLSX}={}){
-  const bytes=new Uint8Array(input);
-  if(bytes.length<512||bytes.length>1_000_000)throw Error('XLS: Excel-97–2003-Datei bis 1 MB erforderlich.');
-  const signature=[0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1];
-  if(!signature.every((n,i)=>bytes[i]===n))throw Error('XLS: Nur binäres Excel 97–2003 (BIFF8) unterstützt. Bitte sonst als XLSX speichern.');
-  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),shift=view.getUint16(30,true);
-  if(view.getUint16(28,true)!==0xfffe||![9,12].includes(shift)||view.getUint16(32,true)!==6)throw Error('XLS: Containerformat ungültig.');
-  const sectors=Math.ceil(bytes.length/2**shift);
-  for(const offset of [40,44,64,72])if(view.getUint32(offset,true)>sectors)throw Error('XLS: Containergrenzen überschritten.');
-  if(!engine?.CFB?.read||!engine.read)throw Error('XLS: Parser fehlt. Bitte Anwendung neu laden.');
-  let container;
-  try{container=engine.CFB.read(bytes,{type:'array'});}catch{throw Error('XLS: Dateicontainer beschädigt.');}
-  if(!Array.isArray(container?.FullPaths)||!Array.isArray(container?.FileIndex))throw Error('XLS: Dateicontainer beschädigt.');
-  if(container.FullPaths.some(p=>/(?:^|\/)(?:VBA|_VBA_PROJECT_CUR|Macros)(?:\/|$)/i.test(p)))throw Error('XLS: Makrodateien werden nicht übernommen. Bitte makrofreie XLSX-Datei verwenden.');
-  const streams=container.FileIndex.filter(f=>f.type===2&&/^(Workbook|Book)$/i.test(f.name));
-  if(streams.length!==1)throw Error('XLS: Eindeutiger Workbook-Datenstrom fehlt.');
-  const data=new Uint8Array(streams[0].content),records=new DataView(data.buffer,data.byteOffset,data.byteLength);
-  if(data.length<8||records.getUint16(0,true)!==0x0809||records.getUint16(4,true)!==0x0600||records.getUint16(6,true)!==5)throw Error('XLS: Nur BIFF8 (Excel 97–2003) unterstützt. Ältere Dateien vorher als XLSX speichern.');
+ const OLE=[0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1];
+ // Excel 2.0/3.0/4.0 speichern Tabellenblätter als einfachen BIFF-Datenstrom ohne OLE-Container.
+ const RAW_BOF={0x0009:'BIFF2',0x0209:'BIFF3',0x0409:'BIFF4'};
+ function detect(bytes){
+  if(bytes.length>=512&&OLE.every((n,i)=>bytes[i]===n))return 'ole';
+  if(bytes.length>=8&&RAW_BOF[bytes[0]|bytes[1]<<8]&&(bytes[2]|bytes[3]<<8)>=4&&(bytes[2]|bytes[3]<<8)<=16)return 'raw';
+  return null;
+ }
+ function scan(data,limitMessage){
+  const records=new DataView(data.buffer,data.byteOffset,data.byteLength);
   for(let offset=0,count=0;offset<data.length;){
    if(data[offset]===0&&data.subarray(offset).every(n=>n===0))break;
    if(offset+4>data.length)throw Error('XLS: Unvollständiger Datensatz.');
    const id=records.getUint16(offset,true),length=records.getUint16(offset+2,true);
-   if(++count>100000||offset+4+length>data.length)throw Error('XLS: Ungültige Datensatzgrenze.');
+   if(++count>100000||offset+4+length>data.length)throw Error(limitMessage);
    if(id===0x002f)throw Error('XLS: Verschlüsselte Dateien werden nicht übernommen.');
    offset+=4+length;
+  }
+ }
+ function parse(input,{engine=root.XLSX}={}){
+  const bytes=new Uint8Array(input);
+  if(bytes.length>1_000_000)throw Error('XLS: Excel-Datei bis 1 MB erforderlich.');
+  const kind=detect(bytes);
+  if(!kind)throw Error('XLS: Kein binäres Excel-Format erkannt (Excel 2.0 bis 2003). Bitte sonst als XLSX speichern.');
+  if(!engine?.CFB?.read||!engine.read)throw Error('XLS: Parser fehlt. Bitte Anwendung neu laden.');
+  let biff;
+  if(kind==='raw'){
+   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+   biff=RAW_BOF[view.getUint16(0,true)];
+   const type=view.getUint16(6,true);
+   if(type===0x0040)throw Error('XLS: Makrodateien werden nicht übernommen. Bitte makrofreie XLSX-Datei verwenden.');
+   if(type!==0x0010)throw Error(`XLS: ${biff} enthält kein normales Tabellenblatt (z. B. Excel-4.0-Arbeitsmappe oder Diagramm). Bitte als XLSX speichern.`);
+   scan(bytes,'XLS: Ungültige Datensatzgrenze.');
+  }else{
+   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),shift=view.getUint16(30,true);
+   if(view.getUint16(28,true)!==0xfffe||![9,12].includes(shift)||view.getUint16(32,true)!==6)throw Error('XLS: Containerformat ungültig.');
+   const sectors=Math.ceil(bytes.length/2**shift);
+   for(const offset of [40,44,64,72])if(view.getUint32(offset,true)>sectors)throw Error('XLS: Containergrenzen überschritten.');
+   let container;
+   try{container=engine.CFB.read(bytes,{type:'array'});}catch{throw Error('XLS: Dateicontainer beschädigt.');}
+   if(!Array.isArray(container?.FullPaths)||!Array.isArray(container?.FileIndex))throw Error('XLS: Dateicontainer beschädigt.');
+   if(container.FullPaths.some(p=>/(?:^|\/)(?:VBA|_VBA_PROJECT_CUR|_VBA_PROJECT|Macros)(?:\/|$)/i.test(p)))throw Error('XLS: Makrodateien werden nicht übernommen. Bitte makrofreie XLSX-Datei verwenden.');
+   const streams=container.FileIndex.filter(f=>f.type===2&&/^(Workbook|Book)$/i.test(f.name));
+   if(streams.length!==1)throw Error('XLS: Eindeutiger Workbook-Datenstrom fehlt.');
+   // Excel 97–2003 schreibt BIFF8 in „Workbook“, Excel 5.0/95 schreibt BIFF5 in „Book“.
+   const book=/^Book$/i.test(streams[0].name),data=new Uint8Array(streams[0].content),records=new DataView(data.buffer,data.byteOffset,data.byteLength);
+   const version=data.length>=8&&records.getUint16(0,true)===0x0809&&records.getUint16(6,true)===5?records.getUint16(4,true):0;
+   if(book?version!==0x0500:version!==0x0600)throw Error(book?'XLS: Datenstrom „Book“ enthält kein gültiges Excel 5.0/95 (BIFF5). Bitte als XLSX speichern.':'XLS: Datenstrom „Workbook“ enthält kein gültiges BIFF8 (Excel 97–2003). Bitte als XLSX speichern.');
+   biff=book?'BIFF5':'BIFF8';
+   scan(data,'XLS: Ungültige Datensatzgrenze.');
   }
   let workbook;
   try{workbook=engine.read(bytes,{type:'array',cellFormula:true,cellNF:true,cellStyles:true,cellDates:false,cellHTML:false,cellText:false,bookVBA:true,xlfn:true,WTF:true});}
@@ -57,12 +82,12 @@
    }
    return {name,hidden:Boolean(workbook.Workbook?.Sheets?.[sheetIndex]?.Hidden),rows:[...rows.values()].sort((a,b)=>a.index-b.index),merged:(ws['!merges'] || []).map(range=>engine.utils.encode_range(range))};
   });
-  return {sourceFormat:'XLS BIFF8',sheets};
+  return {sourceFormat:'XLS '+biff,sheets};
  }
  function read(input,{signal,workerFactory=()=>new root.Worker('/xls-import-worker.js')}={}){
   return new Promise((resolve,reject)=>{
    const bytes=new Uint8Array(input);
-   if(bytes.length<512||bytes.length>1_000_000){reject(Error('XLS: Excel-97–2003-Datei bis 1 MB erforderlich.'));return;}
+   if(bytes.length>1_000_000||!detect(bytes)){reject(Error('XLS: Binäre Excel-Datei (Excel 2.0 bis 2003) bis 1 MB erforderlich.'));return;}
    if(signal?.aborted){const e=Error('XLS-Einlesen abgebrochen.');e.name='AbortError';reject(e);return;}
    let worker,settled=false;
    const finish=(error,result)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);worker?.terminate();error?reject(error):resolve(result);};
@@ -71,11 +96,11 @@
    signal?.addEventListener('abort',abort,{once:true});
    try{
     worker=workerFactory();
-    worker.onmessage=event=>event.data?.error?finish(Error(event.data.error)):event.data?.book?.sourceFormat==='XLS BIFF8'?finish(null,event.data.book):finish(Error('XLS: Parser-Ergebnis ungültig.'));
+    worker.onmessage=event=>event.data?.error?finish(Error(event.data.error)):/^XLS BIFF[2-58]$/.test(event.data?.book?.sourceFormat || '')?finish(null,event.data.book):finish(Error('XLS: Parser-Ergebnis ungültig.'));
     worker.onerror=()=>finish(Error('XLS-Modul konnte nicht verarbeitet werden. Bitte neu versuchen.'));
     worker.postMessage({bytes});
    }catch(error){finish(error);}
   });
  }
- const api={parse,read};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.DWPXlsImport=api;
+ const api={parse,read,detect};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.DWPXlsImport=api;
 })(typeof window!=='undefined'?window:globalThis);

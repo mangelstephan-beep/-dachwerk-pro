@@ -8,7 +8,7 @@
     "verified": false,
     "checkedAt": "2026-10-19",
     "evidence": "Live 19.10.2026: Testkunde mit Haupt- und Zusatzkontakt zentral gespeichert; Zuordnung zum neuen Testprojekt und Wiederabruf nach Seitenreload bestätigt. iPhone-Abnahme weiterhin offen.",
-    "remaining": "iPhone-Abnahme offen; Desktop-Liveprüfung von Anlage, Kontakten und Wiederabruf am 19.10.2026 bestanden."
+    "remaining": "iPhone-Abnahme offen; Desktop-Liveprüfung von Anlage, Kontakten und Wiederabruf am 19.10.2026 bestanden. Erweiterung 14.11.2026 (Kundennummer, PLZ/Land, USt-IdNr., Kundenart, Kundenübersicht, vollständige Anschrift in Druck/PDF) nur lokal geprüft; Live- und iPhone-Abnahme nach docs/MODUL01_KUNDENSTAMM_2026-11-14.md offen."
   },
   "projects": {
     "number": 2,
@@ -16,7 +16,7 @@
     "verified": false,
     "checkedAt": "2026-10-19",
     "evidence": "Live 19.10.2026: Testprojekt mit Kunde und Kostenstelle gespeichert; Wechsel zwischen Projekten und Auswahl nach Seitenreload bestätigt. iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl weiterhin offen.",
-    "remaining": "iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl offen; Desktop-Anlage, Wechsel und Wiederabruf am 19.10.2026 bestanden."
+    "remaining": "iPhone-Abnahme und Live-Prüfung der korrigierten Leerwahl offen; Desktop-Anlage, Wechsel und Wiederabruf am 19.10.2026 bestanden. Erweiterung 14.11.2026 (Übernahme von Kundenanschrift/Leitweg-ID, eindeutige Kostenstelle, Kundenwechsel nach Belegen gesperrt, sortierte Kunden-/Projektlisten) nur lokal geprüft; Abnahme nach docs/MODUL02_PROJEKTE_2026-11-14.md offen."
   },
   "operating": {
     "number": 3,
@@ -40,7 +40,7 @@
     "verified": false,
     "checkedAt": "2026-10-19",
     "evidence": "Live-Produktion 19.10.2026 im Testdach C: CSV zuvor bestanden; PDF mit 1,1 MB als gesperrte Prüfquelle, GAEB X83 XML 3.3 mit Position 01.02.9501 und 12,5 m² samt Gliederung sowie XLSX mit Spaltenzuordnung und Position 9601 mit 12,5 m² übernommen. Alle vier Quellen nach vollständigem Neuladen im zentralen Importjournal vorhanden; gespeicherte Excel-Quelldaten erneut geöffnet. Keine Fachfreigabe und kein Versand. PR #35 ergänzt abbrechbares Einlesen und Schutz vor verspäteten Ergebnissen; test-import-lifecycle.cjs bestanden. 100-seitiges PDF live eingelesen und Vorschau danach bedienbar; Abbruch selbst nur automatisiert geprüft. Live-OCR 19.10.2026 (PR #37): bildbasiertes PDF ohne Textschicht als gesperrte Quelle eingelesen; ABNAHME 12345 und 12,50 m2 Abdichtung erkannt, zentral gespeichert und nach Reload mit OCR-Nachweis erneut geöffnet. Keine automatische LV-Menge. XLS BIFF8 live (PR #39): Position 009701 mit 12,5 m² und vier gesperrte Hinweise zentral gespeichert, nach Reload im Journal vorhanden. Originaldownload im Prüf-Browser durch bestehende Geräteregel gesperrt; Downloadtyp und Originalbytes automatisiert geprüft. Ergänzung 20.10.2026: CSV-Textquelle im Journal, geschützter UTF-8-Download für CSV/GAEB und fremde XML-Positionen als gesperrte Prüfung; lokale Regressionstests, Live-Abnahme offen. Vollständige Testsuite, Syntaxprüfung und Build bestanden.",
-    "remaining": "iPhone-Abnahme und Originaldownload auf freigegebenem iPhone/HP offen; XLS vor Excel 97 sowie weitere GAEB-Phasen/-Versionen fehlen weiterhin. CSV, PDF/OCR, GAEB X83 XML 3.3, XLSX und XLS BIFF8 live importiert und nach Reload wiedergefunden."
+    "remaining": "iPhone-Abnahme und Originaldownload auf freigegebenem iPhone/HP offen. CSV, PDF/OCR, GAEB X83 XML 3.3, XLSX und XLS BIFF8 live importiert und nach Reload wiedergefunden. Erweiterung 14.11.2026 (GAEB X81/X82/X84/X86 und XML 3.2, Preise nur als ungeprüfter Zielpreis, Positionen ohne Menge als Prüfvorgang; XLS Excel 5.0/95 und Excel 2.0–4.0) nur automatisiert geprüft; Live- und iPhone-Abnahme nach docs/MODUL05_IMPORT_2026-11-14.md offen. Weiterhin nicht unterstützt: GAEB 90/2000, GAEB XML 3.0/3.1, Nebenangebote X85."
   },
   "contract": {
       "number": 6,
@@ -48,7 +48,7 @@
       "verified": false,
       "checkedAt": "2026-10-21",
       "evidence": "Automatische LV-Befunde mit gespeicherter Prüfgrundlage und Kennzeichnung veralteter Entscheidungen lokal geprüft.",
-      "remaining": "Live-Abnahme der Prüfgrundlage und Erneuerungsanzeige; weitergehende Vertrags- und Regelwerksprüfungen."
+      "remaining": "Live-Abnahme der Prüfgrundlage und Erneuerungsanzeige. Erweiterung 14.11.2026 (LV-Datenprüfung v3: Pauschal-/Stückmengen, kurze und doppelte Leistungstexte, bauseits, Leitfabrikat/Gleichwertigkeit, Aufwand/Stundenlohn, Einschlussklauseln, Bedarfspositionen, Wahlgruppen) nur automatisiert geprüft; Abnahme nach docs/MODUL06_LV_PRUEFUNG_2026-11-14.md offen. Vertragsbedingungen (VOB/B, Fristen, Sicherheiten, Vertragsstrafe) und Regelwerksbezüge weiterhin nur über die angegebene Quelle manuell."
   },
   "calculation": {
     "number": 7,
@@ -64,7 +64,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Kostenartenzuschläge und Kalkulationsnachweis lokal geprüft; Live-Abnahme und amtliche EFB 221/222/223 mit Feldmapping offen."
+    "remaining": "Kostenartenzuschläge und Kalkulationsnachweis lokal geprüft. Erweiterung 14.11.2026: EFB-Preis 221/222/223 als Übertragungshilfe mit Feldzuordnung, Druck und CSV (223) nur automatisiert geprüft; Live-/iPhone-Abnahme und fachlicher Abgleich mit einem echten Formblatt aus Vergabeunterlagen nach docs/MODUL08_EFB_2026-11-14.md offen. Mittellohn-Aufteilung (1.1–1.3) und Aufteilung BGK/AGK/W&G bei Kostenartenzuschlägen werden nicht erfasst."
   },
   "services": {
     "number": 9,
@@ -80,7 +80,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft; Live- und Geräteabnahme sowie fachliche Prüfung der konkreten Systeme offen."
+    "remaining": "Preisbindung, Systemnachweise und Herstellerlinks lokal geprüft. Erweiterung 14.11.2026 (Prüfliste mit Fristwarnung 14 Tage, Preissprung ab 10 %, Verwendung im Projekt, Systemübersicht, CSV) nur automatisiert geprüft; Live- und Geräteabnahme nach docs/MODUL10_MATERIAL_2026-11-14.md sowie fachliche Prüfung der konkreten Systeme offen."
   },
   "suppliers": {
     "number": 11,
@@ -88,7 +88,7 @@
     "verified": false,
     "checkedAt": "2026-10-24",
     "evidence": "Server-/DOM-Tests: Gebindeumrechnung, deutsche Dezimalwerte, sofortige Rechenvorschau, unveränderte Eingaben bei fehlgeschlagenem Speichern und gesperrte Übernahme nach Änderung der Artikeleinheit. Vollständige Testsuite, Syntaxprüfung und Build bestanden. Details: docs/LIEFERANTENPREISE_2026-10-24.md.",
-    "remaining": "Gebindeumrechnung, Rabatt, Fracht, Rechenvorschau und Einheitensperre lokal geprüft (24.10.2026); Live-/iPhone-Abnahme und automatische Händleranbindungen offen."
+    "remaining": "Gebindeumrechnung, Rabatt, Fracht, Rechenvorschau und Einheitensperre lokal geprüft (24.10.2026). Erweiterung 14.11.2026 (Preisvergleich je Artikel mit Bestpreis und Ersparnis ab 3 %, nur neuester Preis je Lieferant, Zurückziehen mit Grund, Lieferantenübersicht, doppelte Lieferanten gesperrt, CSV) nur automatisiert geprüft; Live-/iPhone-Abnahme nach docs/MODUL11_LIEFERANTEN_2026-11-14.md und automatische Händleranbindungen offen."
   },
   "pricelists": {
     "number": 12,

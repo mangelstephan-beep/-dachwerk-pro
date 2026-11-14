@@ -27,6 +27,40 @@ const bytes=require('./test-xls-fixture.cjs'),tick=()=>new Promise(resolve=>setI
  assert.throws(()=>xls.parse(engine.CFB.write(macro,{type:'buffer'}),{engine}),/Makro/);
  const oversized=engine.utils.book_new();engine.utils.book_append_sheet(oversized,{'!ref':'A1:A10001',A10001:{t:'n',v:1}},'LV');
  assert.throws(()=>xls.parse(engine.write(oversized,{type:'buffer',bookType:'biff8'}),{engine}),/10000 Zeilen/);
+ // Ältere Excel-Formate vor Excel 97 (Modul 05, 14.11.2026): echte Dateien aus dem fest eingebundenen SheetJS.
+ const legacyBook=()=>{const wb=engine.utils.book_new();engine.utils.book_append_sheet(wb,engine.utils.aoa_to_sheet([['number','text','qty','unit'],['0010','Dachrinne Zink',12.5,'m'],['0020','Kehlblech',3,'m']]),'LV');return wb;};
+ const biff5=engine.write(legacyBook(),{type:'buffer',bookType:'biff5'});
+ assert.equal(xls.detect(biff5),'ole');
+ const biff5Container=engine.CFB.read(biff5,{type:'buffer'});assert(biff5Container.FileIndex.some(f=>f.name==='Book'),'Excel 5.0/95 speichert den Datenstrom „Book“');
+ const book5=xls.parse(biff5,{engine});
+ assert.equal(book5.sourceFormat,'XLS BIFF5');assert.equal(book5.sheets[0].name,'LV');
+ assert.equal(book5.sheets[0].rows[1].values[1].value,'Dachrinne Zink');assert.equal(book5.sheets[0].rows[1].values[2].value,12.5);
+ const report5=spreadsheet.report(book5,0,1,{number:0,text:1,qty:2,unit:3});
+ assert.equal(report5.rows.length,2);assert.equal(report5.rows[0].number,'0010');assert.equal(report5.rows[1].qty,3);
+ // SheetJS schreibt alte Formate nur 7-Bit; echte Excel-95-Dateien speichern Umlaute als Windows-1252-Bytes.
+ const umlautBook=engine.utils.book_new();engine.utils.book_append_sheet(umlautBook,engine.utils.aoa_to_sheet([['text'],['~berhangsblech f~r Gaube']]),'Blatt');
+ const umlautCfb=engine.CFB.read(engine.write(umlautBook,{type:'buffer',bookType:'biff5'}),{type:'buffer'}),umlautEntry=umlautCfb.FileIndex.find(e=>e.name==='Book');
+ const umlautStream=Buffer.from(umlautEntry.content),at=umlautStream.indexOf(Buffer.from('~berhangsblech f~r Gaube','latin1'));assert(at>0,'Testtext im BIFF5-Datenstrom');
+ umlautStream[at]=0xdc;umlautStream[at+16]=0xfc;umlautEntry.content=umlautStream;
+ assert.equal(xls.parse(engine.CFB.write(umlautCfb,{type:'buffer'}),{engine}).sheets[0].rows[1].values[0].value,'Überhangsblech für Gaube');
+ const change5=change=>{const c=engine.CFB.read(biff5,{type:'buffer'}),entry=c.FileIndex.find(e=>e.name==='Book');entry.content=change(Buffer.from(entry.content));entry.size=entry.content.length;return engine.CFB.write(c,{type:'buffer'});};
+ assert.throws(()=>xls.parse(change5(b=>{b.writeUInt16LE(0x0600,4);return b;}),{engine}),/BIFF5/);
+ assert.throws(()=>xls.parse(change5(b=>Buffer.concat([b.subarray(0,4+b.readUInt16LE(2)),Buffer.from([0x2f,0,0,0]),b.subarray(4+b.readUInt16LE(2))])),{engine}),/Verschlüsselte/);
+ const macro5=engine.CFB.read(biff5,{type:'buffer'});engine.CFB.utils.cfb_add(macro5,'/_VBA_PROJECT/dir',Buffer.from([1,2,3]));
+ assert.throws(()=>xls.parse(engine.CFB.write(macro5,{type:'buffer'}),{engine}),/Makro/);
+ const biff2=engine.write(legacyBook(),{type:'buffer',bookType:'biff2'});
+ assert.equal(xls.detect(biff2),'raw');
+ const book2=xls.parse(biff2,{engine});
+ assert.equal(book2.sourceFormat,'XLS BIFF2');assert.equal(book2.sheets.length,1);
+ assert.equal(book2.sheets[0].rows[1].values[1].value,'Dachrinne Zink');assert.equal(book2.sheets[0].rows[2].values[2].value,3);
+ assert.equal(spreadsheet.report(book2,0,1,{number:0,text:1,qty:2,unit:3}).rows.length,2);
+ const withType=(type,id=0x0409)=>{const b=Buffer.alloc(16);b.writeUInt16LE(id,0);b.writeUInt16LE(6,2);b.writeUInt16LE(0,4);b.writeUInt16LE(type,6);b.writeUInt16LE(0x000a,10);return b;};
+ assert.throws(()=>xls.parse(withType(0x0040),{engine}),/Makro/);
+ assert.throws(()=>xls.parse(withType(0x0020,0x0209),{engine}),/BIFF3 enthält kein normales Tabellenblatt/);
+ assert.throws(()=>xls.parse(withType(0x0100),{engine}),/BIFF4 enthält kein normales Tabellenblatt/);
+ assert.throws(()=>xls.parse(Buffer.concat([biff2.subarray(0,4+biff2.readUInt16LE(2)),Buffer.from([0x2f,0,0,0]),biff2.subarray(4+biff2.readUInt16LE(2))]),{engine}),/Verschlüsselte/);
+ assert.throws(()=>xls.parse(Buffer.concat([biff2,Buffer.from([0x03,0x02,0xff,0x00])]),{engine}),/Datensatzgrenze/);
+ assert.throws(()=>xls.parse(Buffer.from('number;text\n0010;Dach'),{engine}),/binäres/);
  // Execute the actual browser worker scripts with the actual pinned parser, no mocks of parsing.
  let workerResult;
  const ctx=vm.createContext({console,Uint8Array,ArrayBuffer,DataView,TextDecoder,TextEncoder});ctx.self=ctx;
@@ -37,6 +71,9 @@ const bytes=require('./test-xls-fixture.cjs'),tick=()=>new Promise(resolve=>setI
  }};
  vm.runInContext(fs.readFileSync('xls-import-worker.js','utf8'),ctx);ctx.onmessage({data:{bytes}});
  assert(!workerResult.error,workerResult.error);assert.equal(workerResult.book.sheets[0].rows[1].values[0].value,'009701');
+ ctx.onmessage({data:{bytes:biff5}});assert(!workerResult.error,workerResult.error);assert.equal(workerResult.book.sourceFormat,'XLS BIFF5');
+ let worker5;const result5=xls.read(biff5,{workerFactory:()=>worker5={postMessage(){},terminate(){}}});worker5.onmessage({data:{book:book5}});assert.equal((await result5).sourceFormat,'XLS BIFF5');
+ let workerFake;const fake=xls.read(biff5,{workerFactory:()=>workerFake={postMessage(){},terminate(){}}});workerFake.onmessage({data:{book:{...book5,sourceFormat:'XLS BIFF7'}}});await assert.rejects(fake,/Parser-Ergebnis ungültig/);
  let worker,terminations=0;
  const workerFactory=()=>worker={postMessage(){},terminate(){terminations++;}};
  const controller=new AbortController(),pending=xls.read(bytes,{signal:controller.signal,workerFactory});controller.abort();
@@ -70,5 +107,5 @@ const bytes=require('./test-xls-fixture.cjs'),tick=()=>new Promise(resolve=>setI
  let blob,filename;w.URL.createObjectURL=value=>{blob=value;return 'blob:synthetic';};w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){filename=this.download;};
  q('[data-dwp="workbook-download"]').click();assert.equal(blob.type,'application/vnd.ms-excel');assert.equal(filename,'test.xls');
  dom.window.close();assert.equal(w.XLSX,undefined,'Legacy importer must not see a new global parser');
- console.log('XLS BIFF8: real binary formulas/leading zeroes/hidden rows, columns, sheets and dates; macro/encryption/container rejection; actual worker; cancellation; atomic original provenance; preview/blocked review; XLS download MIME passed.');
+ console.log('XLS BIFF8 plus Excel 5.0/95 (BIFF5) and Excel 2.0 (BIFF2) incl. umlauts, macro/encryption/sheet-type rejection; BIFF8: real binary formulas/leading zeroes/hidden rows, columns, sheets and dates; macro/encryption/container rejection; actual worker; cancellation; atomic original provenance; preview/blocked review; XLS download MIME passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

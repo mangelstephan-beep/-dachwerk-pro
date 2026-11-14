@@ -34,6 +34,9 @@ for(const m of w.DWPProject.modules) {
   open(m.id);assert.equal(query('h1').textContent,m.name);
   if(m.fields.length && m.id!=='imports')for(const f of m.fields)assert(query(`[name="${f.key}"]`),`${m.id}: ${f.key}`);
 }
+for(const id of ['services','materials','suppliers','pricelists','personnel']){open(id);assert(query('.dwp-global-note'),`${id}: Stammdatenhinweis`);assert(!query('.dwp-project-bar'),`${id}: keine Projektauswahl`);}
+for(const id of ['customers','projects','lv','offers']){open(id);assert(query('.dwp-project-bar'),`${id}: Projektauswahl bleibt`);assert(!query('.dwp-global-note'),`${id}: kein Stammdatenhinweis`);}
+open('services');assert.equal(w.document.querySelectorAll('#main-content .header-actions [data-id="dashboard"]').length,0,'Alle Module nur einmal');
 open('dashboard');assert.equal(w.document.querySelectorAll('[data-dwp-card]').length,36);
 for(const m of w.DWPProject.modules) {
   query(`[data-dwp="open"][data-id="${m.id}"]`).click();

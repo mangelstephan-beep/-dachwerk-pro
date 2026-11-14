@@ -9,7 +9,7 @@
   const cost = f('cost', 'Kosten netto', 'number');
   const blocking = f('blocking','Sperrt nächsten Arbeitsschritt bis Erledigung','checkbox');
   const modules = [
-    ['customers', 'Kunden und Kontakte', 'customers', [f('name','Firma / Name','text',true),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Anschrift'),f('location','Ort'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
+    ['customers', 'Kunden und Kontakte', 'customers', [f('customerNumber','Kundennummer (leer = automatisch, danach unveränderlich)'),f('name','Firma / Name','text',true),Object.assign(f('customerType','Kundenart','select',false,['Gewerbekunde','Privatkunde']),{blank:true}),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Straße und Hausnummer'),f('postalCode','PLZ'),f('location','Ort'),f('country','Land (ISO-Code, z. B. DE)'),f('vatId','USt-IdNr.'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
     ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('memberIds','Freigegebene Benutzer-IDs (kommagetrennt; Administratoren haben Zugriff)','textarea'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
     ['operating','Betriebs- und Lohnkosten','prices',[title,f('annualCost','Jahreskosten netto','number',true),f('productiveHours','Produktive Stunden','number',true),note]],
     ['lv','Leistungsverzeichnisse','calculation',[f('number','Positionsnummer','text',true),f('section','LV-Titel / Los'),f('subsection','Untertitel / Abschnitt'),f('text','Leistungsbeschreibung','textarea',true),f('groupPath','Gliederung: Gewerk / Titel / Abschnitt'),f('kind','Leistungsart','select',false,['Hauptleistung','Nachtrag','Bedarfsposition','Grundposition','Alternativposition']),f('choiceGroup','Wahlgruppe (Grund-/Alternativposition)'),f('changeNumber','Nachtragsnummer'),f('qty','LV-Menge','number',true),f('unit','Einheit','text',true),f('material','Material je Einheit','number'),f('minutes','Minuten je Einheit','number'),f('equipment','Geräte je Einheit','number'),f('subcontract','NU je Einheit','number'),f('materialId','Freigegebener Materialartikel','material'),f('consumption','Materialverbrauch je Einheit','number'),f('useTargetPrice','Zielpreis verwenden','checkbox'),f('targetEp','Zielpreis netto je Einheit vor Rabatt','number'),f('discountPercent','Positionsrabatt %','number')]],
@@ -82,6 +82,14 @@
   definitions.materials.fields.push(f('validUntil','Preisbindung bis einschließlich','date'),f('system','Dach- / Abdichtungssystem'),f('documentUrl','Herstellerunterlage (https://)','url'),f('documentEdition','Unterlagenstand / Fassung'),f('compatibility','Systemverträglichkeit','select',false,['','Ungeprüft','Geeignet laut Nachweis','Nicht geeignet']),f('compatibilityEvidence','Eignungsnachweis / geprüfter Aufbau','textarea'));
   definitions.materials.fields.push(f('priceBasis','Preisberechnung / Bezugsmenge','textarea'));
   const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
+  // Belegnummern (festgelegt 14.11.2026): DWP-<Art>-JJJJMM-NNNN/Version, z. B. DWP-A-202611-0100/1.
+  // A = Angebot, AB = Auftragsbestätigung, R = Rechnung. Jede Art hat einen eigenen,
+  // über Monate und Jahre fortlaufenden Zähler; JJJJMM ist der Belegmonat. Die Version
+  // hinter dem Schrägstrich zählt Überarbeitungen derselben Nummer (/1, /2, …).
+  const DOC_NUMBER=/^DWP-([A-Z]{1,3})-(\d{6})-(\d{4,})(?:\/(\d+))?$/;
+  const DOC_NUMBER_START=100;
+  const SMALL_BUSINESS_NOTE='Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.';
+  const berlinDay=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(new Date());
   function validatePricing(module,data) {
     if(module==='projects' && (data.plannedOverhead || data.actualOverhead) && !data.overheadBasis?.trim())throw Error('Zusätzliche Gemeinkosten benötigen Abgrenzung und Nachweis.');
     if(module==='offers' && data.validUntil && !validDate(data.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
@@ -109,6 +117,37 @@
     if(rows.length>50)throw Error('Maximal 50 zusätzliche Kontakte.');
     return rows.map(c=>{const clean=Object.fromEntries(['name','role','email','phone'].map(k=>[k,String(c[k] || '').trim()]));if(!clean.name || Object.values(clean).some(v=>v.length>300)||clean.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean.email))throw Error('Kontaktname oder E-Mail ungültig.');return clean;});
   };
+  // Module 01: customer master data is the basis for documents, payments and later exports.
+  // Customer numbers are allocated from the highest numeric number (debtor range from 10001),
+  // never from the number of visible rows, and stay unchanged once assigned.
+  const normalizeCustomer=data=>{
+    data.customerNumber=String(data.customerNumber || '').trim();
+    if(data.customerNumber && !/^[A-Za-z0-9][A-Za-z0-9-]{0,19}$/.test(data.customerNumber))throw Error('Kundennummer: nur Buchstaben, Ziffern und Bindestrich, höchstens 20 Zeichen.');
+    data.country=String(data.country || 'DE').trim().toUpperCase();
+    if(!/^[A-Z]{2}$/.test(data.country))throw Error('Land bitte als zweistelligen ISO-Code angeben, z. B. DE.');
+    data.postalCode=String(data.postalCode || '').trim();
+    if(data.postalCode && (data.country==='DE' ? !/^\d{5}$/.test(data.postalCode) : !/^[A-Za-z0-9 -]{3,10}$/.test(data.postalCode)))throw Error(data.country==='DE'?'PLZ in Deutschland muss fünfstellig sein.':'PLZ ist ungültig.');
+    data.vatId=String(data.vatId || '').replace(/[\s.]/g,'').toUpperCase();
+    if(data.vatId && (!/^[A-Z]{2}[0-9A-Z+*]{2,12}$/.test(data.vatId) || data.vatId.startsWith('DE') && !/^DE\d{9}$/.test(data.vatId)))throw Error('USt-IdNr. ist ungültig (Ländercode und Nummer, z. B. DE123456789).');
+    return data;
+  };
+  const nextCustomerNumber=records=>String(records.filter(r=>r.module==='customers').reduce((n,r)=>/^\d{1,9}$/.test(r.data.customerNumber || '')?Math.max(n,Number(r.data.customerNumber)):n,10000)+1);
+  // One address format for print, PDF and later e-invoices. Older snapshots may only contain address/city.
+  const customerAddressLines=customer=>{
+    const c=customer || {},city=[c.postalCode,c.location || c.city].map(s=>String(s || '').trim()).filter(Boolean).join(' ');
+    return [c.address,city,c.country && c.country!=='DE'?c.country:''].map(s=>String(s || '').trim()).filter(Boolean);
+  };
+  // Module 02: what a new project may take over from its customer. The form only fills empty fields.
+  const projectDefaultsFromCustomer=customer=>{
+    const c=customer || {};
+    return {address:customerAddressLines(c).join(', '),buyerReference:String(c.buyerReference || '').trim()};
+  };
+  // Stable list order for customers and projects; all other modules keep their recorded order.
+  const compareText=(a,b)=>String(a ?? '').localeCompare(String(b ?? ''),'de',{numeric:true,sensitivity:'base'});
+  const sortRecords=(module,records)=>[...records].sort((a,b)=>
+    module==='customers'?(!a.data.customerNumber)-(!b.data.customerNumber) || compareText(a.data.customerNumber,b.data.customerNumber) || compareText(a.data.name,b.data.name)
+    : module==='projects'?(a.data.phase==='Abgeschlossen')-(b.data.phase==='Abgeschlossen') || compareText(a.data.name,b.data.name) || compareText(a.data.costCenter,b.data.costCenter)
+    : 0);
   const num = value => {
     if (typeof value === 'number') { if (!Number.isFinite(value)) throw Error('Ungültige Zahl.'); return value; }
     let s=String(value ?? '').trim().replace(/\s/g,'');
@@ -174,6 +213,7 @@
           if(r.module!=='suppliers' || !data.records.some(m=>m.module==='materials' && m.id===q.materialId) || ['price','discount','freight'].some(k=>typeof q[k]!=='number' || !Number.isFinite(q[k]) || q[k]<0) || q.discount>100) throw Error('Sicherung: Lieferantenpreis ungültig.');
           if(q.baseQuantity!==undefined && (typeof q.baseQuantity!=='number' || !Number.isFinite(q.baseQuantity) || q.baseQuantity<=0) || q.validUntil && (!validDate(q.validUntil) || q.validUntil<q.date))throw Error('Sicherung: Gebinde oder Preisbindung ungültig.');
           if(!validDate(q.date) || typeof q.source!=='string' || !q.source.trim())throw Error('Sicherung: Lieferantenpreis benötigt Quelle und Preisstand.');
+          if(q.withdrawnAt!==undefined && (!validDate(q.withdrawnAt) || typeof q.withdrawnReason!=='string' || !q.withdrawnReason.trim()))throw Error('Sicherung: zurückgezogener Lieferantenpreis ohne Datum oder Grund.');
           round((q.price*(1-q.discount/100)+q.freight)/(q.baseQuantity ?? 1));
         }
         for(const a of r.assignments || [])if(r.module!=='personnel' || !data.records.some(p=>p.module==='projects' && p.id===a.projectId) || !a.start || !a.end || a.start>a.end)throw Error('Sicherung: Einsatzplanung ungültig.');
@@ -181,6 +221,12 @@
           if(!['acceptance','times'].includes(r.module) || !s.signer || !Array.isArray(s.strokes) || !s.strokes.some(a=>Array.isArray(a) && a.length>=2) || JSON.stringify(s.snapshot?.data)!==JSON.stringify(r.data))throw Error('Sicherung: unterschriebener Dokumentstand ungültig.');
           for(const stroke of s.strokes)for(const p of stroke)if(!Array.isArray(p) || p.length!==2 || p.some(n=>typeof n!=='number' || !Number.isFinite(n) || n<0 || n>1))throw Error('Sicherung: Unterschrift ungültig.');
         }
+      }
+      const customerNumbers=new Set();
+      for(const r of data.records)if(r.module==='customers' && r.data.customerNumber) {
+        const key=String(r.data.customerNumber).toLowerCase();
+        if(customerNumbers.has(key))throw Error('Sicherung: Kundennummer doppelt vergeben.');
+        customerNumbers.add(key);
       }
       if(data.selectedProject && !data.records.some(p=>p.module==='projects' && p.id===data.selectedProject)) throw Error('Ausgewähltes Projekt fehlt.');
       for(const k of ['wage','agk','profit','tax'])if(typeof data.settings[k]!=='number' || !Number.isFinite(data.settings[k]) || data.settings[k]<0)throw Error('Kalkulationsbasis ungültig.');
@@ -204,6 +250,20 @@
     }
     get(id) { return this.data.records.find(r=>r.id===id); }
     project() { return this.get(this.data.selectedProject); }
+    // Allocates against every record of the tenant (the server runs this on the full
+    // state, so hidden projects are counted too) and never against visible row counts.
+    nextDocumentNumber(type, date) {
+      if(!['A','AB','R'].includes(type))throw Error('Belegart für Nummernvergabe ungültig.');
+      const day=validDate(date)?date:berlinDay();
+      const start=Number.isInteger(this.data.settings.documentNumberStart)?this.data.settings.documentNumberStart:DOC_NUMBER_START;
+      let max=start-1;
+      for(const r of this.data.records)for(const value of [r.data?.number,r.confirmation?.number]) {
+        const match=DOC_NUMBER.exec(String(value || ''));
+        if(match && match[1]===type)max=Math.max(max,Number(match[3]));
+      }
+      if(max>=9999)throw Error('Nummernkreis '+type+' ist ausgeschöpft.');
+      return 'DWP-'+type+'-'+day.slice(0,4)+day.slice(5,7)+'-'+String(max+1).padStart(4,'0')+'/1';
+    }
     select(id) {
       if(!this.get(id) || this.get(id).module!=='projects') throw Error('Projekt nicht gefunden.');
       return this.transaction('Projekt ausgewählt','projects',id,d=>{d.selectedProject=id;});
@@ -250,6 +310,18 @@
         }
       }
       validatePricing(module,data);
+      if(module==='customers') {
+        normalizeCustomer(data);
+        const assigned=before?.data.customerNumber || '';
+        if(assigned && data.customerNumber && data.customerNumber!==assigned)throw Error('Die Kundennummer bleibt unverändert, weil Belege und Exporte darauf verweisen.');
+        data.customerNumber=data.customerNumber || assigned || nextCustomerNumber(this.data.records);
+        if(this.data.records.some(r=>r.module==='customers' && r.id!==before?.id && String(r.data.customerNumber || '').toLowerCase()===data.customerNumber.toLowerCase()))throw Error(`Kundennummer ${data.customerNumber} ist bereits vergeben.`);
+      }
+      if(module==='projects') {
+        const center=data.costCenter.toLocaleLowerCase('de');
+        if(center && center!==String(before?.data.costCenter || '').trim().toLocaleLowerCase('de') && this.data.records.some(r=>r.module==='projects' && r.id!==before?.id && String(r.data.costCenter || '').trim().toLocaleLowerCase('de')===center))throw Error(`Kostenstelle ${data.costCenter} ist bereits einem anderen Projekt zugeordnet.`);
+        if(before && data.customerId!==before.data.customerId && this.data.records.some(r=>r.projectId===before.id && ['offers','orders','invoices','payments'].includes(r.module)))throw Error('Der Kunde kann nach ausgestellten Angeboten, Aufträgen oder Rechnungen nicht mehr gewechselt werden. Bitte ein neues Projekt anlegen.');
+      }
       if(module==='projects' && !before && data.phase!=='Erfassung')throw Error('Neue Projekte beginnen in der Erfassung.');
       if(module==='projects' && before && data.phase!==before.data.phase) {
         const selected=this.data.selectedProject;this.data.selectedProject=before.id;
@@ -288,6 +360,7 @@
         if(offer.data.baseOfferId && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===offer.data.baseOfferId))throw Error('Hauptangebot vor dem Nachtrag beauftragen.');
       }
       if(module==='incoming' && data.subcontractId && this.get(data.subcontractId).data.contractor.trim().toLocaleLowerCase('de')!==data.supplier.trim().toLocaleLowerCase('de'))throw Error('Rechnungssteller stimmt nicht mit dem NU-Kostenvorgang überein.');
+      if(module==='suppliers' && this.list('suppliers').some(r=>r.id!==options.id && String(r.data.name).trim().toLocaleLowerCase('de')===String(data.name).trim().toLocaleLowerCase('de')))throw Error('Lieferant mit diesem Namen ist bereits vorhanden.');
       if(module==='incoming' && this.list('incoming').some(r=>r.id!==options.id && r.data.supplier===data.supplier && r.data.invoiceNumber===data.invoiceNumber)) throw Error('Eingangsbeleg bereits vorhanden.');
       if(module==='logistics' && status==='Freigegeben' && data.purchaseId) {
         const order=this.get(data.purchaseId);
@@ -318,7 +391,7 @@
       if(module==='materials')delete record.pendingPrice;
       if(module==='orders' && status==='Freigegeben') {
         const offer=this.get(data.offerId);
-        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
+        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',number:before?.confirmation?.number || this.nextDocumentNumber('AB',data.date),documentFamily:undefined,documentRevision:1,offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
       }
       return this.transaction(before?'Geändert':'Angelegt',module,record.id,d=>{
         if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,validUntil:before.data.validUntil || '',priceBasis:before.data.priceBasis || '',supplier:before.data.supplier,source:before.data.source}] : [])].slice(-3);
@@ -333,6 +406,16 @@
       const clean={...this.data.settings, ...values};
       if(values.capacity)clean.capacity=capacity(values.capacity);
       for(const k of ['wage','agk','profit','tax']) { clean[k]=num(clean[k]); if(clean[k]<0 || (k==='tax' && clean[k]>100)) throw Error('Ungültige Kalkulationswerte.'); }
+      if(values.smallBusiness!==undefined)clean.smallBusiness=[true,'true','ja','on'].includes(values.smallBusiness);
+      if(clean.smallBusiness===true)clean.tax=0;
+      else if(this.data.settings.smallBusiness===true && clean.tax===0 && values.tax===undefined)clean.tax=19;
+      if(values.documentNumberStart!==undefined) {
+        if(String(values.documentNumberStart).trim()==='')delete clean.documentNumberStart;
+        else {
+          clean.documentNumberStart=Number(values.documentNumberStart);
+          if(!Number.isInteger(clean.documentNumberStart) || clean.documentNumberStart<1 || clean.documentNumberStart>9999)throw Error('Belegnummern-Start: ganze Zahl von 1 bis 9999.');
+        }
+      }
       return this.transaction('Einstellungen gespeichert','operating',null,d=>{d.settings=clean;});
     }
     blockers(moduleIds) {
@@ -432,11 +515,97 @@
       if(d.system && d.compatibility!=='Geeignet laut Nachweis' && d.compatibility!=='Nicht geeignet')issues.push('Systemverträglichkeit ungeprüft');
       return issues;
     }
+    // Modul 10: Prüfliste für Materialien – sperrende Prüfungen (materialChecks) plus nicht sperrende Hinweise.
+    materialOverview(asOf=new Date().toISOString().slice(0,10),soonDays=14,jumpPercent=10) {
+      if(!validDate(asOf))throw Error('Prüfdatum ungültig.');
+      const day=d=>Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))/86400000;
+      const lv=this.data.selectedProject?this.list('lv'):[];
+      const rows=this.list('materials').map(r=>{
+        const d=r.data,blocking=this.materialChecks(r,asOf),hints=[];
+        const daysLeft=d.validUntil && validDate(d.validUntil)?day(d.validUntil)-day(asOf):null;
+        if(daysLeft!==null && daysLeft>=0 && daysLeft<=soonDays)hints.push(daysLeft===0?'Preisbindung endet heute':`Preisbindung endet in ${daysLeft} Tag${daysLeft===1?'':'en'} (${d.validUntil})`);
+        if(!d.validUntil)hints.push('Keine Preisbindung dokumentiert');
+        const previous=(r.history || []).filter(h=>Number.isFinite(h.price) && h.price>0).at(-1);
+        const change=previous && Number.isFinite(d.price)?Math.round((d.price-previous.price)/previous.price*1000)/10:null;
+        if(change!==null && Math.abs(change)>=jumpPercent)hints.push(`Preissprung ${change>0?'+':''}${String(change).replace('.',',')} % gegenüber ${previous.priceDate || 'vorherigem Preisstand'}`);
+        if(d.system && !d.documentUrl)hints.push('Systemzuordnung ohne Herstellerunterlage');
+        const usage=lv.filter(p=>p.data.materialId===r.id).map(p=>({id:p.id,number:p.data.number,text:String(p.data.text || '').split('\n')[0],qty:p.data.qty,unit:p.data.unit,status:p.status}));
+        const rank=blocking.length?0:hints.some(h=>/^Preisbindung endet|^Preissprung/.test(h))?1:2;
+        return {id:r.id,name:d.name,article:d.article || '',manufacturer:d.manufacturer || '',supplier:d.supplier || '',unit:d.unit,price:d.price,priceDate:d.priceDate,validUntil:d.validUntil || '',daysLeft,previousPrice:previous?.price ?? null,change,system:d.system || '',compatibility:d.compatibility || '',status:r.status,blocking,hints,usage,rank};
+      }).sort((a,b)=>a.rank-b.rank || (a.daysLeft ?? 1e9)-(b.daysLeft ?? 1e9) || String(a.name).localeCompare(String(b.name),'de'));
+      // Systemübersicht: alle Artikel eines Systems müssen einzeln nachgewiesen sein.
+      const systems=new Map();
+      for(const m of rows.filter(m=>m.system)) {
+        const key=m.system.trim().toLowerCase(),g=systems.get(key) || {system:m.system.trim(),materials:[],suitable:0,unsuitable:0,open:0};
+        g.materials.push(m.name);
+        if(m.compatibility==='Geeignet laut Nachweis')g.suitable++;else if(m.compatibility==='Nicht geeignet')g.unsuitable++;else g.open++;
+        systems.set(key,g);
+      }
+      const systemRows=[...systems.values()].map(g=>({...g,state:g.unsuitable?'Nicht geeignet':g.open?'Nachweis offen':'Alle Artikel nachgewiesen'})).sort((a,b)=>a.system.localeCompare(b.system,'de'));
+      return {asOf,rows,systems:systemRows,counts:{blocking:rows.filter(r=>r.blocking.length).length,expiring:rows.filter(r=>r.hints.some(h=>/^Preisbindung endet/.test(h))).length,jumps:rows.filter(r=>r.hints.some(h=>/^Preissprung/.test(h))).length}};
+    }
     calculation() {
       const positions=this.list('lv').map(r=>this.position(r));
       const included=positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
       const sum=k=>round(included.reduce((n,p)=>n+p.qty*p[k],0));
       return {positions,optionalNet:round(positions.filter(p=>p.kind==='Bedarfsposition').reduce((n,p)=>n+p.gp,0)),net:round(included.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),other:sum('other'),direct:sum('direct')};
+    }
+    // Modul 08: Daten für EFB-Preis 221/222/223 aus der freigegebenen Kalkulationslogik.
+    // Ergebnis ist eine Übertragungshilfe für die Formblätter des Auftraggebers, kein amtliches Formular.
+    efbForms() {
+      const calc=this.calculation(),s=this.data.settings,warnings=[];
+      const keys=['labor','material','equipment','other','subcontract'];
+      const pct=n=>Math.round(n*10000)/100;
+      const rows=calc.positions.map(p=>{
+        const digits=p.epPrecision===3?3:2,r=n=>Math.round((n+Math.sign(n)*Number.EPSILON)*10**digits)/10**digits;
+        const factor=(1+s.agk/100)*(1+s.profit/100);
+        const raw=p.useEfbRates?Object.fromEntries(keys.map(k=>[k,(p[k] || 0)*(1+(p[k+'Markup'] || 0)/100)])):{labor:p.labor*factor,material:p.material*factor,equipment:(p.equipment || 0)*factor,other:(p.other || 0)*factor,subcontract:p.nuMarkupPercent===null?(p.subcontract || 0)*factor:p.nuSalePrice};
+        const notes=[];
+        let parts;
+        if(p.calculatedEp>0) {
+          const scale=p.ep/p.calculatedEp;
+          if(Math.abs(scale-1)>1e-9)notes.push(p.useTargetPrice?'Zielpreis anteilig auf die Kostenarten verteilt':'Rabatt anteilig auf die Kostenarten verteilt');
+          parts=Object.fromEntries(keys.map(k=>[k,r(raw[k]*scale)]));
+        } else {
+          parts=Object.fromEntries(keys.map(k=>[k,0]));
+          if(p.ep>0){parts.other=p.ep;notes.push('Keine Einzelkosten: EP vollständig unter Sonstiges');warnings.push(`Position ${p.number}: EP ${p.ep} ohne Einzelkosten – Aufgliederung nicht aussagekräftig.`);}
+        }
+        const diff=r(p.ep-keys.reduce((n,k)=>n+parts[k],0));
+        if(diff!==0){const k=keys.reduce((a,b)=>Math.abs(parts[b])>Math.abs(parts[a])?b:a);parts[k]=r(parts[k]+diff);notes.push(`Rundungsausgleich ${diff.toFixed(digits).replace('.',',')} € in ${({labor:'Lohn',material:'Stoffe',equipment:'Geräte',other:'Sonstiges',subcontract:'Nachunternehmer'})[k]}`);}
+        return {id:p.id,number:p.number,text:String(p.text || '').split('\n')[0].slice(0,120),qty:p.qty,unit:p.unit,kind:p.kind || 'Hauptleistung',hours:Math.round(p.totalMinutes/60*1000)/1000,...parts,ep:p.ep,gp:p.gp,mode:p.useEfbRates?'Kostenartenzuschläge':'Globale Kalkulationsbasis',notes};
+      });
+      // 221: einheitliche Zuschläge je Kostenart; abweichende Positionen werden gemeldet.
+      const efb=calc.positions.filter(p=>p.useEfbRates),global=calc.positions.filter(p=>!p.useEfbRates);
+      if(efb.length && global.length)warnings.push('Positionen mit Kostenartenzuschlägen und mit globaler Kalkulationsbasis gemischt – EFB 221 ist nicht eindeutig. EFB 222 verwenden oder Kalkulation vereinheitlichen.');
+      const distinct=(list,fn)=>[...new Set(list.map(fn))];
+      const wages=distinct(efb,p=>p.efbWage);
+      if(wages.length>1)warnings.push(`Unterschiedliche Kalkulationslöhne (${wages.join(' / ')} €/h) – EFB 221 nicht eindeutig.`);
+      const total=global.length && !efb.length?pct((1+s.agk/100)*(1+s.profit/100)-1):null;
+      const columns=Object.fromEntries(keys.map(k=>{
+        if(efb.length && !global.length) {
+          const values=distinct(efb,p=>p[k+'Markup'] || 0);
+          if(values.length>1)warnings.push(`Zuschlag ${({labor:'Lohn',material:'Stoffe',equipment:'Geräte',other:'Sonstiges',subcontract:'Nachunternehmer'})[k]} je Position unterschiedlich (${values.join(' / ')} %).`);
+          return [k,{bgk:null,agk:null,wg:null,total:values.length===1?values[0]:null}];
+        }
+        if(k==='subcontract' && global.some(p=>p.nuMarkupPercent!==null)) {
+          const values=distinct(global,p=>p.nuMarkupPercent===null?total:p.nuMarkupPercent);
+          if(values.length>1)warnings.push(`Nachunternehmer-Zuschlag je Position unterschiedlich (${values.join(' / ')} %).`);
+          return [k,{bgk:null,agk:null,wg:null,total:values.length===1?values[0]:null}];
+        }
+        return [k,total===null?{bgk:null,agk:null,wg:null,total:null}:{bgk:0,agk:s.agk,wg:pct(s.profit/100*(1+s.agk/100)),total}];
+      }));
+      const wage=efb.length && !global.length?(wages.length===1?wages[0]:null):global.length && !efb.length?s.wage:null;
+      const laborTotal=columns.labor.total;
+      const f221={wage,laborMarkup:laborTotal,billingWage:wage!==null && laborTotal!==null?round(wage*(1+laborTotal/100)):null,columns};
+      // 222: Einzelkosten der Teilleistungen und Angebotssumme (ohne Bedarfs-/Alternativpositionen).
+      const included=calc.positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
+      const sum=fn=>round(included.reduce((n,p)=>n+p.qty*fn(p),0));
+      const direct={hours:Math.round(included.reduce((n,p)=>n+p.qty*p.totalMinutes/60,0)*100)/100,labor:sum(p=>p.labor),material:sum(p=>p.material),equipment:sum(p=>p.equipment || 0),other:sum(p=>p.other || 0),subcontract:sum(p=>p.subcontract || 0)};
+      direct.total=round(direct.labor+direct.material+direct.equipment+direct.other+direct.subcontract);
+      const markup=round(calc.net-direct.total);
+      const f222={direct,net:calc.net,markup,markupPercent:direct.total>0?pct(markup/direct.total):null,optionalNet:calc.optionalNet,plannedOverhead:this.project()?.data.plannedOverhead || 0};
+      if(f222.plannedOverhead)warnings.push('Zusätzliche geplante Gemeinkosten des Projekts sind nicht im EP enthalten und erscheinen nicht als Baustellengemeinkosten.');
+      return {f221,f222,f223:rows,warnings:[...new Set(warnings)]};
     }
     lvGroups() {
       const groups=new Map();
@@ -486,6 +655,31 @@
           if(priced.direct===0)add(r,'costs','Keine Einzelkosten angesetzt.','Material, Zeit, Gerät oder Fremdleistung prüfen.');
           if(priced.ep<priced.direct)add(r,'margin','Angebots-EP liegt unter den Einzelkosten.','Zielpreis und Rabatt fachlich prüfen und begründen.');
         } catch(e) { add(r,'material',e.message,'Materialquelle und Preisfreigabe prüfen.'); }
+        // LV-Datenprüfung v3 (Modul 06, 14.11.2026): Hinweise zur Rückfrage, keine rechtliche Bewertung.
+        const text=String(p.text || ''),unit=String(p.unit || '').trim().toLowerCase();
+        if(text.replace(/\s+/g,'').length<10)add(r,'text-short','Leistungsbeschreibung sehr kurz oder unvollständig.','Vollständigen Leistungstext (Langtext) beim Auftraggeber anfordern bzw. aus dem Original-LV ergänzen.');
+        if(/^(psch|pauschal|pschl)\.?$/.test(unit) && p.qty!==1 && p.qty!==0)add(r,'lump-sum-qty',`Pauschalposition mit Menge ${p.qty}.`,'Pauschale ist üblicherweise 1 psch – Mengenangabe oder Einheit beim Auftraggeber klären.');
+        if(/^(st|stk|stck|stück)\.?$/.test(unit) && Number.isFinite(p.qty) && !Number.isInteger(p.qty))add(r,'piece-qty',`Stückzahl ${p.qty} ist nicht ganzzahlig.`,'Menge oder Einheit prüfen (z. B. m statt St).');
+        if(/\bbauseit/i.test(text))add(r,'text-bauseits','Leistungstext nennt bauseitige Leistungen.','Leistungsgrenze und Schnittstelle zum Auftraggeber bzw. Vorgewerk klären und im Angebot ausdrücklich benennen.');
+        if(/gleichwertig|leitfabrikat|fabrikat\s*:|erzeugnis\s*:|bieterangabe|vom bieter (einzutragen|anzugeben)/i.test(text))add(r,'text-product','Leitfabrikat, Gleichwertigkeit oder Bieterangabe gefordert.','Angebotenes Fabrikat und Typ eintragen; bei Abweichung Gleichwertigkeit mit Nachweis (z. B. technisches Datenblatt, Systemzulassung) belegen.');
+        if(/nach aufwand|stundenlohn|auf nachweis|nach nachweis/i.test(text))add(r,'text-effort','Abrechnung nach Aufwand bzw. Stundenlohn.','Verrechnungssatz, Nachweisform (Stundenzettel, Regiebericht) und Anerkennung durch den Auftraggeber vor Ausführung klären.');
+        if(/(einschl(\.|ießlich)|inkl(\.|usive))\s+(aller|sämtlicher|aller erforderlichen|sämtlicher erforderlichen)\b/i.test(text))add(r,'text-inclusive','Pauschale Einschlussformulierung („einschließlich aller …“).','Prüfen, ob damit Besondere Leistungen nach VOB/C ohne gesonderte Vergütung einbezogen werden; Umfang im Angebot abgrenzen oder Rückfrage stellen.');
+        if(p.kind==='Bedarfsposition')add(r,'optional','Bedarfsposition (Eventualposition).','Klären, ob und mit welcher Menge die Leistung beauftragt wird und ob sie in die Wertung bzw. Angebotssumme eingeht.');
+      }
+      // Positionsübergreifende Prüfungen: doppelte Leistungstexte und Wahlgruppen.
+      const lv=this.list('lv'),norm=value=>String(value || '').toLowerCase().replace(/\s+/g,' ').trim();
+      const seen=new Map();
+      for(const r of lv) {
+        const key=norm(r.data.text)+'|'+norm(r.data.unit);
+        if(norm(r.data.text).replace(/\s/g,'').length<10 || r.data.choiceGroup)continue;
+        if(seen.has(key))add(r,'duplicate-text',`Gleicher Leistungstext wie Position ${seen.get(key).data.number}.`,'Doppelte Leistung oder Abgrenzung (Bauabschnitt, Dachfläche, Gebäudeteil) mit dem Auftraggeber klären.');
+        else seen.set(key,r);
+      }
+      const groups=new Map();
+      for(const r of lv)if(r.data.choiceGroup)groups.set(r.data.choiceGroup,[...(groups.get(r.data.choiceGroup) || []),r]);
+      for(const [group,members] of groups) {
+        if(members.length<2)add(members[0],'choice-single',`Wahlgruppe ${group} enthält nur eine Position.`,'Fehlende Grund- oder Alternativposition ergänzen oder Wahlgruppe entfernen.');
+        else if(!members.some(r=>r.data.kind==='Grundposition'))add(members[0],'choice-base',`Wahlgruppe ${group} ohne Grundposition.`,'Grundposition bestimmen; Alternativen werden nur auf Anordnung des Auftraggebers ausgeführt.');
       }
       return findings;
     }
@@ -507,7 +701,7 @@
       const terms=kind==='offers'?Object.fromEntries(['validUntil','paymentTerms','executionTerms','offerNotes'].map(key=>[key,String(options[key] ?? '').trim()])):{};
       if(terms.validUntil && !validDate(terms.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
       if(Object.values(terms).some(value=>value.length>10000))throw Error('Angebotsbedingungen: höchstens 10000 Zeichen je Feld.');
-      let positions=[],optionalPositions=[],alternativePositions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],tax=this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
+      let positions=[],optionalPositions=[],alternativePositions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],smallBusiness=this.data.settings.smallBusiness===true,tax=smallBusiness?0:this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
       this.assertClear(['contract','technical']);
       if(kind==='offers') {
         const assigned=new Set(this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions.map(p=>p.id)));
@@ -561,7 +755,7 @@
           const base=this.get(options.baseOfferId);
           if(base?.module!=='offers' || base.projectId!==project.id || base.data.baseOfferId)throw Error('Hauptangebot für den Nachtrag auswählen.');
           baseOfferId=base.id;
-          tax=base.data.tax;
+          tax=base.data.tax;smallBusiness=base.data.smallBusiness===true;
           positions=candidates.filter(r=>!assigned.has(r.id)).map(r=>this.position(r));
         } else positions=candidates.map(r=>this.position(r));
         if(!positions.length)throw Error('Diese Nachtragspositionen sind bereits beauftragt.');
@@ -572,7 +766,7 @@
         const order=options.orderId?roots.find(r=>r.id===options.orderId):roots.at(-1);
         const offer=this.get(order?.data.offerId);
         if(!offer || offer.status!=='Freigegeben') throw Error('Eine freigegebene Beauftragung mit Angebotsbezug fehlt.');
-        sourceOfferId=offer.id;tax=offer.data.tax;
+        sourceOfferId=offer.id;tax=offer.data.tax;smallBusiness=offer.data.smallBusiness===true;
         invoiceType=options.invoiceType || 'Schlussrechnung';
         if(!['Abschlagsrechnung','Teilrechnung','Schlussrechnung'].includes(invoiceType))throw Error('Rechnungsart ungültig.');
         percentage=invoiceType==='Schlussrechnung'?100:num(options.percentage ?? 100);
@@ -597,7 +791,7 @@
       const net=round(positions.reduce((n,p)=>n+p.gp,0));
       const previouslyNet=round(previous.reduce((n,r)=>n+r.data.net,0)),previouslyTax=round(previous.reduce((n,r)=>n+r.data.taxAmount,0));
       const taxAmount=round(round((previouslyNet+net)*tax/100)-previouslyTax);
-      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:`${kind==='offers'?'AN':'RE'}-${new Date().getFullYear()}-${String(this.data.records.filter(r=>r.module===kind).length+1).padStart(4,'0')}`,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount)}};
+      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:this.nextDocumentNumber(kind==='offers'?'A':'R'),documentRevision:1,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount),...(smallBusiness?{smallBusiness:true,taxNote:SMALL_BUSINESS_NOTE}:{})}};
       Object.assign(record.data,terms);
       validatePricing(kind,record.data);
       return this.transaction('Dokumentfassung freigegeben',kind,record.id,d=>{d.records.push(record);return record;});
@@ -625,8 +819,8 @@
       });
       if(!changed)throw Error('Keine Änderungen vorhanden. Die bisherige PDF bleibt gültig.');
       const family=source.data.documentFamily || source.data.number.replace(/\/\d+$/,'');
-      const revision=Math.max(0,...this.list('offers').filter(r=>(r.data.documentFamily || r.data.number.replace(/\/\d+$/,''))===family).map(r=>r.data.documentRevision || 0))+1;
-      Object.assign(data,{number:family+'/'+String(revision).padStart(2,'0'),documentFamily:family,documentRevision:revision,title:'Angebotsentwurf',version:(source.data.version || 1)+1,supersedesOfferId:id});
+      const revision=Math.max(1,...this.list('offers').filter(r=>(r.data.documentFamily || r.data.number.replace(/\/\d+$/,''))===family).map(r=>r.data.documentRevision || 1))+1;
+      Object.assign(data,{number:family+'/'+revision,documentFamily:family,documentRevision:revision,title:'Angebotsentwurf',version:(source.data.version || 1)+1,supersedesOfferId:id});
       data.net=round(data.positions.reduce((sum,p)=>sum+p.gp,0));data.taxAmount=round(data.net*data.tax/100);data.gross=round(data.net+data.taxAmount);
       const record={id:uid(),module:'offers',projectId:project.id,status:'Prüfung',owner:options.owner || source.owner,createdAt:new Date().toISOString(),data,pdfPending:true};
       return this.transaction('Angebotsänderung zur PDF-Erneuerung vorbereitet','offers',record.id,d=>{d.records.push(record);return record;});
@@ -639,7 +833,7 @@
       if(this.list('invoices').some(r=>r.data.stornoOf===id))throw Error('Rechnung wurde bereits storniert.');
       const data=JSON.parse(JSON.stringify(invoice.data));
       data.title='Stornorechnung';data.invoiceType='Stornorechnung';data.stornoOf=id;data.originalNumber=invoice.data.number;data.reason=options.reason.trim();
-      data.number=`RE-${new Date().getFullYear()}-${String(this.data.records.filter(r=>r.module==='invoices').length+1).padStart(4,'0')}`;
+      data.number=this.nextDocumentNumber('R');data.documentRevision=1;delete data.documentFamily;
       data.net=-data.net;data.taxAmount=-data.taxAmount;data.gross=-data.gross;data.positions=data.positions.map(p=>({...p,qty:-p.qty,gp:-p.gp}));
       const record={id:uid(),module:'invoices',projectId:invoice.projectId,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data};
       return this.transaction('Rechnung storniert','invoices',record.id,d=>{d.records.push(record);return record;});
@@ -673,6 +867,21 @@
       const plannedOverhead=this.project()?.data.plannedOverhead || 0,actualOverhead=this.project()?.data.actualOverhead || 0;
       const directActual=round(times+incoming+subcontracts),actual=round(directActual+actualOverhead);
       return {planned,plannedOverhead,plannedTotal:round(planned+plannedOverhead),times,incoming,subcontracts,commitments,directActual,actualOverhead,actual,revenue,result:round(revenue-actual),gross,paid,outstanding:round(gross-paid)};
+    }
+    // Module 01 overview across all visible projects of a customer, using the same
+    // released offers, invoices and payments as controlling. Nothing is estimated.
+    customerOverview(customerId) {
+      const customer=this.get(customerId);
+      if(!customer || customer.module!=='customers')throw Error('Kunde nicht gefunden.');
+      const projects=this.data.records.filter(r=>r.module==='projects' && r.data.customerId===customerId);
+      const ids=new Set(projects.map(p=>p.id)),released=module=>this.data.records.filter(r=>r.module===module && ids.has(r.projectId) && r.status==='Freigegeben');
+      const invoices=released('invoices'),offers=released('offers');
+      const gross=round(invoices.reduce((n,r)=>n+r.data.gross,0));
+      const paid=round(released('payments').reduce((n,r)=>n+(r.data.direction==='Rückzahlung'?-1:1)*r.data.amount,0));
+      return {customerId,customerNumber:customer.data.customerNumber || '',name:customer.data.name,address:customerAddressLines(customer.data),
+        projects:projects.map(p=>({id:p.id,name:p.data.name,phase:p.data.phase})),offers:offers.length,invoices:invoices.length,
+        offerNet:round(offers.filter(r=>!this.data.records.some(o=>o.module==='offers' && o.data.supersedesOfferId===r.id)).reduce((n,r)=>n+r.data.net,0)),
+        invoicedNet:round(invoices.reduce((n,r)=>n+r.data.net,0)),gross,paid,outstanding:round(gross-paid)};
     }
     deliverySchedule(today=new Date().toISOString().slice(0,10)) {
       if(!validDate(today))throw Error('Lieferübersicht benötigt ein gültiges Datum.');
@@ -719,7 +928,9 @@
     }
     quotes(materialId) {
       const today=new Date().toISOString().slice(0,10);
-      return this.list('suppliers').flatMap(s=>(s.quotes || []).filter(q=>q.materialId===materialId).map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:supplierQuotePrice(q),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today,unitMismatch:q.unit!==this.get(materialId)?.data.unit}))).sort((a,b)=>a.effectivePrice-b.effectivePrice);
+      // Modul 11: je Lieferant gilt nur der neueste nicht zurückgezogene Preis (Preisstand, bei Gleichstand zuletzt erfasst).
+      const latest=list=>list.reduce((best,q,i)=>!q.withdrawnAt && (!best || q.date>=best.q.date)?{q,i}:best,null)?.q;
+      return this.list('suppliers').flatMap(s=>{const own=(s.quotes || []).filter(q=>q.materialId===materialId),current=latest(own);return own.map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:supplierQuotePrice(q),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today,unitMismatch:q.unit!==this.get(materialId)?.data.unit,withdrawn:Boolean(q.withdrawnAt),superseded:!q.withdrawnAt && q!==current}));}).sort((a,b)=>a.effectivePrice-b.effectivePrice);
     }
     quote(supplierId, values) {
       const supplier=this.get(supplierId), material=this.get(values.materialId);
@@ -737,11 +948,61 @@
     useQuote(supplierId, quoteId, owner) {
       const supplier=this.get(supplierId),quote=supplier?.quotes?.find(q=>q.id===quoteId),material=this.get(quote?.materialId);
       if(!quote || !material)throw Error('Preisvergleich nicht gefunden.');
+      if(quote.withdrawnAt)throw Error('Preisvergleich wurde zurückgezogen.');
       if(quote.unit!==material.data.unit)throw Error('Einheit des Preisvergleichs stimmt nicht mit dem Artikel überein.');
       const today=new Date().toISOString().slice(0,10);
       if(quote.validUntil && quote.validUntil<today)throw Error('Preisbindung abgelaufen. Neues Lieferantenangebot erforderlich.');
       if(quote.date>today)throw Error('Preisstand liegt in der Zukunft.');
+      if(this.quotes(material.id).find(q=>q.id===quote.id)?.superseded)throw Error('Es gibt einen neueren Preis desselben Lieferanten. Diesen übernehmen.');
       return this.save('materials',{...material.data,price:supplierQuotePrice(quote),supplier:supplier.data.name,priceDate:quote.date,validUntil:quote.validUntil || '',source:quote.source,priceBasis:`(${quote.price} EUR × (1 − ${quote.discount} / 100) + ${quote.freight} EUR Fracht) / ${quote.baseQuantity ?? 1} ${quote.unit}; Preisgebinde: ${quote.packageUnit || quote.unit}`},{id:material.id,status:'Freigegeben',owner});
+    }
+    // Modul 11: Preis zurückziehen (Tippfehler, Angebot ungültig). Bleibt mit Grund sichtbar, wird nicht gelöscht.
+    withdrawQuote(supplierId, quoteId, values={}) {
+      const supplier=this.get(supplierId),quote=supplier?.module==='suppliers'?supplier.quotes?.find(q=>q.id===quoteId):null;
+      if(!quote)throw Error('Preisvergleich nicht gefunden.');
+      if(quote.withdrawnAt)throw Error('Preisvergleich ist bereits zurückgezogen.');
+      const reason=String(values.reason || '').trim();
+      if(!reason)throw Error('Grund für das Zurückziehen angeben.');
+      if(reason.length>300)throw Error('Grund höchstens 300 Zeichen.');
+      const withdrawnAt=new Date().toISOString().slice(0,10),withdrawnBy=String(values.owner || '').trim();
+      return this.transaction('Lieferantenpreis zurückgezogen','suppliers',supplier.id,d=>{const q=d.records.find(r=>r.id===supplier.id).quotes.find(x=>x.id===quoteId);Object.assign(q,{withdrawnAt,withdrawnReason:reason,withdrawnBy});return q;});
+    }
+    // Modul 11: Preisvergleich je Artikel und Lieferantenübersicht. Hinweise sperren nichts.
+    supplierOverview(asOf=new Date().toISOString().slice(0,10),soonDays=14,savingPercent=3) {
+      if(!validDate(asOf))throw Error('Prüfdatum ungültig.');
+      const day=d=>Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))/86400000;
+      const eur=n=>`${n.toFixed(2).replace('.',',')} €`,pct=n=>String(n).replace('.',',');
+      const norm=v=>String(v || '').trim().toLocaleLowerCase('de');
+      const all=new Map(this.list('materials').map(m=>[m.id,this.quotes(m.id)]));
+      const daysLeft=q=>q.validUntil?day(q.validUntil)-day(asOf):null;
+      const isValid=q=>!q.withdrawn && !q.superseded && !q.unitMismatch && q.date<=asOf && !(q.validUntil && q.validUntil<asOf);
+      const articles=this.list('materials').map(m=>{
+        const d=m.data,quotes=all.get(m.id),active=quotes.filter(q=>!q.withdrawn && !q.superseded),valid=active.filter(isValid),best=valid[0] || null,hints=[];
+        let saving=null,savingPct=null;
+        if(best && Number.isFinite(d.price) && d.price>0 && best.effectivePrice<d.price) {
+          saving=round(d.price-best.effectivePrice);savingPct=Math.round(saving/d.price*1000)/10;
+          if(savingPct>=savingPercent)hints.push(`Günstiger bei ${best.supplier}: ${eur(best.effectivePrice)} statt ${eur(d.price)} je ${d.unit} (−${pct(savingPct)} %)`);
+        }
+        if(!active.length)hints.push('Kein Lieferantenpreis erfasst');
+        else if(!valid.length)hints.push(active.some(q=>q.unitMismatch)?'Kein gültiger Preis – Artikeleinheit geändert, neu erfassen':'Kein gültiger Lieferantenpreis (abgelaufen oder künftiger Preisstand)');
+        else if(valid.length===1 && active.length===1)hints.push('Nur ein Lieferant – kein Vergleich');
+        const left=best?daysLeft(best):null;
+        if(left!==null && left>=0 && left<=soonDays)hints.push(left===0?`Bestpreis bei ${best.supplier} gilt nur noch heute`:`Bestpreis bei ${best.supplier} gilt noch ${left} Tag${left===1?'':'e'} (${best.validUntil})`);
+        const rank=savingPct!==null && savingPct>=savingPercent?0:left!==null && left<=soonDays || (active.length && !valid.length)?1:active.length?2:3;
+        return {id:m.id,name:d.name,article:d.article || '',unit:d.unit,currentPrice:d.price,currentSupplier:d.supplier || '',status:m.status,offers:active.length,valid:valid.length,best:best?{supplier:best.supplier,supplierId:best.supplierId,quoteId:best.id,price:best.effectivePrice,validUntil:best.validUntil || '',source:best.source,date:best.date}:null,saving,savingPct,daysLeft:left,hints,rank};
+      }).sort((a,b)=>a.rank-b.rank || (b.savingPct ?? -1)-(a.savingPct ?? -1) || (a.daysLeft ?? 1e9)-(b.daysLeft ?? 1e9) || String(a.name).localeCompare(String(b.name),'de'));
+      const bestBy=new Map();for(const a of articles)if(a.best)bestBy.set(a.best.supplierId,(bestBy.get(a.best.supplierId) || 0)+1);
+      const suppliers=this.list('suppliers').map(s=>{
+        const own=[...all.values()].flat().filter(q=>q.supplierId===s.id && !q.withdrawn && !q.superseded),valid=own.filter(isValid),hints=[];
+        const expired=own.filter(q=>q.validUntil && q.validUntil<asOf).length,expiring=valid.filter(q=>{const l=daysLeft(q);return l!==null && l<=soonDays;}).length;
+        if(!String(s.data.email || '').trim() && !String(s.data.phone || '').trim())hints.push('Keine E-Mail und kein Telefon hinterlegt');
+        if(!own.length)hints.push('Noch kein Preis erfasst');
+        else if(!valid.length)hints.push('Kein gültiger Preis mehr');
+        if(expiring)hints.push(`${expiring} Preisbindung${expiring===1?'':'en'} enden in ${soonDays} Tagen`);
+        const lastDate=own.map(q=>q.date).sort().at(-1) || '';
+        return {id:s.id,name:s.data.name,contact:s.data.contact || '',email:s.data.email || '',phone:s.data.phone || '',articles:new Set(own.map(q=>q.materialId)).size,valid:valid.length,expired,expiring,bestCount:bestBy.get(s.id) || 0,lastDate,withdrawn:[...all.values()].flat().filter(q=>q.supplierId===s.id && q.withdrawn).length,hints};
+      }).sort((a,b)=>b.bestCount-a.bestCount || norm(a.name).localeCompare(norm(b.name),'de'));
+      return {asOf,articles,suppliers,counts:{savings:articles.filter(a=>a.rank===0).length,expiring:articles.filter(a=>a.daysLeft!==null && a.daysLeft<=soonDays).length,noValid:articles.filter(a=>!a.valid).length,potential:round(articles.filter(a=>a.rank===0).reduce((n,a)=>n+a.saving,0))}};
     }
     schedule(employeeId, values) {
       const employee=this.get(employeeId),project=this.get(values.projectId);
@@ -872,7 +1133,7 @@
       String(p.text || ''),decimal(p.ep),''
     ])];
   };
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows,supplierQuotePrice};
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

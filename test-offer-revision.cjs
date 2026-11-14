@@ -17,7 +17,7 @@ async function main(){
  assert.equal((await repo.read(actor.tenantId)).state.revision,version);
  const next=await command('reviseOffer',[source.id,{positions:values,refreshPdf:true}],project);
  let state=(await repo.read(actor.tenantId)).state,newRecord=state.records.find(r=>r.id===next.recordId);
- assert.equal(newRecord.data.number,source.data.number+'/01');assert.equal(newRecord.status,'Prüfung');
+ assert.match(source.data.number,/^DWP-A-\d{6}-0100\/1$/);assert.equal(newRecord.data.number,source.data.number.replace(/\/1$/,'/2'));assert.equal(newRecord.status,'Prüfung');
  assert.equal(JSON.stringify(state.records.find(r=>r.id===source.id)),prior);
  assert.equal(newRecord.data.positions[0].ep,36.69);assert.equal(newRecord.data.net,366.9);assert.equal(newRecord.data.gross,436.61);
  assert.equal(newRecord.data.positions[0].calculatedWith,'FLAGON ECO150');
@@ -30,7 +30,7 @@ async function main(){
  await assert.rejects(command('reviseOffer',[source.id,{positions:values,refreshPdf:true}],project),/neueste Fassung/);
  const nextValues=newRecord.data.positions.map(p=>({...edit.defaults(p,newRecord.data.company),minutes:12}));
  const again=await command('reviseOffer',[newRecord.id,{positions:nextValues,refreshPdf:true}],project);
- assert.equal(again.state.records.find(r=>r.id===again.recordId).data.number,source.data.number+'/02');
+ assert.equal(again.state.records.find(r=>r.id===again.recordId).data.number,source.data.number.replace(/\/1$/,'/3'));
  // Rendering failure must not persist either the new revision or its number.
  const fresh=again.state.records.find(r=>r.id===again.recordId),pdfModule=require('./lib/offer-pdf.cjs'),generate=pdfModule.createOfferPdf;
  pdfModule.createOfferPdf=async()=>{throw Error('PDF-Testfehler');};

@@ -1,6 +1,10 @@
 (function(root){
   'use strict';
-  const NS='http://www.gaeb.de/GAEB_DA_XML/DA83/3.3';
+  // GAEB DA XML 3.2/3.3, Austauschphasen X81–X86 (ohne X85 Nebenangebot).
+  const PHASES={'81':'Leistungsbeschreibung','82':'Kostenanschlag','83':'Angebotsaufforderung','84':'Angebotsabgabe','86':'Auftragserteilung'};
+  const PRICED=new Set(['82','84','86']);
+  const PRICE_ELEMENTS=['UP','IT','UPBkdn','UPComp1','UPComp2','UPComp3','UPComp4','UPComp5','UPComp6'];
+  let NS='http://www.gaeb.de/GAEB_DA_XML/DA83/3.3';
   const children=(node,name)=>Array.from(node.children || []).filter(n=>n.namespaceURI===NS && (!name || n.localName===name));
   const one=(node,name)=>{const list=children(node,name);if(list.length>1)throw Error(`GAEB: ${name} ist mehrfach vorhanden.`);return list[0];};
   function plain(node) {
@@ -22,7 +26,13 @@
     if(!Parser)throw Error('GAEB: XML-Parser nicht verfügbar.');
     const doc=new Parser().parseFromString(text,'application/xml'),rootNode=doc.documentElement;
     if(doc.getElementsByTagNameNS('*','parsererror').length)throw Error('GAEB: XML ist nicht wohlgeformt.');
-    if(rootNode.localName!=='GAEB' || rootNode.namespaceURI!==NS)throw Error('GAEB: Unterstützt wird X83 / GAEB DA XML 3.3. Andere Austauschphasen bitte getrennt prüfen.');
+    const nsMatch=/^http:\/\/www\.gaeb\.de\/GAEB_DA_XML\/DA(8\d)\/(3\.[23])$/.exec(rootNode.namespaceURI || '');
+    if(rootNode.localName!=='GAEB' || !nsMatch)throw Error('GAEB: Unterstützt wird GAEB DA XML 3.2/3.3 (X81, X82, X83, X84, X86). Ältere Versionen sowie GAEB 90/2000 bitte als XML 3.3 exportieren.');
+    const nsPhase=nsMatch[1],version=nsMatch[2];
+    if(nsPhase==='85')throw Error('GAEB: Nebenangebote (X85) werden nicht automatisch übernommen. Bitte gesondert prüfen.');
+    if(!PHASES[nsPhase])throw Error(`GAEB: Austauschphase X${nsPhase} wird nicht unterstützt.`);
+    NS=rootNode.namespaceURI;
+    const priced=PRICED.has(nsPhase),itemChildren=['Qty','QU','Description',...(priced?PRICE_ELEMENTS:[])],ctgyChildren=['LblTx','BoQBody',...(priced?['Totals']:[])];
     const all=Array.from(doc.getElementsByTagName('*'));
     const forbidden=new Set(['Remark','PerfDescr','MarkupItem','TextComplement','SubDescr','SumDescr','QtyTBD','LumpSumItem','RefRNo','RefPerfNo','QtySplit','LotGrp']);
     const special=all.find(n=>n.namespaceURI===NS && forbidden.has(n.localName));
@@ -30,7 +40,7 @@
     const award=one(rootNode,'Award');
     if(!award)throw Error('GAEB: Award fehlt.');
     const phase=plain(one(award,'DP'));
-    if(phase && phase!=='83')throw Error('GAEB: Austauschphase stimmt nicht mit X83 überein.');
+    if(phase && phase!==nsPhase)throw Error(`GAEB: Austauschphase stimmt nicht überein (Datei X${nsPhase}, Angabe DP X${phase}).`);
     const boq=one(award,'BoQ'),body=boq && one(boq,'BoQBody');
     if(!body || children(award,'BoQ').length!==1)throw Error('GAEB: Genau ein Leistungsverzeichnis mit BoQBody erforderlich.');
     if(!review && Array.from(award.children).some(n=>n.namespaceURI!==NS || !['DP','BoQ'].includes(n.localName)))throw Error('GAEB: Weitere Award-Elemente benötigen eine gesonderte Prüfung.');
@@ -39,7 +49,8 @@
       const has=name=>Array.from(node.getElementsByTagNameNS(NS,name)).length>0;
       const qty=plain(one(node,'Qty')),unit=plain(one(node,'QU'));
       let suggestion='Leistungsart, Mengenbasis und Abrechnungsbezug anhand der Originalposition klären; anschließend eine eigene LV-Position mit dokumentierter Wandlung erfassen.';
-      if(has('LumpSumItem'))suggestion='Pauschalposition als 1 psch vorschlagen; Leistungsumfang und Pauschalpreis prüfen. Erst nach bestätigter Mengenbasis wandeln.';
+      if(reasons.includes('Menge fehlt'))suggestion='Position ohne Menge (z. B. X81 Leistungsbeschreibung): Menge durch Aufmaß oder Mengenermittlung bestimmen und Rechenweg dokumentieren. Keine Menge automatisch einsetzen.';
+      else if(has('LumpSumItem'))suggestion='Pauschalposition als 1 psch vorschlagen; Leistungsumfang und Pauschalpreis prüfen. Erst nach bestätigter Mengenbasis wandeln.';
       else if(has('QtyTBD'))suggestion='Freie Menge durch Aufmaß oder Mengenermittlung bestimmen; Originaleinheit und Rechenweg dokumentieren. Keine Menge automatisch einsetzen.';
       else if(has('RefRNo') || has('RefPerfNo'))suggestion='Bezugsposition/Ausführungsbeschreibung auflösen und vollständigen Leistungstext zusammensetzen; eigene Menge und Bezug dokumentieren.';
       else if(node.localName==='MarkupItem')suggestion='Zuschlagsbasis aus referenzierten Positionen und Teilmengen ermitteln; Prozentsatz auf die freigegebene Basis anwenden und als gesonderte 1-psch-Position dokumentieren. Noch kein Zuschlagsbetrag berechnet.';
@@ -58,7 +69,7 @@
         if(node.namespaceURI!==NS){if(review){preserve(node,parts.join('.'),groups,[node.localName]);continue;}throw Error('GAEB: Fremdes Element im LV.');}
         if(node.localName==='BoQCtgy') {
           if(groups.length===5)throw Error('GAEB: Höchstens fünf Gliederungsebenen unterstützt.');
-          if(!review)allowed(node,['LblTx','BoQBody']);
+          if(!review)allowed(node,ctgyChildren);
           const p=part(node);let label=plain(one(node,'LblTx')) || p;
           if(label.includes('/') || (p+' '+label).length>120){
             if(!review)throw Error('GAEB: LV-Titel bitte vor Übernahme prüfen.');
@@ -66,7 +77,7 @@
             label=label.replaceAll('/','∕').slice(0,119-p.length);
           }
           const next=one(node,'BoQBody');if(!next)throw Error('GAEB: LV-Titel ohne BoQBody.');
-          if(review)for(const extra of children(node).filter(n=>!['LblTx','BoQBody'].includes(n.localName)))preserve(extra,[...parts,p].join('.'),[...groups,`${p} ${label}`],[extra.localName]);
+          if(review)for(const extra of children(node).filter(n=>!ctgyChildren.includes(n.localName)))preserve(extra,[...parts,p].join('.'),[...groups,`${p} ${label}`],[extra.localName]);
           visit(next,[...parts,p],[...groups,`${p} ${label}`]);
         } else if(node.localName==='Itemlist') {
           if(!review)allowed(node,['Item']);
@@ -80,9 +91,9 @@
             if(numbers.has(number))throw Error(`GAEB: Positionsnummer ${number} doppelt.`);
             numbers.add(number);
             const desc=one(item,'Description'),ct=desc && one(desc,'CompleteText');
-            const reasons=[...Array.from(item.children).filter(n=>n.namespaceURI!==NS || !['Qty','QU','Description'].includes(n.localName)).map(n=>n.localName),...Array.from(item.getElementsByTagNameNS(NS,'*')).filter(n=>forbidden.has(n.localName)).map(n=>n.localName),...Array.from(item.attributes).filter(a=>!['ID','RNoPart'].includes(a.name)).map(a=>a.name),...Array.from(desc?.children || []).filter(n=>n.namespaceURI!==NS || n.localName!=='CompleteText').map(n=>n.localName),...Array.from(ct?.children || []).filter(n=>n.namespaceURI!==NS || !['ComplTSA','ComplTSB','DetailTxt','OutlineText'].includes(n.localName)).map(n=>n.localName)];
+            const reasons=[...Array.from(item.children).filter(n=>n.namespaceURI!==NS || !itemChildren.includes(n.localName)).map(n=>n.localName),...(review && !one(item,'Qty') && !item.getElementsByTagNameNS(NS,'QtyTBD').length && !item.getElementsByTagNameNS(NS,'LumpSumItem').length?['Menge fehlt']:[]),...Array.from(item.getElementsByTagNameNS(NS,'*')).filter(n=>forbidden.has(n.localName)).map(n=>n.localName),...Array.from(item.attributes).filter(a=>!['ID','RNoPart'].includes(a.name)).map(a=>a.name),...Array.from(desc?.children || []).filter(n=>n.namespaceURI!==NS || n.localName!=='CompleteText').map(n=>n.localName),...Array.from(ct?.children || []).filter(n=>n.namespaceURI!==NS || !['ComplTSA','ComplTSB','DetailTxt','OutlineText'].includes(n.localName)).map(n=>n.localName)];
             if(reasons.length && review){preserve(item,number,groups,[...new Set(reasons)]);continue;}
-            allowed(item,['Qty','QU','Description']);
+            allowed(item,itemChildren);
             if(Array.from(item.attributes).some(a=>!['ID','RNoPart'].includes(a.name)))throw Error('GAEB: Zusätzliche Positionsattribute benötigen eine gesonderte Prüfung.');
             const qtyText=plain(one(item,'Qty')),unit=plain(one(item,'QU'));
             if(!/^\d+(?:\.\d+)?$/.test(qtyText) || !Number.isFinite(Number(qtyText)) || Number(qtyText)>Number.MAX_SAFE_INTEGER/100)throw Error(`GAEB: Menge in Position ${number} fehlt oder ist ungültig.`);
@@ -95,7 +106,16 @@
             const long=plain(detail),short=plain(outline);
             const performance=long && short && long!==short?short+'\n'+long:long || short;
             if(!performance)throw Error(`GAEB: Leistungstext in Position ${number} fehlt.`);
-            rows.push({number,text:performance,qty:Number(qtyText),unit:unit.replace(/^m2$/,'m²').replace(/^m3$/,'m³'),groupPath:groups.join(' / '),kind:'Hauptleistung'});
+            const row={number,text:performance,qty:Number(qtyText),unit:unit.replace(/^m2$/,'m²').replace(/^m3$/,'m³'),groupPath:groups.join(' / '),kind:'Hauptleistung'};
+            if(priced) {
+              // Preise aus X82/X84/X86 werden wie der BFW-EP nur als ungeprüfter Zielpreis übernommen.
+              const upText=plain(one(item,'UP')),itText=plain(one(item,'IT'));
+              const money=/^\d+(?:\.\d+)?$/;
+              const problem=upText && !money.test(upText)?`Einheitspreis ${upText} ungültig`:itText && !money.test(itText)?`Gesamtbetrag ${itText} ungültig`:itText && !upText?'Gesamtbetrag ohne Einheitspreis':upText && itText && Math.abs(Math.round(Number(qtyText)*Number(upText)*100)/100-Number(itText))>0.011?`Gesamtbetrag ${itText} passt nicht zu Menge × Einheitspreis`:'';
+              if(problem){if(!review)throw Error(`GAEB: Position ${number}: ${problem}.`);preserve(item,number,groups,[problem]);continue;}
+              if(upText){row.targetEp=Number(upText);row.useTargetPrice=true;}
+            }
+            rows.push(row);
             if(rows.length>5000)throw Error('GAEB: Höchstens 5000 Positionen unterstützt.');
           }
         } else if(review)preserve(node,parts.join('.'),groups,[node.localName]);
@@ -107,11 +127,13 @@
     if(review) {
       // Keep other BoQ/Award metadata in the original and require review instead of dropping it.
       for(const node of Array.from(award.children).filter(n=>n.namespaceURI!==NS || !['DP','BoQ'].includes(n.localName)))preserve(node,'Award',[],[node.localName]);
-      for(const node of children(boq).filter(n=>!['BoQBody','BoQInfo'].includes(n.localName)))preserve(node,'LV',[],[node.localName]);
-      return {rows,findings};
+      for(const node of children(boq).filter(n=>!['BoQBody','BoQInfo',...(priced?['Totals']:[])].includes(n.localName)))preserve(node,'LV',[],[node.localName]);
+      return {rows,findings,phase:'X'+nsPhase,phaseName:PHASES[nsPhase],version,priced:rows.filter(r=>r.useTargetPrice).length};
     }
     return rows;
   }
-  const api={parse,report:(text,Parser)=>parse(text,Parser || root.DOMParser,true)};
+  // Dateiendung für den UTF-8-Download der gespeicherten Textquelle (x81 … x86).
+  function extension(text){const m=/GAEB_DA_XML\/DA(8[1-6])\/3\.[23]/.exec(String(text || ''));return m?'x'+m[1]:'x83';}
+  const api={parse,report:(text,Parser)=>parse(text,Parser || root.DOMParser,true),extension,phases:PHASES};
   if(typeof module!=='undefined' && module.exports)module.exports=api;else root.DWPGaebImport=api;
 })(typeof window!=='undefined'?window:globalThis);
