@@ -8,7 +8,7 @@
     "verified": false,
     "checkedAt": "2026-10-19",
     "evidence": "Live 19.10.2026: Testkunde mit Haupt- und Zusatzkontakt zentral gespeichert; Zuordnung zum neuen Testprojekt und Wiederabruf nach Seitenreload bestätigt. iPhone-Abnahme weiterhin offen.",
-    "remaining": "iPhone-Abnahme offen; Desktop-Liveprüfung von Anlage, Kontakten und Wiederabruf am 19.10.2026 bestanden."
+    "remaining": "iPhone-Abnahme offen; Desktop-Liveprüfung von Anlage, Kontakten und Wiederabruf am 19.10.2026 bestanden. Erweiterung 14.11.2026 (Kundennummer, PLZ/Land, USt-IdNr., Kundenart, Kundenübersicht, vollständige Anschrift in Druck/PDF) nur lokal geprüft; Live- und iPhone-Abnahme nach docs/MODUL01_KUNDENSTAMM_2026-11-14.md offen."
   },
   "projects": {
     "number": 2,
