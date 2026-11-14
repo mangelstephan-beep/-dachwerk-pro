@@ -10,10 +10,13 @@
   const blocking = f('blocking','Sperrt nächsten Arbeitsschritt bis Erledigung','checkbox');
   // Modul 29: Buchungsarten. Skonto/Abzug und Sicherheitseinbehalt gleichen die Rechnung aus, ohne Geldeingang.
   // Ein Einbehalt bleibt bis zur Auszahlung offen und blockiert den Projektabschluss nicht.
-  const PAYMENT_KINDS=['Zahlungseingang','Skonto / Abzug','Sicherheitseinbehalt','Einbehalt ausgezahlt','Rückzahlung'];
+  const PAYMENT_KINDS=['Zahlungseingang','Skonto / Abzug','Restbetrag ausgebucht','Restbetrag auf Zwischenkonto','Sicherheitseinbehalt','Einbehalt ausgezahlt','Rückzahlung'];
+  // Vorschlag Gegenkonto SKR03 (änderbar, mit dem Steuerberater abstimmen). Steht kein Konto im Buchungshinweis, wird es eingetragen.
+  const SKR03={'Skonto / Abzug':tax=>tax===19?'SKR03 8736 Gewährte Skonti 19 % USt':tax===7?'SKR03 8731 Gewährte Skonti 7 % USt':'SKR03 8730 Gewährte Skonti','Restbetrag ausgebucht':()=>'SKR03 8700 Erlösschmälerungen','Restbetrag auf Zwischenkonto':()=>'SKR03 1590 Durchlaufende Posten'};
+  const SETTLING=['Skonto / Abzug','Restbetrag ausgebucht','Restbetrag auf Zwischenkonto'];
   const paymentEffect=r=>{const a=r.data.amount,k=r.data.direction || 'Zahlungseingang';
-    return {cash:k==='Zahlungseingang' || k==='Einbehalt ausgezahlt'?a:k==='Rückzahlung'?-a:0,discount:k==='Skonto / Abzug'?a:0,retained:k==='Sicherheitseinbehalt'?a:k==='Einbehalt ausgezahlt'?-a:0};};
-  const paymentTotals=rows=>rows.reduce((s,r)=>{const e=paymentEffect(r);s.paid+=e.cash;s.discount+=e.discount;s.retained+=e.retained;return s;},{paid:0,discount:0,retained:0});
+    return {cash:k==='Zahlungseingang' || k==='Einbehalt ausgezahlt'?a:k==='Rückzahlung'?-a:0,discount:k==='Skonto / Abzug'?a:0,writeOff:k==='Restbetrag ausgebucht'?a:0,suspense:k==='Restbetrag auf Zwischenkonto'?a:0,retained:k==='Sicherheitseinbehalt'?a:k==='Einbehalt ausgezahlt'?-a:0};};
+  const paymentTotals=rows=>rows.reduce((s,r)=>{const e=paymentEffect(r);for(const k in e)s[k==='cash'?'paid':k]+=e[k];return s;},{paid:0,discount:0,writeOff:0,suspense:0,retained:0});
   const modules = [
     ['customers', 'Kunden und Kontakte', 'customers', [f('customerNumber','Kundennummer (leer = automatisch, danach unveränderlich)'),f('name','Firma / Name','text',true),Object.assign(f('customerType','Kundenart','select',false,['Gewerbekunde','Privatkunde']),{blank:true}),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Straße und Hausnummer'),f('postalCode','PLZ'),f('location','Ort'),f('country','Land (ISO-Code, z. B. DE)'),f('vatId','USt-IdNr.'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
     ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('memberIds','Freigegebene Benutzer-IDs (kommagetrennt; Administratoren haben Zugriff)','textarea'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
@@ -389,7 +392,7 @@
         if(!PAYMENT_KINDS.includes(kind))throw Error('Buchungsart ungültig.');
         if(!(data.amount>0))throw Error('Betrag muss positiv sein.');
         const others=this.list('payments').filter(r=>r.id!==options.id && r.status==='Freigegeben' && r.data.invoiceId===invoice.id);
-        const t=paymentTotals(others),settled=round(t.paid+t.discount+t.retained);
+        const t=paymentTotals(others),settled=round(t.paid+t.discount+t.writeOff+t.suspense+t.retained);
         if(kind==='Rückzahlung') {
           if(!invoice.data.stornoOf)throw Error('Rückzahlungen müssen einer Stornorechnung zugeordnet werden.');
           const received=paymentTotals(this.list('payments').filter(r=>r.status==='Freigegeben' && r.data.invoiceId===invoice.data.stornoOf)).paid;
@@ -401,7 +404,8 @@
             if(round(data.amount)>round(t.retained))throw Error('Auszahlung übersteigt den offenen Sicherheitseinbehalt dieser Rechnung.');
           } else if(round(settled+data.amount)>invoice.data.gross) throw Error('Betrag darf den offenen Rechnungsbetrag nicht überschreiten.');
           if(kind==='Sicherheitseinbehalt' && !validDate(data.retentionUntil))throw Error('Sicherheitseinbehalt: Datum „Einbehalt bis (Ende Gewährleistung)“ angeben.');
-          if(kind==='Skonto / Abzug' && !String(data.account || data.notes || '').trim())throw Error('Skonto / Abzug: Grund im Buchungshinweis angeben, z. B. „2 % Skonto“.');
+          if(SETTLING.includes(kind) && !String(data.notes || data.account || '').trim())throw Error(kind+': Grund in „Bemerkung“ angeben, z. B. „2 % Skonto“ oder „Kunde zahlt Rest nicht, Kulanz“.');
+          if(SKR03[kind] && !/\b\d{4}\b/.test(data.account || ''))data.account=[SKR03[kind](invoice.data.tax),String(data.account || '').trim()].filter(Boolean).join(' · ');
         }
       }
       if(options.due && (!/^\d{4}-\d{2}-\d{2}$/.test(options.due) || Number.isNaN(Date.parse(options.due)) || new Date(options.due).toISOString().slice(0,10)!==options.due))throw Error('Rückmeldefrist ungültig.');
@@ -473,7 +477,7 @@
       const invoices=this.list('invoices'),cancelled=new Set(invoices.map(r=>r.data.stornoOf).filter(Boolean));
       for(const o of orders.filter(o=>!this.get(o.data.offerId).data.baseOfferId))if(!invoices.some(r=>r.data.sourceOfferId===o.data.offerId && r.data.invoiceType==='Schlussrechnung' && !r.data.stornoOf && !cancelled.has(r.id)))add('invoices','Schlussrechnung für '+o.data.title+' fehlt.',o.id);
       for(const r of this.openRegie())add('invoices','Stundenlohnarbeit noch nicht abgerechnet: '+r.data.date+' '+r.data.title,r.id);
-      const c=this.controlling();if(c.outstanding!==0)add('payments',c.outstanding>0?'Offene Zahlung: '+c.outstanding.toFixed(2)+' EUR':'Guthaben / Rückzahlung offen: '+Math.abs(c.outstanding).toFixed(2)+' EUR');
+      const c=this.controlling();if(c.outstanding!==0)add('payments',c.outstanding>0?'Offene Zahlung: '+c.outstanding.toFixed(2)+' EUR – offen lassen oder als „Restbetrag ausgebucht“ bzw. „Restbetrag auf Zwischenkonto“ buchen':'Guthaben / Rückzahlung offen: '+Math.abs(c.outstanding).toFixed(2)+' EUR');
       return {projectId:project.id,phase:project.data.phase,modules:moduleStates,stages,issues,next:issues[0]?.module || 'closing'};
     }
     assertPhase(phase) {
@@ -897,15 +901,15 @@
       const invoices=this.list('invoices').filter(r=>r.status==='Freigegeben');
       const revenue=round(invoices.reduce((n,r)=>n+r.data.net,0));
       const gross=round(invoices.reduce((n,r)=>n+r.data.gross,0));
-      const pay=paymentTotals(this.list('payments').filter(r=>r.status==='Freigegeben')),paid=round(pay.paid),discount=round(pay.discount),retained=round(pay.retained);
-      // Skonto mindert den Erlös: Nettoanteil nach dem Steuersatz der jeweiligen Rechnung.
-      const discountNet=round(this.list('payments').filter(r=>r.status==='Freigegeben' && r.data.direction==='Skonto / Abzug').reduce((n,r)=>n+r.data.amount/(1+(this.get(r.data.invoiceId)?.data.tax || 0)/100),0));
+      const pay=paymentTotals(this.list('payments').filter(r=>r.status==='Freigegeben')),paid=round(pay.paid),discount=round(pay.discount),retained=round(pay.retained),writeOff=round(pay.writeOff),suspense=round(pay.suspense);
+      // Skonto und ausgebuchte Restbeträge mindern den Erlös: Nettoanteil nach dem Steuersatz der jeweiligen Rechnung.
+      const discountNet=round(this.list('payments').filter(r=>r.status==='Freigegeben' && ['Skonto / Abzug','Restbetrag ausgebucht'].includes(r.data.direction)).reduce((n,r)=>n+r.data.amount/(1+(this.get(r.data.invoiceId)?.data.tax || 0)/100),0));
       const retention=this.list('payments').filter(r=>r.status==='Freigegeben' && r.data.direction==='Sicherheitseinbehalt').map(r=>({invoiceId:r.data.invoiceId,amount:r.data.amount,until:r.data.retentionUntil,open:round(r.data.amount-this.list('payments').filter(x=>x.status==='Freigegeben' && x.data.direction==='Einbehalt ausgezahlt' && x.data.invoiceId===r.data.invoiceId).reduce((n,x)=>n+x.data.amount,0))})).filter(r=>r.open>0);
       const contracted=this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions);
       const planned=contracted.length?round(contracted.reduce((n,p)=>n+p.qty*p.direct,0)):calc.direct;
       const plannedOverhead=this.project()?.data.plannedOverhead || 0,actualOverhead=this.project()?.data.actualOverhead || 0;
       const directActual=round(times+incoming+subcontracts),actual=round(directActual+actualOverhead);
-      return {planned,plannedOverhead,plannedTotal:round(planned+plannedOverhead),times,incoming,subcontracts,commitments,directActual,actualOverhead,actual,revenue,result:round(revenue-discountNet-actual),gross,paid,discount,discountNet,retained,retention,outstanding:round(gross-paid-discount-retained)+0};
+      return {planned,plannedOverhead,plannedTotal:round(planned+plannedOverhead),times,incoming,subcontracts,commitments,directActual,actualOverhead,actual,revenue,result:round(revenue-discountNet-actual),gross,paid,discount,discountNet,writeOff,suspense,retained,retention,outstanding:round(gross-paid-discount-writeOff-suspense-retained)+0};
     }
     // Module 01 overview across all visible projects of a customer, using the same
     // released offers, invoices and payments as controlling. Nothing is estimated.
@@ -916,7 +920,7 @@
       const ids=new Set(projects.map(p=>p.id)),released=module=>this.data.records.filter(r=>r.module===module && ids.has(r.projectId) && r.status==='Freigegeben');
       const invoices=released('invoices'),offers=released('offers');
       const gross=round(invoices.reduce((n,r)=>n+r.data.gross,0));
-      const pay=paymentTotals(released('payments')),paid=round(pay.paid),discount=round(pay.discount),retained=round(pay.retained);
+      const pay=paymentTotals(released('payments')),paid=round(pay.paid),discount=round(pay.discount+pay.writeOff+pay.suspense),retained=round(pay.retained);
       return {customerId,customerNumber:customer.data.customerNumber || '',name:customer.data.name,address:customerAddressLines(customer.data),
         projects:projects.map(p=>({id:p.id,name:p.data.name,phase:p.data.phase})),offers:offers.length,invoices:invoices.length,
         offerNet:round(offers.filter(r=>!this.data.records.some(o=>o.module==='offers' && o.data.supersedesOfferId===r.id)).reduce((n,r)=>n+r.data.net,0)),

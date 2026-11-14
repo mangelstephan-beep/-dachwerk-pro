@@ -232,7 +232,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Nachgebaut 15.11.2026: Buchungsarten Skonto / Abzug (mit Grund) und Sicherheitseinbehalt (mit Frist); Abschluss trotz offenem Einbehalt, spätere Auszahlung auch im abgeschlossenen Projekt. Abnahme durch Stephan Mangel (iPhone/HP) offen. Weiter offen: Bankanbindung, Kontenmapping"
+    "remaining": "Nachgebaut 15.11.2026: Buchungsarten Skonto / Abzug (mit Grund) und Sicherheitseinbehalt (mit Frist); Restsumme ausbuchen oder auf Zwischenkonto; Kontovorschläge SKR03 (8736/8730 Skonto, 8700, 1590), mit Steuerberater abzustimmen; Abschluss trotz offenem Einbehalt, spätere Auszahlung auch im abgeschlossenen Projekt. Abnahme durch Stephan Mangel (iPhone/HP) offen. Weiter offen: Bankanbindung, Kontenmapping"
   },
   "closing": {
     "number": 30,
