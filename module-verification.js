@@ -184,7 +184,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Gesamtablauf 15.11.2026: Stundenlohnarbeiten (Regie) mit Kundenbestätigung sind noch nicht abrechenbar. Automatische Kundenkopie, zentrale Übergabe"
+    "remaining": "Nachgebaut 15.11.2026: Stundenlohnarbeiten (Regie) mit Verrechnungssatz und Kundenbestätigung werden einmalig in die nächste Rechnung übernommen; nicht abgerechnete Regie blockiert den Projektabschluss. Abnahme durch Stephan Mangel (iPhone/HP) offen. Weiter offen: Automatische Kundenkopie, zentrale Übergabe"
   },
   "subcontracts": {
     "number": 24,
@@ -216,7 +216,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Gesamtablauf 15.11.2026: Rechnung nach § 13b UStG (Steuerschuld des Leistungsempfängers) und Mahnwesen fehlen. Steuerliche Sonderfälle, XRechnung/ZUGFeRD"
+    "remaining": "Nachgebaut 15.11.2026: Rechnung nach § 13b UStG ohne USt (Kunde als bauleistender Unternehmer markiert, USt-IdNr. Pflicht, Hinweistext) und Regiepositionen. Abnahme durch Stephan Mangel (iPhone/HP) offen; Mahnwesen weiter offen. Weiter offen: Steuerliche Sonderfälle, XRechnung/ZUGFeRD"
   },
   "incoming": {
     "number": 28,
@@ -232,7 +232,7 @@
     "verified": false,
     "checkedAt": null,
     "evidence": "",
-    "remaining": "Gesamtablauf 15.11.2026: Skonto und Sicherheitseinbehalt fehlen; das Projekt lässt sich dann nicht abschließen. Bankanbindung, Kontenmapping"
+    "remaining": "Nachgebaut 15.11.2026: Buchungsarten Skonto / Abzug (mit Grund) und Sicherheitseinbehalt (mit Frist); Abschluss trotz offenem Einbehalt, spätere Auszahlung auch im abgeschlossenen Projekt. Abnahme durch Stephan Mangel (iPhone/HP) offen. Weiter offen: Bankanbindung, Kontenmapping"
   },
   "closing": {
     "number": 30,
