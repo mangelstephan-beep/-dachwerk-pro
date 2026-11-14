@@ -144,7 +144,7 @@
     personnel:'Betriebsweite Personalstammdaten mit Kostensätzen und Qualifikationen.'
   };
   function header(name) {
-    const mod=core.definitions[current], isGlobal=mod?.scope==='global';
+    const mod=core.definitions[current], isGlobal=mod?.scope==='global' && !['customers','projects'].includes(current);
     const subtitle=moduleSubtitles[current] || (isGlobal?'Betriebsweite Stammdaten für alle Projekte.':'Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.');
     const context=isGlobal?`<p class="dwp-global-note"><strong>Betriebsweite Stammdaten</strong> · Kein Projekt erforderlich. Einträge stehen in allen Projekten zur Verfügung.</p>`:projectBar();
     return `<nav class="dwp-module-navigation" aria-label="Modulnavigation">${btn('← Zurück','module-back')}${btn('Alle Module','open','dashboard')}<a class="button button-secondary" data-dwp="direct-link" href="${esc(moduleUrl(current).href)}">Direktlink</a></nav><header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>${esc(subtitle)}</p></div><div class="header-actions">${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${context}`;
