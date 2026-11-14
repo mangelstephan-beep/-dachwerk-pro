@@ -11,7 +11,7 @@
   const btn=(label,action,id='',primary=false)=>`<button type="button" class="button button-${primary?'primary':'secondary'}" data-dwp="${action}" data-id="${esc(id)}" ${action==='open'&&verified(id)?'data-dwp-verified="true"':''}>${esc(label)}</button>`;
   const field=(label,control)=>`<div><label>${esc(label)}${control}</label></div>`;
   const panel=(title,body)=>`<section class="panel panel-pad dwp-panel"><h2>${esc(title)}</h2>${body}</section>`;
-  const names=id=>{const r=db.get(id);return r ? (r.data.number?`${r.data.number} · `:'')+(r.data.name || r.data.title || r.data.text || '') : '';};
+  const names=id=>{const r=db.get(id);const number=r?.module==='customers'?r.data.customerNumber:r?.data.number;return r ? (number?`${number} · `:'')+(r.data.name || r.data.title || r.data.text || '') : '';};
   const viewsToModule={customers:'customers',projects:'projects',services:'services',prices:'materials',calculation:'calculation',gaeb:'imports',measurements:'measurements',safety:'safety','site-docs':'diary',defects:'defects',documents:'documents',invoices:'invoices',communication:'correspondence','ai-check':'technical',expert:'expert',energy:'energy',rules:'knowledge',help:'help',users:'personnel',settings:'settings'};
   const special=new Set(['calculation','efb','offers','invoices','closing','controlling','imports']);
   try {db=new core.Store(localStorage);} catch(error) {
@@ -59,7 +59,7 @@
     rememberProject();
   }
   function projectGestureRows() {
-    const projects=db.list('projects');
+    const projects=core.sortRecords('projects',db.list('projects'));
     if(!projects.length)return '<p>Keine Projekte vorhanden.</p>';
     const canDelete=!window.DWPRemote?.active || state.currentRole==='admin';
     return `<div class="dwp-project-gesture-list" id="dwp-project-gesture-list">${projects.map(r=>`<div class="dwp-project-gesture" data-project-gesture="${esc(r.id)}" data-project-search="${esc([r.data.name,r.data.number,r.data.costCenter,r.data.address].filter(Boolean).join(' ').toLocaleLowerCase('de'))}" tabindex="0" role="group" aria-label="${esc(r.data.name)}"><div class="dwp-project-gesture-info"><strong>${esc(r.data.name)}</strong><small>${esc(r.data.costCenter || r.data.address || '')} · ${db.data.records.filter(x=>x.projectId===r.id).length} Vorgänge</small></div><div class="dwp-project-gesture-actions">${btn('Öffnen','project-select',r.id)}${canDelete?btn('⋯','project-actions',r.id):''}<button type="button" class="button button-danger" data-dwp="delete-project-row" data-id="${esc(r.id)}" hidden>Löschen</button></div></div>`).join('')}</div>`;
@@ -72,7 +72,7 @@
     });
   }
   function projectBar() {
-    const projects=db.list('projects'),central=window.DWPRemote?.active;
+    const projects=core.sortRecords('projects',db.list('projects')),central=window.DWPRemote?.active;
     const hint=db.project()?names(db.project().data.customerId):projects.length?'Bitte ein vorhandenes Projekt auswählen.':central?'In diesem Benutzerbestand sind noch keine Projekte gespeichert.':'Zuerst Kunde und Projekt anlegen';
     return `<div class="dwp-project-bar"><label title="Projekt lange drücken, um es zu löschen">Aktuelles Projekt<select id="dwp-project" ${projects.length?'':'disabled'}><option value="">${projects.length?'Projekt auswählen':'Noch kein Projekt vorhanden'}</option>${projects.map(r=>`<option value="${esc(r.id)}" ${db.data.selectedProject===r.id?'selected':''}>${esc(r.data.name)}</option>`).join('')}</select></label><p class="dwp-project-context">${esc(hint)}</p><div class="dwp-project-actions">${central?btn('Projekte neu laden','server-reload'):''}${btn('+ Kunde','open','customers')}${btn('+ Projekt','open','projects')}${db.project() && (!central || state.currentRole==='admin')?btn('Projekt löschen','delete-project'):''}</div><details class="dwp-current-projects"><summary>Aktuelle Projekte (${projects.length}) · lang drücken oder nach links wischen</summary><div class="dwp-project-finder"><label>Projekt suchen (Name, Nummer oder Kostenstelle)<input id="dwp-project-filter" type="search" autocomplete="off" placeholder="z. B. HIT 80008" aria-controls="dwp-project-gesture-list"></label><p id="dwp-project-filter-feedback" role="status" aria-live="polite"></p></div>${projectGestureRows()}</details></div>`;
   }
@@ -183,7 +183,7 @@
   function optionsFor(type) {
     const mod={customer:'customers',position:'lv',material:'materials',employee:'personnel',offer:'offers',purchase:'purchase',invoice:'invoices',subcontract:'subcontracts'}[type];
     if(type==='record')return db.data.records.filter(r=>r.projectId===db.data.selectedProject || !r.projectId);
-    return db.list(mod).filter(r=>!['material','offer'].includes(type)||r.status==='Freigegeben');
+    return core.sortRecords(mod,db.list(mod)).filter(r=>!['material','offer'].includes(type)||r.status==='Freigegeben');
   }
   function input(f,value) {
     const attr=`name="${f.key}" ${f.required?'required':''}`;
@@ -195,12 +195,12 @@
     }
     if(f.type==='checkbox') return `<input ${attr} type="checkbox" ${value?'checked':''}>`;
     if(f.type==='textarea') return `<textarea ${attr} rows="3">${esc(value)}</textarea>`;
-    if(f.type==='select') return `<select ${attr}>${f.options.map(v=>`<option ${v===value?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
+    if(f.type==='select') return `<select ${attr}>${f.blank?`<option value="" ${value?'':'selected'}>Nicht angegeben</option>`:''}${f.options.map(v=>`<option ${v===value?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
     if(['customer','position','material','employee','offer','purchase','invoice','subcontract','record'].includes(f.type)) return `<select ${attr}><option value="">Bitte auswählen</option>${optionsFor(f.type).map(r=>`<option value="${esc(r.id)}" ${r.id===value?'selected':''}>${esc(names(r.id))}</option>`).join('')}</select>`;
     return `<input ${attr} type="${f.type==='number'?'text':f.type}" ${f.type==='number'?'inputmode="decimal"':''} value="${esc(value ?? '')}">`;
   }
   function defaults(module) {
-    return {date:new Date().toISOString().slice(0,10),unit:'m²',qty:1,length:1,width:1,factor:1,consumption:1,tax:19,rate:db.data.settings.wage,phase:'Erfassung',productiveHours:db.data.settings.capacity?.productiveHours || 1,...(module==='lv'?{useNuMarkup:true,subcontractMarkup:15}:{})};
+    return {date:new Date().toISOString().slice(0,10),unit:'m²',qty:1,length:1,width:1,factor:1,consumption:1,tax:19,rate:db.data.settings.wage,phase:'Erfassung',...(module==='customers'?{country:'DE'}:{}),productiveHours:db.data.settings.capacity?.productiveHours || 1,...(module==='lv'?{useNuMarkup:true,subcontractMarkup:15}:{})};
   }
 
   function recordForm(mod) {
@@ -234,13 +234,14 @@
     return panel('Hierarchischer LV-Baum',`<p>Bis zu fünf aufklappbare Titelstufen. Die Zwischensumme einer Gruppe enthält ihre Untergruppen bereits; sie wird nicht erneut zum Gesamtbetrag addiert. Bedarfs- und Alternativpositionen erscheinen zur Prüfung, jedoch nicht in den Grundsummen.</p>${tree.length?`<ul class="dwp-lv-branches" aria-label="LV-Titelhierarchie">${tree.map(renderNode).join('')}</ul>`:'<p>Für dieses Projekt sind noch keine LV-Positionen vorhanden.</p>'}`);
   }
   function records(mod) {
-    const list=db.list(mod.id);
+    const list=core.sortRecords(mod.id,db.list(mod.id));
     const rows=list.map(r=>[
       `<strong>${esc(names(r.id))}</strong><small>${esc(r.id.slice(0,8))}</small>`,
       `<span class="status-pill ${r.status==='Freigegeben'?'status-green':'status-grey'}">${esc(r.status)}</span>`,
       esc(r.owner),esc(r.due),`${btn(r.pendingPrice?'Importpreis prüfen':'Bearbeiten','edit',r.id)}${btn('Drucken / PDF','print',r.id)}${['documents','defects','expert','acceptance','diary'].includes(mod.id)?btn('Datei / Foto','attach',r.id):''}${['acceptance','times'].includes(mod.id)?btn(`Unterschrift${r.signatures?.length?' ('+r.signatures.length+')':''}`,'signature',r.id):''}${mod.id==='services'?btn('Ins LV','service-lv',r.id):''}${r.importFinding && r.status!=='Erledigt'?btn('Wandlung prüfen','convert-import',r.id):''}`
     ]);
     let summary='';
+    if(mod.id==='customers')summary=panel('Kundenübersicht und Projektbezug',`<p>Je Kunde: Anschrift, verknüpfte Projekte sowie freigegebene Angebote, Rechnungen und Zahlungen aus den sichtbaren Projekten. Offene Beträge stammen ausschließlich aus freigegebenen Rechnungen und Zahlungen.</p>${list.length?table(['Kundennr.','Kunde / Anschrift','Projekte','Angebote','Rechnungen brutto','Bezahlt','Offen'],list.map(r=>{const o=db.customerOverview(r.id);return [esc(o.customerNumber || 'Wird beim nächsten Speichern vergeben'),`<strong>${esc(o.name)}</strong>${o.address.length?'<br>'+o.address.map(esc).join('<br>'):''}`,o.projects.length?o.projects.map(p=>`${esc(p.name)} (${esc(p.phase)})`).join('<br>'):'Kein Projekt',`${o.offers} · ${money(o.offerNet)} netto`,`${o.invoices} · ${money(o.gross)}`,money(o.paid),money(o.outstanding)];})):'<p>Noch keine Kunden erfasst.</p>'}`);
     if(mod.id==='projects')summary=panel('Aktuelle Projekte',`<p>Projekt gedrückt halten oder nach links wischen, dann „Löschen“ wählen. Danach dreimal Ja bestätigen.</p>${projectGestureRows()}`);
     if(mod.id==='contract')summary=panel('Automatische LV-Datenprüfung',`<p>Prüft Mengen, Gliederung, Nachtragsnummern, Kostenansätze und Deckung. Befunde können einzeln als Rückfrage gespeichert werden. Vertragstexte und Fachregeln werden anhand der angegebenen Quelle separat geprüft.</p>${table(['Position','Befund','Rückfrage','Aktion'],db.contractReview().map(f=>[esc(f.number),esc(f.finding),esc(f.question),esc(f.reviewState)+' '+btn('Rückfrage anlegen','contract-finding',f.positionId+'/'+f.code)]))}`);
     if(mod.id==='lv') summary=lvTreePanel()+panel('LV-Gliederung und Zwischensummen',`<p>Gliederung je Position als Gewerk / Titel / Abschnitt erfassen. Übergeordnete Summen enthalten ihre Unterabschnitte; sie werden nicht zusätzlich zur Kalkulationssumme addiert.</p>${table(['Gliederung','Ebene','Positionen','Netto'],db.lvGroups().map(g=>[esc(g.path),esc(g.level),esc(g.positions),money(g.net)]))}`);
@@ -618,7 +619,7 @@
     let body='';
     if(['offers','invoices'].includes(r.module) || r.module==='orders' && r.confirmation) {
       const d=r.confirmation || r.data;
-      body=`<h1>${esc(d.title)} ${esc(d.number)}</h1>${r.confirmation?`<p>Bezug: Angebot ${esc(d.offerNumber)} · AG-Auftrag ${esc(d.orderNumber || 'ohne Nummer')} · Datum ${esc(d.date)}</p>`:''}${r.module==='offers'?`<p>Version ${esc(d.version || 1)}</p>`:''}${d.baseOfferId?`<p>Nachtrag ${esc(d.changeNumber || 'Ohne Nummer')} · Version ${esc(d.version || 1)}</p>`:''}<p>${esc(d.customer.name)}<br>${esc(d.customer.address)}</p><h2>${esc(d.project.name)}</h2><p>${esc(d.project.address)}</p>${d.buyerReference?`<p>Käuferreferenz: ${esc(d.buyerReference)}</p>`:''}${table(['Pos.','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto'],d.positions.map(p=>[esc(p.number),esc(p.groupPath || ''),esc(p.text),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}${r.module==='offers'?[['Bedarfspositionen – nicht in Summe',d.optionalPositions || []],['Nicht gewählte Ausführungen – nicht in Summe',d.alternativePositions || []]].filter(([,rows])=>rows.length).map(([label,rows])=>`<h2>${esc(label)}</h2>${table(['Pos.','Leistung','Wahlgruppe','Menge','Einheit','EP netto','GP separat'],rows.map(p=>[esc(p.number),esc(p.text),esc(p.choiceGroup),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}`).join(''):''}<p>Netto: ${money(d.net)}<br>USt ${d.tax}%: ${money(d.taxAmount)}<br><strong>Brutto: ${money(d.gross)}</strong></p>`;
+      body=`<h1>${esc(d.title)} ${esc(d.number)}</h1>${r.confirmation?`<p>Bezug: Angebot ${esc(d.offerNumber)} · AG-Auftrag ${esc(d.orderNumber || 'ohne Nummer')} · Datum ${esc(d.date)}</p>`:''}${r.module==='offers'?`<p>Version ${esc(d.version || 1)}</p>`:''}${d.baseOfferId?`<p>Nachtrag ${esc(d.changeNumber || 'Ohne Nummer')} · Version ${esc(d.version || 1)}</p>`:''}<p>${[d.customer.name,...core.customerAddressLines(d.customer)].map(esc).join('<br>')}</p>${d.customer.customerNumber||d.customer.vatId?`<p>${[d.customer.customerNumber?'Kundennr. '+esc(d.customer.customerNumber):'',d.customer.vatId?'USt-IdNr. '+esc(d.customer.vatId):''].filter(Boolean).join(' · ')}</p>`:''}<h2>${esc(d.project.name)}</h2><p>${esc(d.project.address)}</p>${d.buyerReference?`<p>Käuferreferenz: ${esc(d.buyerReference)}</p>`:''}${table(['Pos.','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto'],d.positions.map(p=>[esc(p.number),esc(p.groupPath || ''),esc(p.text),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}${r.module==='offers'?[['Bedarfspositionen – nicht in Summe',d.optionalPositions || []],['Nicht gewählte Ausführungen – nicht in Summe',d.alternativePositions || []]].filter(([,rows])=>rows.length).map(([label,rows])=>`<h2>${esc(label)}</h2>${table(['Pos.','Leistung','Wahlgruppe','Menge','Einheit','EP netto','GP separat'],rows.map(p=>[esc(p.number),esc(p.text),esc(p.choiceGroup),esc(p.qty),esc(p.unit),money(p.ep),money(p.gp)]))}`).join(''):''}<p>Netto: ${money(d.net)}<br>USt ${d.tax}%: ${money(d.taxAmount)}<br><strong>Brutto: ${money(d.gross)}</strong></p>`;
       if(r.module==='offers' || r.confirmation)body+=[['Gültig bis einschließlich',d.validUntil],['Zahlungsbedingungen',d.paymentTerms],['Ausführungsbedingungen / Termine',d.executionTerms],['Angebotshinweise',d.offerNotes],...(r.confirmation?[['Auftragshinweise',d.notes]]:[])].filter(([,value])=>value).map(([label,value])=>`<h2>${esc(label)}</h2><p style="white-space:pre-wrap">${esc(value)}</p>`).join('');
       if(d.stornoOf)body+=`<p>Storno zu ${esc(d.originalNumber)} · Grund: ${esc(d.reason)}</p>`;
       else if(d.previouslyNet)body+=`<p>Zuvor berechnet netto: ${money(d.previouslyNet)}<br>Kumulativ einschließlich dieser Rechnung netto: ${money(core.round(d.previouslyNet+d.net))}</p>`;
@@ -861,6 +862,13 @@
   main.addEventListener('change',async event=>{
     try {
       const quoteForm=event.target.closest('#dwp-quote');if(quoteForm){state.unsavedChanges=true;updateQuotePreview(quoteForm);}
+      const recordForm=event.target.closest('#dwp-record');
+      if(recordForm?.elements.module.value==='projects' && event.target.name==='customerId' && event.target.value) {
+        const taken=Object.entries(core.projectDefaultsFromCustomer(db.get(event.target.value)?.data)).filter(([key,value])=>value && recordForm.elements[key] && !recordForm.elements[key].value.trim());
+        taken.forEach(([key,value])=>{recordForm.elements[key].value=value;});
+        state.unsavedChanges=true;
+        if(taken.length)notice(`Vom Kunden übernommen: ${taken.map(([key])=>key==='address'?'Objektanschrift':'Leitweg-ID / Käuferreferenz').join(', ')}. Bitte prüfen und speichern.`);
+      }
       if(event.target.matches('[data-offer-position]')){updateChoiceTotal();state.unsavedChanges=true;}
       if(event.target.id==='dwp-project') {
         if(!event.target.value){event.target.value=db.data.selectedProject || '';return;}

@@ -9,7 +9,7 @@
   const cost = f('cost', 'Kosten netto', 'number');
   const blocking = f('blocking','Sperrt nächsten Arbeitsschritt bis Erledigung','checkbox');
   const modules = [
-    ['customers', 'Kunden und Kontakte', 'customers', [f('name','Firma / Name','text',true),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Anschrift'),f('location','Ort'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
+    ['customers', 'Kunden und Kontakte', 'customers', [f('customerNumber','Kundennummer (leer = automatisch, danach unveränderlich)'),f('name','Firma / Name','text',true),Object.assign(f('customerType','Kundenart','select',false,['Gewerbekunde','Privatkunde']),{blank:true}),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Straße und Hausnummer'),f('postalCode','PLZ'),f('location','Ort'),f('country','Land (ISO-Code, z. B. DE)'),f('vatId','USt-IdNr.'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
     ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('memberIds','Freigegebene Benutzer-IDs (kommagetrennt; Administratoren haben Zugriff)','textarea'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
     ['operating','Betriebs- und Lohnkosten','prices',[title,f('annualCost','Jahreskosten netto','number',true),f('productiveHours','Produktive Stunden','number',true),note]],
     ['lv','Leistungsverzeichnisse','calculation',[f('number','Positionsnummer','text',true),f('section','LV-Titel / Los'),f('subsection','Untertitel / Abschnitt'),f('text','Leistungsbeschreibung','textarea',true),f('groupPath','Gliederung: Gewerk / Titel / Abschnitt'),f('kind','Leistungsart','select',false,['Hauptleistung','Nachtrag','Bedarfsposition','Grundposition','Alternativposition']),f('choiceGroup','Wahlgruppe (Grund-/Alternativposition)'),f('changeNumber','Nachtragsnummer'),f('qty','LV-Menge','number',true),f('unit','Einheit','text',true),f('material','Material je Einheit','number'),f('minutes','Minuten je Einheit','number'),f('equipment','Geräte je Einheit','number'),f('subcontract','NU je Einheit','number'),f('materialId','Freigegebener Materialartikel','material'),f('consumption','Materialverbrauch je Einheit','number'),f('useTargetPrice','Zielpreis verwenden','checkbox'),f('targetEp','Zielpreis netto je Einheit vor Rabatt','number'),f('discountPercent','Positionsrabatt %','number')]],
@@ -109,6 +109,37 @@
     if(rows.length>50)throw Error('Maximal 50 zusätzliche Kontakte.');
     return rows.map(c=>{const clean=Object.fromEntries(['name','role','email','phone'].map(k=>[k,String(c[k] || '').trim()]));if(!clean.name || Object.values(clean).some(v=>v.length>300)||clean.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean.email))throw Error('Kontaktname oder E-Mail ungültig.');return clean;});
   };
+  // Module 01: customer master data is the basis for documents, payments and later exports.
+  // Customer numbers are allocated from the highest numeric number (debtor range from 10001),
+  // never from the number of visible rows, and stay unchanged once assigned.
+  const normalizeCustomer=data=>{
+    data.customerNumber=String(data.customerNumber || '').trim();
+    if(data.customerNumber && !/^[A-Za-z0-9][A-Za-z0-9-]{0,19}$/.test(data.customerNumber))throw Error('Kundennummer: nur Buchstaben, Ziffern und Bindestrich, höchstens 20 Zeichen.');
+    data.country=String(data.country || 'DE').trim().toUpperCase();
+    if(!/^[A-Z]{2}$/.test(data.country))throw Error('Land bitte als zweistelligen ISO-Code angeben, z. B. DE.');
+    data.postalCode=String(data.postalCode || '').trim();
+    if(data.postalCode && (data.country==='DE' ? !/^\d{5}$/.test(data.postalCode) : !/^[A-Za-z0-9 -]{3,10}$/.test(data.postalCode)))throw Error(data.country==='DE'?'PLZ in Deutschland muss fünfstellig sein.':'PLZ ist ungültig.');
+    data.vatId=String(data.vatId || '').replace(/[\s.]/g,'').toUpperCase();
+    if(data.vatId && (!/^[A-Z]{2}[0-9A-Z+*]{2,12}$/.test(data.vatId) || data.vatId.startsWith('DE') && !/^DE\d{9}$/.test(data.vatId)))throw Error('USt-IdNr. ist ungültig (Ländercode und Nummer, z. B. DE123456789).');
+    return data;
+  };
+  const nextCustomerNumber=records=>String(records.filter(r=>r.module==='customers').reduce((n,r)=>/^\d{1,9}$/.test(r.data.customerNumber || '')?Math.max(n,Number(r.data.customerNumber)):n,10000)+1);
+  // One address format for print, PDF and later e-invoices. Older snapshots may only contain address/city.
+  const customerAddressLines=customer=>{
+    const c=customer || {},city=[c.postalCode,c.location || c.city].map(s=>String(s || '').trim()).filter(Boolean).join(' ');
+    return [c.address,city,c.country && c.country!=='DE'?c.country:''].map(s=>String(s || '').trim()).filter(Boolean);
+  };
+  // Module 02: what a new project may take over from its customer. The form only fills empty fields.
+  const projectDefaultsFromCustomer=customer=>{
+    const c=customer || {};
+    return {address:customerAddressLines(c).join(', '),buyerReference:String(c.buyerReference || '').trim()};
+  };
+  // Stable list order for customers and projects; all other modules keep their recorded order.
+  const compareText=(a,b)=>String(a ?? '').localeCompare(String(b ?? ''),'de',{numeric:true,sensitivity:'base'});
+  const sortRecords=(module,records)=>[...records].sort((a,b)=>
+    module==='customers'?(!a.data.customerNumber)-(!b.data.customerNumber) || compareText(a.data.customerNumber,b.data.customerNumber) || compareText(a.data.name,b.data.name)
+    : module==='projects'?(a.data.phase==='Abgeschlossen')-(b.data.phase==='Abgeschlossen') || compareText(a.data.name,b.data.name) || compareText(a.data.costCenter,b.data.costCenter)
+    : 0);
   const num = value => {
     if (typeof value === 'number') { if (!Number.isFinite(value)) throw Error('Ungültige Zahl.'); return value; }
     let s=String(value ?? '').trim().replace(/\s/g,'');
@@ -182,6 +213,12 @@
           for(const stroke of s.strokes)for(const p of stroke)if(!Array.isArray(p) || p.length!==2 || p.some(n=>typeof n!=='number' || !Number.isFinite(n) || n<0 || n>1))throw Error('Sicherung: Unterschrift ungültig.');
         }
       }
+      const customerNumbers=new Set();
+      for(const r of data.records)if(r.module==='customers' && r.data.customerNumber) {
+        const key=String(r.data.customerNumber).toLowerCase();
+        if(customerNumbers.has(key))throw Error('Sicherung: Kundennummer doppelt vergeben.');
+        customerNumbers.add(key);
+      }
       if(data.selectedProject && !data.records.some(p=>p.module==='projects' && p.id===data.selectedProject)) throw Error('Ausgewähltes Projekt fehlt.');
       for(const k of ['wage','agk','profit','tax'])if(typeof data.settings[k]!=='number' || !Number.isFinite(data.settings[k]) || data.settings[k]<0)throw Error('Kalkulationsbasis ungültig.');
       if(data.settings.capacity)capacity(data.settings.capacity);
@@ -250,6 +287,18 @@
         }
       }
       validatePricing(module,data);
+      if(module==='customers') {
+        normalizeCustomer(data);
+        const assigned=before?.data.customerNumber || '';
+        if(assigned && data.customerNumber && data.customerNumber!==assigned)throw Error('Die Kundennummer bleibt unverändert, weil Belege und Exporte darauf verweisen.');
+        data.customerNumber=data.customerNumber || assigned || nextCustomerNumber(this.data.records);
+        if(this.data.records.some(r=>r.module==='customers' && r.id!==before?.id && String(r.data.customerNumber || '').toLowerCase()===data.customerNumber.toLowerCase()))throw Error(`Kundennummer ${data.customerNumber} ist bereits vergeben.`);
+      }
+      if(module==='projects') {
+        const center=data.costCenter.toLocaleLowerCase('de');
+        if(center && center!==String(before?.data.costCenter || '').trim().toLocaleLowerCase('de') && this.data.records.some(r=>r.module==='projects' && r.id!==before?.id && String(r.data.costCenter || '').trim().toLocaleLowerCase('de')===center))throw Error(`Kostenstelle ${data.costCenter} ist bereits einem anderen Projekt zugeordnet.`);
+        if(before && data.customerId!==before.data.customerId && this.data.records.some(r=>r.projectId===before.id && ['offers','orders','invoices','payments'].includes(r.module)))throw Error('Der Kunde kann nach ausgestellten Angeboten, Aufträgen oder Rechnungen nicht mehr gewechselt werden. Bitte ein neues Projekt anlegen.');
+      }
       if(module==='projects' && !before && data.phase!=='Erfassung')throw Error('Neue Projekte beginnen in der Erfassung.');
       if(module==='projects' && before && data.phase!==before.data.phase) {
         const selected=this.data.selectedProject;this.data.selectedProject=before.id;
@@ -674,6 +723,21 @@
       const directActual=round(times+incoming+subcontracts),actual=round(directActual+actualOverhead);
       return {planned,plannedOverhead,plannedTotal:round(planned+plannedOverhead),times,incoming,subcontracts,commitments,directActual,actualOverhead,actual,revenue,result:round(revenue-actual),gross,paid,outstanding:round(gross-paid)};
     }
+    // Module 01 overview across all visible projects of a customer, using the same
+    // released offers, invoices and payments as controlling. Nothing is estimated.
+    customerOverview(customerId) {
+      const customer=this.get(customerId);
+      if(!customer || customer.module!=='customers')throw Error('Kunde nicht gefunden.');
+      const projects=this.data.records.filter(r=>r.module==='projects' && r.data.customerId===customerId);
+      const ids=new Set(projects.map(p=>p.id)),released=module=>this.data.records.filter(r=>r.module===module && ids.has(r.projectId) && r.status==='Freigegeben');
+      const invoices=released('invoices'),offers=released('offers');
+      const gross=round(invoices.reduce((n,r)=>n+r.data.gross,0));
+      const paid=round(released('payments').reduce((n,r)=>n+(r.data.direction==='Rückzahlung'?-1:1)*r.data.amount,0));
+      return {customerId,customerNumber:customer.data.customerNumber || '',name:customer.data.name,address:customerAddressLines(customer.data),
+        projects:projects.map(p=>({id:p.id,name:p.data.name,phase:p.data.phase})),offers:offers.length,invoices:invoices.length,
+        offerNet:round(offers.filter(r=>!this.data.records.some(o=>o.module==='offers' && o.data.supersedesOfferId===r.id)).reduce((n,r)=>n+r.data.net,0)),
+        invoicedNet:round(invoices.reduce((n,r)=>n+r.data.net,0)),gross,paid,outstanding:round(gross-paid)};
+    }
     deliverySchedule(today=new Date().toISOString().slice(0,10)) {
       if(!validDate(today))throw Error('Lieferübersicht benötigt ein gültiges Datum.');
       return this.list('purchase').filter(r=>r.status==='Freigegeben').map(order=>{
@@ -872,7 +936,7 @@
       String(p.text || ''),decimal(p.ep),''
     ])];
   };
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows,supplierQuotePrice};
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
