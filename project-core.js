@@ -505,7 +505,7 @@
       const ep=epRound(undiscountedEp*(1-discountPercent/100));
       return {...p,id:record.id,material,materialBreakdown,totalMinutes,labor,other,direct,priceComponents,nuMarkupPercent,nuSalePrice,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
     }
-    materialChecks(record,asOf=new Date().toISOString().slice(0,10)) {
+    materialChecks(record,asOf=berlinDay()) {
       if(record?.module!=='materials' || !validDate(asOf))throw Error('Artikel oder Prüfdatum ungültig.');
       const d=record.data,issues=[];
       if(record.status!=='Freigegeben')issues.push('Preis nicht freigegeben');
@@ -516,7 +516,7 @@
       return issues;
     }
     // Modul 10: Prüfliste für Materialien – sperrende Prüfungen (materialChecks) plus nicht sperrende Hinweise.
-    materialOverview(asOf=new Date().toISOString().slice(0,10),soonDays=14,jumpPercent=10) {
+    materialOverview(asOf=berlinDay(),soonDays=14,jumpPercent=10) {
       if(!validDate(asOf))throw Error('Prüfdatum ungültig.');
       const day=d=>Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))/86400000;
       const lv=this.data.selectedProject?this.list('lv'):[];
@@ -883,7 +883,7 @@
         offerNet:round(offers.filter(r=>!this.data.records.some(o=>o.module==='offers' && o.data.supersedesOfferId===r.id)).reduce((n,r)=>n+r.data.net,0)),
         invoicedNet:round(invoices.reduce((n,r)=>n+r.data.net,0)),gross,paid,outstanding:round(gross-paid)};
     }
-    deliverySchedule(today=new Date().toISOString().slice(0,10)) {
+    deliverySchedule(today=berlinDay()) {
       if(!validDate(today))throw Error('Lieferübersicht benötigt ein gültiges Datum.');
       return this.list('purchase').filter(r=>r.status==='Freigegeben').map(order=>{
         const d=order.data,material=this.get(d.materialId);
@@ -927,7 +927,7 @@
       return this.save('purchase',{title:`Bestellung ${demand.name}`,materialId,quantity:demand.remaining,supplier:demand.supplier,unitPrice:demand.unitPrice,deliveryDate:options.deliveryDate || ''},{owner:options.owner || '',status:'Neu'});
     }
     quotes(materialId) {
-      const today=new Date().toISOString().slice(0,10);
+      const today=berlinDay();
       // Modul 11: je Lieferant gilt nur der neueste nicht zurückgezogene Preis (Preisstand, bei Gleichstand zuletzt erfasst).
       const latest=list=>list.reduce((best,q,i)=>!q.withdrawnAt && (!best || q.date>=best.q.date)?{q,i}:best,null)?.q;
       return this.list('suppliers').flatMap(s=>{const own=(s.quotes || []).filter(q=>q.materialId===materialId),current=latest(own);return own.map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:supplierQuotePrice(q),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today,unitMismatch:q.unit!==this.get(materialId)?.data.unit,withdrawn:Boolean(q.withdrawnAt),superseded:!q.withdrawnAt && q!==current}));}).sort((a,b)=>a.effectivePrice-b.effectivePrice);
@@ -950,7 +950,7 @@
       if(!quote || !material)throw Error('Preisvergleich nicht gefunden.');
       if(quote.withdrawnAt)throw Error('Preisvergleich wurde zurückgezogen.');
       if(quote.unit!==material.data.unit)throw Error('Einheit des Preisvergleichs stimmt nicht mit dem Artikel überein.');
-      const today=new Date().toISOString().slice(0,10);
+      const today=berlinDay();
       if(quote.validUntil && quote.validUntil<today)throw Error('Preisbindung abgelaufen. Neues Lieferantenangebot erforderlich.');
       if(quote.date>today)throw Error('Preisstand liegt in der Zukunft.');
       if(this.quotes(material.id).find(q=>q.id===quote.id)?.superseded)throw Error('Es gibt einen neueren Preis desselben Lieferanten. Diesen übernehmen.');
@@ -964,11 +964,11 @@
       const reason=String(values.reason || '').trim();
       if(!reason)throw Error('Grund für das Zurückziehen angeben.');
       if(reason.length>300)throw Error('Grund höchstens 300 Zeichen.');
-      const withdrawnAt=new Date().toISOString().slice(0,10),withdrawnBy=String(values.owner || '').trim();
+      const withdrawnAt=berlinDay(),withdrawnBy=String(values.owner || '').trim();
       return this.transaction('Lieferantenpreis zurückgezogen','suppliers',supplier.id,d=>{const q=d.records.find(r=>r.id===supplier.id).quotes.find(x=>x.id===quoteId);Object.assign(q,{withdrawnAt,withdrawnReason:reason,withdrawnBy});return q;});
     }
     // Modul 11: Preisvergleich je Artikel und Lieferantenübersicht. Hinweise sperren nichts.
-    supplierOverview(asOf=new Date().toISOString().slice(0,10),soonDays=14,savingPercent=3) {
+    supplierOverview(asOf=berlinDay(),soonDays=14,savingPercent=3) {
       if(!validDate(asOf))throw Error('Prüfdatum ungültig.');
       const day=d=>Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))/86400000;
       const eur=n=>`${n.toFixed(2).replace('.',',')} €`,pct=n=>String(n).replace('.',',');
@@ -1133,7 +1133,7 @@
       String(p.text || ''),decimal(p.ep),''
     ])];
   };
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,berlinDay,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

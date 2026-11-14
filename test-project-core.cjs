@@ -66,4 +66,15 @@ const backup=db.backup();
 db.restore(backup);
 assert.equal(db.controlling().actual,1990);
 assert(db.data.audit.some(e=>e.action==='LV importiert'));
+{
+  // Heute in deutscher Zeit: zwischen 0 und 1/2 Uhr darf ein Preis mit heutigem Datum nicht als Zukunft gelten.
+  const core=require('./project-core.js'),RealDate=Date;
+  global.Date=class extends RealDate{constructor(...a){super(...(a.length?a:['2026-11-14T23:30:00Z']))}static now(){return new RealDate('2026-11-14T23:30:00Z').getTime()}};
+  try{
+    assert.equal(core.berlinDay(),'2026-11-15');
+    let raw2=null;const db2=new core.Store({getItem:()=>raw2,setItem:(_k,v)=>raw2=v});
+    const m=db2.save('materials',{name:'Bahn',unit:'m²',price:10,priceDate:'2026-11-15',source:'Preisliste'},{status:'Freigegeben',owner:'Prüfer'});
+    assert.deepEqual(db2.materialChecks(m).filter(x=>/Zukunft/.test(x)),[]);
+  }finally{global.Date=RealDate;}
+}
 console.log('36 module definitions; shared workflow, snapshots, project isolation, pricing, rounding, costs, atomic import, conflict and quota checks passed.');

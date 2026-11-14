@@ -4,7 +4,7 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
 // Modul 11: Lieferanten und Preisvergleich – neuester Preis je Lieferant, Bestpreis, Ersparnis, Zurückziehen, Lieferantenübersicht.
 let raw=null;
 const db=new Store({getItem:()=>raw,setItem:(_k,v)=>{raw=v;}});
-const today=new Date().toISOString().slice(0,10);
+const today=require('./project-core.js').berlinDay();
 const shift=days=>{const d=new Date(today+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
 const ok=data=>db.save('materials',{unit:'m²',priceDate:shift(-30),source:'Altpreis',...data},{status:'Freigegeben',owner:'Prüfer'});
 const membrane=ok({name:'Oberlage Elastomerbitumen',article:'OB-5',price:8,supplier:'Händler A'});
