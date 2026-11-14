@@ -88,6 +88,7 @@
   // hinter dem Schrägstrich zählt Überarbeitungen derselben Nummer (/1, /2, …).
   const DOC_NUMBER=/^DWP-([A-Z]{1,3})-(\d{6})-(\d{4,})(?:\/(\d+))?$/;
   const DOC_NUMBER_START=100;
+  const SMALL_BUSINESS_NOTE='Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.';
   const berlinDay=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(new Date());
   function validatePricing(module,data) {
     if(module==='projects' && (data.plannedOverhead || data.actualOverhead) && !data.overheadBasis?.trim())throw Error('Zusätzliche Gemeinkosten benötigen Abgrenzung und Nachweis.');
@@ -403,6 +404,9 @@
       const clean={...this.data.settings, ...values};
       if(values.capacity)clean.capacity=capacity(values.capacity);
       for(const k of ['wage','agk','profit','tax']) { clean[k]=num(clean[k]); if(clean[k]<0 || (k==='tax' && clean[k]>100)) throw Error('Ungültige Kalkulationswerte.'); }
+      if(values.smallBusiness!==undefined)clean.smallBusiness=[true,'true','ja','on'].includes(values.smallBusiness);
+      if(clean.smallBusiness===true)clean.tax=0;
+      else if(this.data.settings.smallBusiness===true && clean.tax===0 && values.tax===undefined)clean.tax=19;
       if(values.documentNumberStart!==undefined) {
         if(String(values.documentNumberStart).trim()==='')delete clean.documentNumberStart;
         else {
@@ -584,7 +588,7 @@
       const terms=kind==='offers'?Object.fromEntries(['validUntil','paymentTerms','executionTerms','offerNotes'].map(key=>[key,String(options[key] ?? '').trim()])):{};
       if(terms.validUntil && !validDate(terms.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
       if(Object.values(terms).some(value=>value.length>10000))throw Error('Angebotsbedingungen: höchstens 10000 Zeichen je Feld.');
-      let positions=[],optionalPositions=[],alternativePositions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],tax=this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
+      let positions=[],optionalPositions=[],alternativePositions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],smallBusiness=this.data.settings.smallBusiness===true,tax=smallBusiness?0:this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
       this.assertClear(['contract','technical']);
       if(kind==='offers') {
         const assigned=new Set(this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions.map(p=>p.id)));
@@ -638,7 +642,7 @@
           const base=this.get(options.baseOfferId);
           if(base?.module!=='offers' || base.projectId!==project.id || base.data.baseOfferId)throw Error('Hauptangebot für den Nachtrag auswählen.');
           baseOfferId=base.id;
-          tax=base.data.tax;
+          tax=base.data.tax;smallBusiness=base.data.smallBusiness===true;
           positions=candidates.filter(r=>!assigned.has(r.id)).map(r=>this.position(r));
         } else positions=candidates.map(r=>this.position(r));
         if(!positions.length)throw Error('Diese Nachtragspositionen sind bereits beauftragt.');
@@ -649,7 +653,7 @@
         const order=options.orderId?roots.find(r=>r.id===options.orderId):roots.at(-1);
         const offer=this.get(order?.data.offerId);
         if(!offer || offer.status!=='Freigegeben') throw Error('Eine freigegebene Beauftragung mit Angebotsbezug fehlt.');
-        sourceOfferId=offer.id;tax=offer.data.tax;
+        sourceOfferId=offer.id;tax=offer.data.tax;smallBusiness=offer.data.smallBusiness===true;
         invoiceType=options.invoiceType || 'Schlussrechnung';
         if(!['Abschlagsrechnung','Teilrechnung','Schlussrechnung'].includes(invoiceType))throw Error('Rechnungsart ungültig.');
         percentage=invoiceType==='Schlussrechnung'?100:num(options.percentage ?? 100);
@@ -674,7 +678,7 @@
       const net=round(positions.reduce((n,p)=>n+p.gp,0));
       const previouslyNet=round(previous.reduce((n,r)=>n+r.data.net,0)),previouslyTax=round(previous.reduce((n,r)=>n+r.data.taxAmount,0));
       const taxAmount=round(round((previouslyNet+net)*tax/100)-previouslyTax);
-      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:this.nextDocumentNumber(kind==='offers'?'A':'R'),documentRevision:1,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount)}};
+      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:this.nextDocumentNumber(kind==='offers'?'A':'R'),documentRevision:1,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount),...(smallBusiness?{smallBusiness:true,taxNote:SMALL_BUSINESS_NOTE}:{})}};
       Object.assign(record.data,terms);
       validatePricing(kind,record.data);
       return this.transaction('Dokumentfassung freigegeben',kind,record.id,d=>{d.records.push(record);return record;});
