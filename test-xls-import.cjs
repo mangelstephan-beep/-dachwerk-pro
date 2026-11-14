@@ -37,8 +37,12 @@ const bytes=require('./test-xls-fixture.cjs'),tick=()=>new Promise(resolve=>setI
  assert.equal(book5.sheets[0].rows[1].values[1].value,'Dachrinne Zink');assert.equal(book5.sheets[0].rows[1].values[2].value,12.5);
  const report5=spreadsheet.report(book5,0,1,{number:0,text:1,qty:2,unit:3});
  assert.equal(report5.rows.length,2);assert.equal(report5.rows[0].number,'0010');assert.equal(report5.rows[1].qty,3);
- const umlautBook=engine.utils.book_new();engine.utils.book_append_sheet(umlautBook,engine.utils.aoa_to_sheet([['text'],['Überhangsblech für Gaube']]),'Blatt');
- assert.equal(xls.parse(engine.write(umlautBook,{type:'buffer',bookType:'biff5'}),{engine}).sheets[0].rows[1].values[0].value,'Überhangsblech für Gaube');
+ // SheetJS schreibt alte Formate nur 7-Bit; echte Excel-95-Dateien speichern Umlaute als Windows-1252-Bytes.
+ const umlautBook=engine.utils.book_new();engine.utils.book_append_sheet(umlautBook,engine.utils.aoa_to_sheet([['text'],['~berhangsblech f~r Gaube']]),'Blatt');
+ const umlautCfb=engine.CFB.read(engine.write(umlautBook,{type:'buffer',bookType:'biff5'}),{type:'buffer'}),umlautEntry=umlautCfb.FileIndex.find(e=>e.name==='Book');
+ const umlautStream=Buffer.from(umlautEntry.content),at=umlautStream.indexOf(Buffer.from('~berhangsblech f~r Gaube','latin1'));assert(at>0,'Testtext im BIFF5-Datenstrom');
+ umlautStream[at]=0xdc;umlautStream[at+16]=0xfc;umlautEntry.content=umlautStream;
+ assert.equal(xls.parse(engine.CFB.write(umlautCfb,{type:'buffer'}),{engine}).sheets[0].rows[1].values[0].value,'Überhangsblech für Gaube');
  const change5=change=>{const c=engine.CFB.read(biff5,{type:'buffer'}),entry=c.FileIndex.find(e=>e.name==='Book');entry.content=change(Buffer.from(entry.content));entry.size=entry.content.length;return engine.CFB.write(c,{type:'buffer'});};
  assert.throws(()=>xls.parse(change5(b=>{b.writeUInt16LE(0x0600,4);return b;}),{engine}),/BIFF5/);
  assert.throws(()=>xls.parse(change5(b=>Buffer.concat([b.subarray(0,20),Buffer.from([0x2f,0,0,0]),b.subarray(20)])),{engine}),/Verschlüsselte/);
