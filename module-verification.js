@@ -93,10 +93,10 @@
   "pricelists": {
     "number": 12,
     "name": "DATANORM und Preislisten",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Excel-/CSV-Spaltenmapping und verbindliche Vorschau lokal geprüft. Erweiterung 14.11.2026: DATANORM 4 (Artikel-, Zusatz-, Preis- und Rabattsätze, DOS-Zeichensatz, Preiseinheit 1/10/100/1000, Listen-/Nettopreis, Rabattgruppen, Filter, Abgleich mit dem Materialstamm) nur automatisiert mit nachgebauten Dateien geprüft; Abnahme mit echter Händlerdatei auf HP und iPhone nach docs/MODUL12_DATANORM_2026-11-14.md sowie DATANORM 5 und Langtexte offen."
+    "verified": true,
+    "checkedAt": "2026-11-14",
+    "evidence": "Freigabe Stephan Mangel 14.11.2026 nach Live-Prüfung auf www.dachwerkpro.de: iPhone in Ordnung, HP mit freigegeben. Geprüft mit den Testdateien docs/testdateien/datanorm4 (DATANORM.001 + DATPREIS.001 + DATANORM.RAB, CP850; TD1001 je m², TD1003 je m). Vorher alle automatischen Tests und Live-Aufruf aller Module bestanden. Excel-/CSV-Spaltenmapping mit verbindlicher Vorschau. Preise der Testdateien sind Platzhalter und werden später überarbeitet; DATANORM 5 und Langtexte (T-Sätze) nicht Teil dieser Abnahme.",
+    "remaining": ""
   },
   "offers": {
       "number": 13,
