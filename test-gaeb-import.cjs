@@ -48,6 +48,42 @@ for(const [broken,rx] of [
  [xml.replace('<DetailTxt>','<DetailTxt><TextComplement>Erzeugnis</TextComplement>'),/TextComplement/],
  [xml.replace('<Qty>','<Other xmlns="urn:other"/><Qty>'),/Other/]
 ])assert.throws(()=>parse(broken,Parser),rx);
+// Weitere Austauschphasen und GAEB DA XML 3.2 (Modul 05, 14.11.2026).
+const phaseXml=(phase,content,version='3.3',ctgyExtra='')=>`<?xml version="1.0" encoding="UTF-8"?><GAEB xmlns="http://www.gaeb.de/GAEB_DA_XML/DA${phase}/${version}"><GAEBInfo><Version>${version}</Version></GAEBInfo><Award><DP>${phase}</DP><BoQ><BoQBody><BoQCtgy ID="c1" RNoPart="01"><LblTx><p>Dach</p></LblTx>${ctgyExtra}<BoQBody><Itemlist>${content}</Itemlist></BoQBody></BoQCtgy></BoQBody></BoQ></Award></GAEB>`;
+const priced=(number,up,it)=>item(number).replace('<Description>',`<UP>${up}</UP>${it===undefined?'':`<IT>${it}</IT>`}<Description>`);
+{
+ const x81=parse(phaseXml('81',item('0010')),Parser);
+ assert.equal(x81.length,1);assert.equal(x81[0].number,'01.0010');assert.equal(x81[0].qty,12.5);assert.equal(x81[0].targetEp,undefined);
+ const noQty=phaseXml('81',item('0010')+item('0020').replace('<Qty>12.500</Qty>',''));
+ assert.throws(()=>parse(noQty,Parser),/Menge in Position 01.0020/);
+ const x81report=report(noQty,Parser);
+ assert.equal(x81report.phase,'X81');assert.equal(x81report.phaseName,'Leistungsbeschreibung');
+ assert.equal(x81report.rows.length,1);assert.equal(x81report.findings.length,1);
+ assert.match(x81report.findings[0].reason,/Menge fehlt/);assert.match(x81report.findings[0].suggestion,/Keine Menge automatisch/);assert.equal(x81report.findings[0].candidate.qty,'');
+ const totals='<Totals><Total>93.75</Total></Totals>';
+ const x84=phaseXml('84',priced('0010','7.50','93.75'),'3.3',totals);
+ const x84rows=parse(x84,Parser);
+ assert.equal(x84rows[0].targetEp,7.5);assert.equal(x84rows[0].useTargetPrice,true);assert.equal(x84rows[0].qty,12.5);
+ const x84report=report(x84,Parser);assert.equal(x84report.findings.length,0);assert.equal(x84report.priced,1);assert.equal(x84report.version,'3.3');
+ assert.throws(()=>parse(phaseXml('84',priced('0010','7.50','90.00')),Parser),/passt nicht zu Menge × Einheitspreis/);
+ const wrongTotal=report(phaseXml('84',priced('0010','7.50','90.00')+priced('0020','2.00','25.00')),Parser);
+ assert.equal(wrongTotal.rows.length,1);assert.equal(wrongTotal.rows[0].number,'01.0020');assert.equal(wrongTotal.findings.length,1);assert.equal(wrongTotal.findings[0].candidate.qty,12.5);
+ assert.throws(()=>parse(phaseXml('84',priced('0010','7,50')),Parser),/Einheitspreis 7,50 ungültig/);
+ assert.throws(()=>parse(phaseXml('84',item('0010').replace('<Description>','<IT>93.75</IT><Description>')),Parser),/ohne Einheitspreis/);
+ const x84open=parse(phaseXml('84',item('0010')),Parser);assert.equal(x84open[0].targetEp,undefined,'Fehlender Preis bleibt leer');
+ const x86=parse(phaseXml('86',priced('0010','8','100'),'3.2'),Parser);assert.equal(x86[0].targetEp,8);
+ assert.equal(parse(phaseXml('82',priced('0010','8.123','101.54')),Parser)[0].targetEp,8.123);
+ assert.throws(()=>parse(phaseXml('83',priced('0010','7.50','93.75')),Parser),/UP in Item/,'X83 bleibt preisfrei');
+ assert.throws(()=>parse(phaseXml('83',item('0010'),'3.3',totals),Parser),/Totals/);
+ assert.throws(()=>parse(phaseXml('85',item('0010')),Parser),/Nebenangebote/);
+ assert.throws(()=>parse(phaseXml('83',item('0010'),'3.1'),Parser),/3\.2\/3\.3/);
+ assert.throws(()=>parse(phaseXml('84',item('0010')).replace('<DP>84','<DP>83'),Parser),/Austauschphase/);
+ assert.deepEqual(parse(phaseXml('83',item('0010'),'3.2'),Parser),parse(phaseXml('83',item('0010')),Parser));
+ const {extension}=require('./gaeb-import.js');
+ assert.equal(extension(x84),'x84');assert.equal(extension(phaseXml('86',item('0010'),'3.2')),'x86');assert.equal(extension('kein GAEB'),'x83');
+ // Nach einer anderen Phase gilt wieder X83 3.3 ohne Restzustand.
+ assert.deepEqual(parse(xml,Parser),rows);
+}
 (async()=>{
  const repo=memoryRepository(),actor={id:'gaeb-admin',name:'Prüfer',role:'admin',tenantId:'gaeb-tests'};
  let state=(await repo.read(actor.tenantId)).state,projectId;
@@ -121,5 +157,5 @@ for(const [broken,rx] of [
  assert.equal(w.DWPWorkspace.store.get(w.DWPWorkspace.store.get(pending.id).data.positionId).data.qty,1);
  w.DWPWorkspace.open('imports');q('[data-dwp="import-original"]').click();assert.equal(q('textarea[readonly]').value,specialXml);
  dom.window.close();xmlWindow.close();
- console.log('GAEB X83: hierarchy/text/quantities, atomic import/original preservation, project isolation, preview guard; special/unknown positions retained with blocked proposals, explicit conversion, permissions, duplicate prevention and UI passed.');
+ console.log('GAEB X81/X82/X83/X84/X86 (XML 3.2/3.3): phase checks, prices only as unreviewed target price, missing quantities as blocked review; X83: hierarchy/text/quantities, atomic import/original preservation, project isolation, preview guard; special/unknown positions retained with blocked proposals, explicit conversion, permissions, duplicate prevention and UI passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
