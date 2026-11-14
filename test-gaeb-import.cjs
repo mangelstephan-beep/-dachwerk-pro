@@ -121,7 +121,7 @@ const priced=(number,up,it)=>item(number).replace('<Description>',`<UP>${up}</UP
  q('[data-dwp="preview-import"]').click();assert.match(q('#dwp-error').textContent,/bereits vorhanden/);
  submit();assert.equal(w.DWPWorkspace.store.list('lv').length,2,'Abgelehnte Vorschau kann nicht importiert werden');
  const hosted=require('./api/workspace-page.cjs');assert(hosted.includes('/gaeb-import.js'));assert(fs.readFileSync('index.html','utf8').includes('/gaeb-import.js'));
- assert.equal(require('./module-verification.js').isVerified('imports'),false);
+ assert.equal(require('./module-verification.js').isVerified('imports'),true);
  // Preserve special positions, including unknown kinds, without fabricated quantities/prices.
  const specialXml=fixture(item('0100')+item('0200').replace('<Qty>12.500</Qty>','<QtyTBD>Yes</QtyTBD>')+item('0300').replace('<Qty>12.500</Qty>','<LumpSumItem>Yes</LumpSumItem>')+item('0400').replace('<Qty>','<Provis>Yes</Provis><Qty>')+'<MarkupItem ID="mark" RNoPart="0500"><MarkupType>AllInCat</MarkupType><MarkupPcnt>2</MarkupPcnt></MarkupItem>'+item('0600').replace('<Qty>','<UnknownRule>Originalmerkmal</UnknownRule><Qty>'));
  const special=report(specialXml,Parser);

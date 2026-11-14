@@ -8,7 +8,7 @@ w.DWPRemote={active:true,trackModule:async()=>{}};
 w.DWPWorkspace.open('dashboard');
 assert(q('#dwp-project').disabled);
 assert.match(q('#dwp-project').textContent,/Noch kein Projekt vorhanden/);
-for(const id of ['customers','projects'])assert.equal(q(`[data-dwp="open"][data-id="${id}"]`).getAttribute('data-dwp-verified'),null);
+for(const id of ['customers','projects'])assert.equal(q(`[data-dwp="open"][data-id="${id}"]`).getAttribute('data-dwp-verified'),'true');
 click('customers');
 assert.equal(q('#dwp-record [name="module"]').value,'customers');
 assert.equal(revealed,q('#dwp-record'));

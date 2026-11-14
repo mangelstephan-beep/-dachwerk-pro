@@ -90,7 +90,7 @@ const {JSDOM}=require('jsdom');
   assert(blank.elements.useDetailedMaterials.checked);
   assert(blank.elements.useEfbRates.checked);
   assert.equal(w.DWPWorkspace.store.backup(),beforeConflict,'Neue Vorlagenposition bleibt bis Speichern ein Entwurf');
-  assert.equal(require('./module-verification.js').isVerified('efb'),false);
+  assert.equal(require('./module-verification.js').isVerified('efb'),true);
   dom.window.close();
   console.log('Modul 08: vier Materialien, Verschnitt, Minuten, Nebenkosten, Preise, Legacy, Validierung, DOM und ROT bestanden.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

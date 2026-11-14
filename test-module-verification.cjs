@@ -4,8 +4,8 @@ const core=require('./project-core.js');
 assert.deepEqual(Object.keys(registry.modules),core.modules.map(m=>m.id));
 for(const [i,m] of core.modules.entries()){const item=registry.modules[m.id];assert.equal(item.number,i+1);assert.equal(item.name,m.name);assert(item.verified?item.evidence&&item.checkedAt:item.remaining);}
 const verifiedCount=Object.values(registry.modules).filter(m=>m.verified).length;
-assert.deepEqual(Object.entries(registry.modules).filter(([,m])=>m.verified).map(([id])=>id),['operating','lv','calculation','pricelists','logistics','controlling']);
-assert.equal(registry.isVerified('unknown'),false);assert.equal(registry.isVerified('documents'),false);
+assert.deepEqual(Object.entries(registry.modules).filter(([,m])=>!m.verified).map(([id])=>id),['times','invoices','payments']);
+assert.equal(registry.isVerified('unknown'),false);assert.equal(registry.isVerified('payments'),false);
 const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'}),w=dom.window;
 w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
 for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});

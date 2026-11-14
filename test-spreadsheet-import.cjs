@@ -70,7 +70,7 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
  assert(q('#main-content').textContent.includes('zweites.xlsx Blatt 2'));
  let guarded=false;w.DWPRemote.export=async request=>{guarded=true;assert.equal(request.kind,'record');throw Error('Eigentümergerät für Originalexport erforderlich.');};
  q('[data-dwp="workbook-download"]').click();await new Promise(r=>setTimeout(r,1));assert(guarded);assert.match(q('#dwp-error').textContent,/Eigentümergerät/);
- assert.equal(require('./module-verification.js').isVerified('imports'),false);
+ assert.equal(require('./module-verification.js').isVerified('imports'),true);
  assert(require('./api/workspace-page.cjs').includes('/spreadsheet-import.js'));
  dom.window.close();console.log('XLSX: actual files/browser bundle, sheet mapping, leading zeroes, decimals, formulas/hidden/summary reviews, ZIP bounds, original bytes, central atomic import, conversion, current preview and red status passed.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
