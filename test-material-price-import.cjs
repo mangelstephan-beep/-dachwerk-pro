@@ -165,6 +165,18 @@ const {execute,memoryRepository}=require('./lib/project-service.cjs');
   assert.throws(()=>w.DWPWorkspace.store.useQuote(supplier.id,quote.id),/Einheit/);
   assert.equal(w.DWPWorkspace.store.data.revision,blockedRevision);
   assert.equal(w.DWPWorkspace.store.get(material.id).data.price,12);
+  // Modul 11: Preisvergleich je Artikel, Lieferantenübersicht, CSV und Zurückziehen mit Grund.
+  const main=()=>w.document.querySelector('#main-content').textContent;
+  assert.match(main(),/Preisvergleich je Artikel/);assert.match(main(),/Lieferantenübersicht/);
+  assert.match(main(),/Ersetzt durch neueren Preis dieses Lieferanten/);
+  assert(w.document.querySelector('[data-dwp="supplier-csv"]'),'Preisvergleich als CSV');
+  const withdrawForm=w.document.querySelector('#dwp-quote-withdraw');assert(withdrawForm);
+  withdrawForm.elements.quote.value=`${supplier.id}/${newQuote.id}`;withdrawForm.elements.reason.value='Tippfehler im Rabatt';
+  const withdrawRevision=w.DWPWorkspace.store.data.revision;
+  withdrawForm.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+  assert.equal(w.DWPWorkspace.store.data.revision,withdrawRevision+1);
+  assert.equal(w.DWPWorkspace.store.get(supplier.id).quotes.find(q=>q.id===newQuote.id).withdrawnReason,'Tippfehler im Rabatt');
+  w.DWPWorkspace.open('suppliers');assert.match(main(),/Zurückgezogen .*Tippfehler im Rabatt/);
   dom.window.close();
   console.log('Supplier package conversion, dates, legacy restore, server persistence, CSV/XLSX mapping and guarded UI preview passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

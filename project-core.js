@@ -213,6 +213,7 @@
           if(r.module!=='suppliers' || !data.records.some(m=>m.module==='materials' && m.id===q.materialId) || ['price','discount','freight'].some(k=>typeof q[k]!=='number' || !Number.isFinite(q[k]) || q[k]<0) || q.discount>100) throw Error('Sicherung: Lieferantenpreis ungültig.');
           if(q.baseQuantity!==undefined && (typeof q.baseQuantity!=='number' || !Number.isFinite(q.baseQuantity) || q.baseQuantity<=0) || q.validUntil && (!validDate(q.validUntil) || q.validUntil<q.date))throw Error('Sicherung: Gebinde oder Preisbindung ungültig.');
           if(!validDate(q.date) || typeof q.source!=='string' || !q.source.trim())throw Error('Sicherung: Lieferantenpreis benötigt Quelle und Preisstand.');
+          if(q.withdrawnAt!==undefined && (!validDate(q.withdrawnAt) || typeof q.withdrawnReason!=='string' || !q.withdrawnReason.trim()))throw Error('Sicherung: zurückgezogener Lieferantenpreis ohne Datum oder Grund.');
           round((q.price*(1-q.discount/100)+q.freight)/(q.baseQuantity ?? 1));
         }
         for(const a of r.assignments || [])if(r.module!=='personnel' || !data.records.some(p=>p.module==='projects' && p.id===a.projectId) || !a.start || !a.end || a.start>a.end)throw Error('Sicherung: Einsatzplanung ungültig.');
@@ -359,6 +360,7 @@
         if(offer.data.baseOfferId && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===offer.data.baseOfferId))throw Error('Hauptangebot vor dem Nachtrag beauftragen.');
       }
       if(module==='incoming' && data.subcontractId && this.get(data.subcontractId).data.contractor.trim().toLocaleLowerCase('de')!==data.supplier.trim().toLocaleLowerCase('de'))throw Error('Rechnungssteller stimmt nicht mit dem NU-Kostenvorgang überein.');
+      if(module==='suppliers' && this.list('suppliers').some(r=>r.id!==options.id && String(r.data.name).trim().toLocaleLowerCase('de')===String(data.name).trim().toLocaleLowerCase('de')))throw Error('Lieferant mit diesem Namen ist bereits vorhanden.');
       if(module==='incoming' && this.list('incoming').some(r=>r.id!==options.id && r.data.supplier===data.supplier && r.data.invoiceNumber===data.invoiceNumber)) throw Error('Eingangsbeleg bereits vorhanden.');
       if(module==='logistics' && status==='Freigegeben' && data.purchaseId) {
         const order=this.get(data.purchaseId);
@@ -926,7 +928,9 @@
     }
     quotes(materialId) {
       const today=new Date().toISOString().slice(0,10);
-      return this.list('suppliers').flatMap(s=>(s.quotes || []).filter(q=>q.materialId===materialId).map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:supplierQuotePrice(q),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today,unitMismatch:q.unit!==this.get(materialId)?.data.unit}))).sort((a,b)=>a.effectivePrice-b.effectivePrice);
+      // Modul 11: je Lieferant gilt nur der neueste nicht zurückgezogene Preis (Preisstand, bei Gleichstand zuletzt erfasst).
+      const latest=list=>list.reduce((best,q,i)=>!q.withdrawnAt && (!best || q.date>=best.q.date)?{q,i}:best,null)?.q;
+      return this.list('suppliers').flatMap(s=>{const own=(s.quotes || []).filter(q=>q.materialId===materialId),current=latest(own);return own.map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:supplierQuotePrice(q),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today,unitMismatch:q.unit!==this.get(materialId)?.data.unit,withdrawn:Boolean(q.withdrawnAt),superseded:!q.withdrawnAt && q!==current}));}).sort((a,b)=>a.effectivePrice-b.effectivePrice);
     }
     quote(supplierId, values) {
       const supplier=this.get(supplierId), material=this.get(values.materialId);
@@ -944,11 +948,61 @@
     useQuote(supplierId, quoteId, owner) {
       const supplier=this.get(supplierId),quote=supplier?.quotes?.find(q=>q.id===quoteId),material=this.get(quote?.materialId);
       if(!quote || !material)throw Error('Preisvergleich nicht gefunden.');
+      if(quote.withdrawnAt)throw Error('Preisvergleich wurde zurückgezogen.');
       if(quote.unit!==material.data.unit)throw Error('Einheit des Preisvergleichs stimmt nicht mit dem Artikel überein.');
       const today=new Date().toISOString().slice(0,10);
       if(quote.validUntil && quote.validUntil<today)throw Error('Preisbindung abgelaufen. Neues Lieferantenangebot erforderlich.');
       if(quote.date>today)throw Error('Preisstand liegt in der Zukunft.');
+      if(this.quotes(material.id).find(q=>q.id===quote.id)?.superseded)throw Error('Es gibt einen neueren Preis desselben Lieferanten. Diesen übernehmen.');
       return this.save('materials',{...material.data,price:supplierQuotePrice(quote),supplier:supplier.data.name,priceDate:quote.date,validUntil:quote.validUntil || '',source:quote.source,priceBasis:`(${quote.price} EUR × (1 − ${quote.discount} / 100) + ${quote.freight} EUR Fracht) / ${quote.baseQuantity ?? 1} ${quote.unit}; Preisgebinde: ${quote.packageUnit || quote.unit}`},{id:material.id,status:'Freigegeben',owner});
+    }
+    // Modul 11: Preis zurückziehen (Tippfehler, Angebot ungültig). Bleibt mit Grund sichtbar, wird nicht gelöscht.
+    withdrawQuote(supplierId, quoteId, values={}) {
+      const supplier=this.get(supplierId),quote=supplier?.module==='suppliers'?supplier.quotes?.find(q=>q.id===quoteId):null;
+      if(!quote)throw Error('Preisvergleich nicht gefunden.');
+      if(quote.withdrawnAt)throw Error('Preisvergleich ist bereits zurückgezogen.');
+      const reason=String(values.reason || '').trim();
+      if(!reason)throw Error('Grund für das Zurückziehen angeben.');
+      if(reason.length>300)throw Error('Grund höchstens 300 Zeichen.');
+      const withdrawnAt=new Date().toISOString().slice(0,10),withdrawnBy=String(values.owner || '').trim();
+      return this.transaction('Lieferantenpreis zurückgezogen','suppliers',supplier.id,d=>{const q=d.records.find(r=>r.id===supplier.id).quotes.find(x=>x.id===quoteId);Object.assign(q,{withdrawnAt,withdrawnReason:reason,withdrawnBy});return q;});
+    }
+    // Modul 11: Preisvergleich je Artikel und Lieferantenübersicht. Hinweise sperren nichts.
+    supplierOverview(asOf=new Date().toISOString().slice(0,10),soonDays=14,savingPercent=3) {
+      if(!validDate(asOf))throw Error('Prüfdatum ungültig.');
+      const day=d=>Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))/86400000;
+      const eur=n=>`${n.toFixed(2).replace('.',',')} €`,pct=n=>String(n).replace('.',',');
+      const norm=v=>String(v || '').trim().toLocaleLowerCase('de');
+      const all=new Map(this.list('materials').map(m=>[m.id,this.quotes(m.id)]));
+      const daysLeft=q=>q.validUntil?day(q.validUntil)-day(asOf):null;
+      const isValid=q=>!q.withdrawn && !q.superseded && !q.unitMismatch && q.date<=asOf && !(q.validUntil && q.validUntil<asOf);
+      const articles=this.list('materials').map(m=>{
+        const d=m.data,quotes=all.get(m.id),active=quotes.filter(q=>!q.withdrawn && !q.superseded),valid=active.filter(isValid),best=valid[0] || null,hints=[];
+        let saving=null,savingPct=null;
+        if(best && Number.isFinite(d.price) && d.price>0 && best.effectivePrice<d.price) {
+          saving=round(d.price-best.effectivePrice);savingPct=Math.round(saving/d.price*1000)/10;
+          if(savingPct>=savingPercent)hints.push(`Günstiger bei ${best.supplier}: ${eur(best.effectivePrice)} statt ${eur(d.price)} je ${d.unit} (−${pct(savingPct)} %)`);
+        }
+        if(!active.length)hints.push('Kein Lieferantenpreis erfasst');
+        else if(!valid.length)hints.push(active.some(q=>q.unitMismatch)?'Kein gültiger Preis – Artikeleinheit geändert, neu erfassen':'Kein gültiger Lieferantenpreis (abgelaufen oder künftiger Preisstand)');
+        else if(valid.length===1 && active.length===1)hints.push('Nur ein Lieferant – kein Vergleich');
+        const left=best?daysLeft(best):null;
+        if(left!==null && left>=0 && left<=soonDays)hints.push(left===0?`Bestpreis bei ${best.supplier} gilt nur noch heute`:`Bestpreis bei ${best.supplier} gilt noch ${left} Tag${left===1?'':'e'} (${best.validUntil})`);
+        const rank=savingPct!==null && savingPct>=savingPercent?0:left!==null && left<=soonDays || (active.length && !valid.length)?1:active.length?2:3;
+        return {id:m.id,name:d.name,article:d.article || '',unit:d.unit,currentPrice:d.price,currentSupplier:d.supplier || '',status:m.status,offers:active.length,valid:valid.length,best:best?{supplier:best.supplier,supplierId:best.supplierId,quoteId:best.id,price:best.effectivePrice,validUntil:best.validUntil || '',source:best.source,date:best.date}:null,saving,savingPct,daysLeft:left,hints,rank};
+      }).sort((a,b)=>a.rank-b.rank || (b.savingPct ?? -1)-(a.savingPct ?? -1) || (a.daysLeft ?? 1e9)-(b.daysLeft ?? 1e9) || String(a.name).localeCompare(String(b.name),'de'));
+      const bestBy=new Map();for(const a of articles)if(a.best)bestBy.set(a.best.supplierId,(bestBy.get(a.best.supplierId) || 0)+1);
+      const suppliers=this.list('suppliers').map(s=>{
+        const own=[...all.values()].flat().filter(q=>q.supplierId===s.id && !q.withdrawn && !q.superseded),valid=own.filter(isValid),hints=[];
+        const expired=own.filter(q=>q.validUntil && q.validUntil<asOf).length,expiring=valid.filter(q=>{const l=daysLeft(q);return l!==null && l<=soonDays;}).length;
+        if(!String(s.data.email || '').trim() && !String(s.data.phone || '').trim())hints.push('Keine E-Mail und kein Telefon hinterlegt');
+        if(!own.length)hints.push('Noch kein Preis erfasst');
+        else if(!valid.length)hints.push('Kein gültiger Preis mehr');
+        if(expiring)hints.push(`${expiring} Preisbindung${expiring===1?'':'en'} enden in ${soonDays} Tagen`);
+        const lastDate=own.map(q=>q.date).sort().at(-1) || '';
+        return {id:s.id,name:s.data.name,contact:s.data.contact || '',email:s.data.email || '',phone:s.data.phone || '',articles:new Set(own.map(q=>q.materialId)).size,valid:valid.length,expired,expiring,bestCount:bestBy.get(s.id) || 0,lastDate,withdrawn:[...all.values()].flat().filter(q=>q.supplierId===s.id && q.withdrawn).length,hints};
+      }).sort((a,b)=>b.bestCount-a.bestCount || norm(a.name).localeCompare(norm(b.name),'de'));
+      return {asOf,articles,suppliers,counts:{savings:articles.filter(a=>a.rank===0).length,expiring:articles.filter(a=>a.daysLeft!==null && a.daysLeft<=soonDays).length,noValid:articles.filter(a=>!a.valid).length,potential:round(articles.filter(a=>a.rank===0).reduce((n,a)=>n+a.saving,0))}};
     }
     schedule(employeeId, values) {
       const employee=this.get(employeeId),project=this.get(values.projectId);

@@ -88,7 +88,7 @@
     "verified": false,
     "checkedAt": "2026-10-24",
     "evidence": "Server-/DOM-Tests: Gebindeumrechnung, deutsche Dezimalwerte, sofortige Rechenvorschau, unveränderte Eingaben bei fehlgeschlagenem Speichern und gesperrte Übernahme nach Änderung der Artikeleinheit. Vollständige Testsuite, Syntaxprüfung und Build bestanden. Details: docs/LIEFERANTENPREISE_2026-10-24.md.",
-    "remaining": "Gebindeumrechnung, Rabatt, Fracht, Rechenvorschau und Einheitensperre lokal geprüft (24.10.2026); Live-/iPhone-Abnahme und automatische Händleranbindungen offen."
+    "remaining": "Gebindeumrechnung, Rabatt, Fracht, Rechenvorschau und Einheitensperre lokal geprüft (24.10.2026). Erweiterung 14.11.2026 (Preisvergleich je Artikel mit Bestpreis und Ersparnis ab 3 %, nur neuester Preis je Lieferant, Zurückziehen mit Grund, Lieferantenübersicht, doppelte Lieferanten gesperrt, CSV) nur automatisiert geprüft; Live-/iPhone-Abnahme nach docs/MODUL11_LIEFERANTEN_2026-11-14.md und automatische Händleranbindungen offen."
   },
   "pricelists": {
     "number": 12,
