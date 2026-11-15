@@ -1,6 +1,98 @@
-@page{size:A4;margin:65mm 20mm 25mm 25mm;@bottom-center{content:counter(page);vertical-align:bottom;padding-bottom:3mm;font:9pt "Times New Roman",serif;color:#555}}
-*{box-sizing:border-box}body{font:11pt "Times New Roman",serif;color:#111;margin:16mm auto;width:165mm}p{line-height:1.35}h1{font-size:17pt;margin:10mm 0 5mm}h2{font-size:13pt}h1,h2,h3{break-after:avoid}
-.dwp-letterhead{height:48mm;position:relative;border:0}.dwp-letterhead-logo{position:absolute;left:10mm;top:0;width:72mm;height:36mm;object-fit:contain}.dwp-letterhead-contact{position:absolute;right:0;top:6mm;text-align:center;font-size:10pt;line-height:1.4}.dwp-letterhead-contact strong{font-size:12pt}.dwp-letterhead-web{color:#d00}.dwp-sender-line{position:absolute;bottom:0;left:0;right:0;border-top:1.5pt solid #d00;padding-top:1mm;font-size:8pt;color:#555}
-.dwp-letterhead-footer{border-top:.6pt solid #d00;padding-top:1.5mm;text-align:center;font-size:8pt;color:#555;margin-top:10mm}.dwp-document-reference{font-size:8pt;color:#555;margin-top:8mm;overflow-wrap:anywhere}.test-note{font:8pt Arial,sans-serif;color:#a34b00;margin-top:4mm}
-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:10pt}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #ccc;padding:2mm;white-space:pre-wrap;overflow-wrap:break-word}th{background:#eee;font-weight:bold}.num{text-align:right;white-space:nowrap}.dwp-numeric{white-space:nowrap}.total{font-weight:bold}.note{font-size:9pt}thead{display:table-header-group}tr{break-inside:avoid}img,svg{max-width:100%}.dwp-signature-image{width:80mm;height:30mm;border-bottom:1px solid #aaa}
-@media print{body{margin:0;width:auto}.dwp-letterhead{position:fixed;left:0;right:0;top:-55mm;height:48mm}.dwp-letterhead-footer{position:fixed;bottom:-15mm;left:0;right:0;margin:0}.test-note{margin-top:0}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}button{display:none}}
+/* DachWerkPro-Briefpapier – Masterreferenz Schlussrechnung Rottmann/Tittmoning R-101126/001 (10.11.2026).
+   Maße in pt wie im Original-PDF (A4 595,3 × 841,9 pt), Seitenränder: links/rechts 63 pt, Kopf bis 160 pt, Fuß ab 710 pt. */
+@font-face{font-family:"DWP DejaVu Sans";src:url("/assets/fonts/DejaVuSans-latin.woff") format("woff");font-weight:400}
+@font-face{font-family:"DWP DejaVu Sans";src:url("/assets/fonts/DejaVuSans-Bold-latin.woff") format("woff");font-weight:700}
+@font-face{font-family:"DWP Liberation Sans";src:url("/assets/fonts/LiberationSans-Regular-latin.woff") format("woff");font-weight:400}
+@font-face{font-family:"DWP Liberation Sans";src:url("/assets/fonts/LiberationSans-Bold-latin.woff") format("woff");font-weight:700}
+@page{size:A4;margin:0 0 30pt 0;@bottom-center{content:"Seite " counter(page);vertical-align:top;padding-top:6pt;font:8.5pt "DWP Liberation Sans",Arial,sans-serif;color:#111}}
+*{box-sizing:border-box}
+:root{--dwp-red:rgb(215,25,32);--dwp-rule:rgb(196,201,204)}
+body{font:8.2pt/1.25 "DWP DejaVu Sans","DejaVu Sans",Verdana,sans-serif;color:#111;margin:0 auto;width:595.3pt;padding:0;position:relative;min-height:841.9pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+p{margin:0 0 4pt}
+h1,h2,h3{break-after:avoid}
+/* Kopf */
+.dwp-letterhead{position:absolute;top:0;left:0;width:595.3pt;height:160pt;z-index:1}
+.dwp-letterhead-logo{position:absolute;left:66.6pt;top:29.1pt;width:221.1pt;height:110.5pt;object-fit:contain}
+.dwp-letterhead-title{position:absolute;left:267.5pt;width:300pt;top:61pt;text-align:center;font:700 9pt/11.9pt "DWP Liberation Sans",Arial,sans-serif;color:#333}
+.dwp-letterhead-title strong{display:block;font-size:9.5pt;line-height:12pt;color:#333}
+.dwp-barcode-box{position:absolute;left:368.2pt;top:125pt;width:160.8pt;text-align:center}
+.dwp-barcode{display:block;margin:0 auto;width:124.8pt;height:19pt;transform:translateX(0)}
+.dwp-barcode-text{font:6.4pt/1 Helvetica,"DWP Liberation Sans",Arial,sans-serif;margin-top:4pt;color:#111}
+.dwp-letterhead-rule{position:absolute;left:62.4pt;width:476.1pt;top:156.6pt;border-top:2pt solid var(--dwp-red)}
+/* Fuß */
+.dwp-letterhead-footer{position:absolute;left:0;width:595.3pt;bottom:0;height:102pt;z-index:1;font:7pt/8.45pt "DWP Liberation Sans",Arial,sans-serif;color:#111}
+.dwp-footer-rule{position:absolute;left:62.4pt;width:476.1pt;top:3.1pt;border-top:1.25pt solid var(--dwp-red)}
+.dwp-footer-cols{position:absolute;top:24.7pt;left:68.2pt;right:62.3pt;display:grid;grid-template-columns:155.9pt 155.9pt 1fr}
+.dwp-footer-cols strong{display:block;font-size:7.5pt;line-height:8.6pt}
+.dwp-seal{position:absolute;left:414.6pt;top:34.1pt;width:41pt;height:41pt;object-fit:contain}
+/* Seitenrahmen: Platzhalter für Kopf und Fuß wiederholen sich auf jeder Seite */
+table.dwp-page-frame{width:100%;border-collapse:collapse;font-size:inherit}
+table.dwp-page-frame>thead>tr>td,table.dwp-page-frame>tfoot>tr>td,table.dwp-page-frame>tbody>tr>td{padding:0 62.3pt 0 63pt;background:none;white-space:normal}
+.dwp-head-space{height:160pt}
+.dwp-foot-space{height:101pt}
+/* Adressfeld und Infoblock */
+.dwp-address-row{position:relative;min-height:90pt}
+.dwp-address{width:280pt;padding-top:12pt;font-size:8.6pt;line-height:15pt}
+.dwp-sender-line{display:inline-block;font-size:7.45pt;line-height:9pt;border-bottom:.4pt solid #24262b;padding-bottom:1pt;margin-bottom:6pt}
+.dwp-meta{position:absolute;right:0;top:6pt;text-align:right;font-size:8pt;line-height:14pt}
+.dwp-meta-project{font-weight:700;font-size:9.3pt}
+.dwp-meta-number{font-weight:700;font-size:8.2pt}
+.dwp-doc-title{font-size:13.7pt;line-height:1;margin:23.5pt 0 0;padding-bottom:2.5pt;border-bottom:.7pt solid var(--dwp-rule);text-transform:uppercase;letter-spacing:.2pt}
+.dwp-doc-summary{display:grid;grid-template-columns:57pt 250pt;margin:9pt 0 0;font-size:8.2pt;line-height:12pt}
+.dwp-doc-summary strong{font-size:8.6pt}
+/* Positionstabelle */
+main table{width:100%;border-collapse:collapse;font-size:8.2pt}
+main th,main td{text-align:left;vertical-align:top;padding:2.25pt 6pt 2.25pt 6pt;white-space:pre-wrap;overflow-wrap:break-word}
+main th{font-weight:700;font-size:8.4pt;background:#dedede;padding-top:4.2pt;padding-bottom:4.2pt;line-height:10.6pt}
+table.dwp-items{margin-top:5pt;border-bottom:.65pt solid var(--dwp-rule);table-layout:fixed}
+table.dwp-items th:nth-child(3),table.dwp-items td:nth-child(3){width:70pt}
+table.dwp-items th:nth-child(4),table.dwp-items td:nth-child(4){width:71.8pt}
+table.dwp-items th:nth-child(5),table.dwp-items td:nth-child(5){width:70.6pt}
+table.dwp-items tbody tr:last-child td{padding-bottom:9pt}
+table.dwp-items tbody tr:nth-child(even) td{background:#f9f9f9}
+table.dwp-items td{line-height:10.6pt}
+table.dwp-items .dwp-pos{width:35pt}
+table.dwp-items .dwp-group{display:block;font-size:6.8pt;color:#666}
+.num{text-align:right;white-space:nowrap}
+.dwp-numeric{white-space:nowrap}
+thead{display:table-header-group}
+tr{break-inside:avoid}
+/* Summen */
+.dwp-totals{margin:3pt 0 0 41pt;font-size:8.3pt}
+.dwp-totals .dwp-total-row{display:flex;justify-content:space-between;line-height:16pt;padding-right:7pt}
+.dwp-totals .dwp-total-row.strong{font-weight:700;font-size:8.6pt}
+.dwp-totals .dwp-total-sub{font-size:7.3pt;color:#333;line-height:11pt;margin-top:-3pt}
+.dwp-total-bar{display:flex;justify-content:space-between;align-items:center;background:#f0f0f0;height:23pt;margin:6pt 0 0;padding:0 7pt 0 41pt;font-weight:700;font-size:9.8pt;break-inside:avoid}
+.dwp-total-bar .num{font-size:11pt}
+.dwp-notes{margin-top:3pt;font-size:7.7pt;line-height:11pt}
+.dwp-notes .dwp-tax-note{font-size:7.95pt}
+.dwp-notes h2{font-size:8.35pt;line-height:13pt;margin:1pt 0 0}
+.dwp-notes p{margin:0 0 1pt;white-space:pre-wrap}
+.dwp-payment{margin-top:7pt;font-size:7.8pt;line-height:12pt}
+.dwp-payment p{margin:0}
+/* Abschluss: Unterschrift und QR */
+.dwp-closing{display:flex;justify-content:space-between;align-items:flex-start;margin-top:2pt;break-inside:avoid}
+.dwp-signature{padding-left:8.8pt}
+.dwp-signature-scan{display:block;width:88.4pt;height:43pt;object-fit:contain;object-position:left bottom}
+.dwp-signature-space{height:43pt}
+.dwp-signature-line{margin:2pt 0 0 -8.8pt;font-size:7.4pt}
+.dwp-qr-box{width:56pt;margin:19pt 4pt 0 0;text-align:center}
+.dwp-qrcode{display:block;width:56pt;height:56pt}
+.dwp-qr-text{font:5.8pt/1 Helvetica,"DWP Liberation Sans",Arial,sans-serif;margin-top:1pt;white-space:nowrap}
+/* sonstige Ausgaben */
+h1{font-size:13.7pt;margin:6pt 0 8pt}
+h2{font-size:9.5pt;margin:10pt 0 4pt}
+.dwp-document-reference{font-size:6.5pt;color:#777;margin-top:8pt;overflow-wrap:anywhere}
+.test-note{font:7pt "DWP Liberation Sans",Arial,sans-serif;color:#a34b00;margin:0 0 4pt}
+.total{font-weight:bold}
+.note{font-size:7.5pt}
+img,svg{max-width:100%}
+.dwp-signature-image{width:80mm;height:30mm;border-bottom:1px solid #aaa}
+@media print{
+  body{width:auto;min-height:0;margin:0}
+  /* Kopf und Fuß auf jeder Seite */
+  .dwp-letterhead{position:fixed;top:0;left:0}
+  .dwp-letterhead-footer{position:fixed;bottom:0;left:0}
+  .test-note{margin-top:0}
+  button{display:none}
+}
