@@ -796,6 +796,10 @@ function handleAction(action) {
     showToast("Verbindung vorbereitet", "Die Anmeldung wird erst nach Einrichtung der jeweiligen API freigeschaltet.");
     return;
   }
+  if (action === "calendar" && window.DWPWorkspace) {
+    window.DWPWorkspace.open("personnel");
+    return;
+  }
   const [title, copy] = messages[action] || ["Funktion vorbereitet", "Dieser Baustein wird in einem der nächsten Releases aktiviert."];
   showToast(title, copy);
 }
