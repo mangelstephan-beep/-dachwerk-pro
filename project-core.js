@@ -35,7 +35,7 @@
     ['correspondence','Schriftverkehr und E-Mail','communication',[title,f('recipient','Empfänger','email'),f('body','Nachricht','textarea',true),f('direction','Richtung','select',false,['Ausgehend – Entwurf','Eingehend']),note]],
     ['purchase','Einkauf und Bestellung','prices',[title,f('materialId','Material','material',true),f('quantity','Bestellmenge','number',true),f('supplier','Lieferant'),f('unitPrice','Preis netto je Einheit','number',true),f('deliveryDate','Wunschliefertermin','date'),note]],
     ['logistics','Liefertermine und Logistik','projects',[title,f('purchaseId','Bestellung','purchase'),f('deliveryDate','Lieferdatum','date',true),f('quantity','Gelieferte Menge','number',true),f('location','Lieferort'),f('receipt','Lieferscheinnummer'),note]],
-    ['personnel','Personal und Termine','users',[f('name','Mitarbeiter','text',true),f('number','Personalnummer','text',true),f('employment','Beschäftigungsart','select',true,['Arbeiter','Angestellte','Auszubildende','Teilzeit','Aushilfe']),f('role','Tätigkeit'),f('wage','Stundenkostensatz','number'),f('start','Eintritt','date'),f('qualification','Qualifikationen'),note],'global'],
+    ['personnel','Personal und Termine','users',[f('name','Mitarbeiter','text',true),f('number','Personalnummer','text',true),f('employment','Beschäftigungsart','select',true,['Arbeiter','Angestellte','Auszubildende','Teilzeit','Aushilfe']),f('role','Tätigkeit'),f('wage','Stundenkostensatz','number'),f('start','Eintritt','date'),f('qualification','Qualifikationen'),f('mobile','Mobilnummer für WhatsApp','tel'),f('userId','DWP-Benutzer-ID (Kalenderzugang)'),note],'global'],
     ['technical','Technische Prüfung','ai-check',[title,f('positionId','LV-Position','position'),f('finding','Prüfpunkt / Feststellung','textarea',true),f('source','Regel / Hersteller / Fassung'),f('decision','Fachliche Entscheidung','textarea'),blocking,note]],
     ['safety','Arbeitsschutz und Unterweisung','safety',[title,f('hazard','Gefährdung','textarea',true),f('measure','Schutzmaßnahme','textarea',true),f('participants','Unterwiesene Personen'),blocking,date,note]],
     ['diary','Mobile Bauleitung','site-docs',[title,date,f('weather','Wetter'),f('team','Personal / Geräte'),f('work','Ausgeführte Leistungen','textarea',true),f('obstruction','Behinderungen','textarea'),f('progress','Bautenstand %','number'),note]],
@@ -229,6 +229,7 @@
           round((q.price*(1-q.discount/100)+q.freight)/(q.baseQuantity ?? 1));
         }
         for(const a of r.assignments || [])if(r.module!=='personnel' || !data.records.some(p=>p.module==='projects' && p.id===a.projectId) || !a.start || !a.end || a.start>a.end)throw Error('Sicherung: Einsatzplanung ungültig.');
+        for(const a of r.assignments || [])if(a.response!==undefined && !['Zugesagt','Abgesagt'].includes(a.response))throw Error('Sicherung: Rückmeldung zum Einsatz ungültig.');
         for(const s of r.signatures || []) {
           if(!['acceptance','times'].includes(r.module) || !s.signer || !Array.isArray(s.strokes) || !s.strokes.some(a=>Array.isArray(a) && a.length>=2) || JSON.stringify(s.snapshot?.data)!==JSON.stringify(r.data))throw Error('Sicherung: unterschriebener Dokumentstand ungültig.');
           for(const stroke of s.strokes)for(const p of stroke)if(!Array.isArray(p) || p.length!==2 || p.some(n=>typeof n!=='number' || !Number.isFinite(n) || n<0 || n>1))throw Error('Sicherung: Unterschrift ungültig.');
@@ -310,6 +311,7 @@
         if(field.required && (value===undefined || value===null || String(value).trim()==='')) throw Error(`${field.label} fehlt.`);
         data[field.key]=field.type==='contacts' ? parseContacts(value) : field.type==='number' ? num(value) : field.type==='checkbox' ? (field.key==='useTargetPrice' && typeof value==='string' ? /^(true|1|ja)$/i.test(value.trim()) : Boolean(value)) : String(value ?? '').trim();
         if(field.type==='email' && data[field.key] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[field.key]))throw Error(`${field.label} ist ungültig.`);
+        if(field.type==='tel' && data[field.key] && (!/^\+?[0-9 ()/-]+$/.test(data[field.key]) || !/^\d{6,15}$/.test(data[field.key].replace(/\D/g,''))))throw Error(`${field.label} ist ungültig.`);
         if(field.type==='number' && data[field.key]>Number.MAX_SAFE_INTEGER/100)throw Error(`${field.label} außerhalb des sicheren Zahlenbereichs.`);
         if(field.type==='number' && data[field.key]<0) throw Error(`${field.label} darf nicht negativ sein.`);
         if(field.type==='select' && data[field.key] && !field.options.includes(data[field.key])) throw Error(`${field.label} ist ungültig.`);
@@ -1060,6 +1062,12 @@
       const employee=this.get(employeeId);
       if(!employee?.assignments?.some(a=>a.id===assignmentId && !a.cancelled))throw Error('Aktiver Einsatz nicht gefunden.');
       return this.transaction('Einsatz storniert','personnel',employeeId,d=>{const a=d.records.find(r=>r.id===employeeId).assignments.find(a=>a.id===assignmentId);a.cancelled=true;a.cancelledAt=new Date().toISOString();});
+    }
+    respondSchedule(employeeId, assignmentId, values={}) {
+      const employee=this.get(employeeId),answer=values.answer,note=String(values.note || '').trim().slice(0,300);
+      if(!['Zugesagt','Abgesagt'].includes(answer))throw Error('Bitte zusagen oder absagen.');
+      if(employee?.module!=='personnel' || !employee.assignments?.some(a=>a.id===assignmentId && !a.cancelled))throw Error('Aktiver Einsatz nicht gefunden.');
+      return this.transaction(answer==='Zugesagt'?'Einsatz zugesagt':'Einsatz abgesagt','personnel',employeeId,d=>{const a=d.records.find(r=>r.id===employeeId).assignments.find(a=>a.id===assignmentId);a.response=answer;a.responseNote=note;a.respondedAt=new Date().toISOString();});
     }
     sign(recordId, values) {
       if(this.project()?.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');

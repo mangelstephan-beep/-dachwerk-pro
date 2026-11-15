@@ -179,7 +179,7 @@
   }
   function dashboard() {
     const p=db.project(), stats=p?db.controlling():null;
-    shell('Alle Arbeitsmodule',`${panel('Modul 37 · Schriftverkehr-Sammelpool',btn('Dokumentenregister öffnen','open','register',true))}${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
+    shell('Alle Arbeitsmodule',`${panel('Modul 37 · Schriftverkehr-Sammelpool',btn('Dokumentenregister öffnen','open','register',true))}${upcomingPanel()}${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
     filterModules();
   }
   function searchRecords(query) {
@@ -276,10 +276,10 @@
     if(mod.id==='personnel')summary+=schedulePanel();
     if(mod.id==='pricelists')summary+=priceImportPanel();
     let integration='';
-    const missing={pricelists:'CSV, XLSX, XLS (Excel 2.0 bis 2003) und DATANORM 4 werden mit Spaltenzuordnung, Preisberechnung und verbindlicher Vorschau übernommen. Importierte Preise müssen einzeln freigegeben werden. DATANORM 5 und Geräteabnahme sind noch offen.',correspondence:'Nachrichten werden als Entwurf geführt. Ein Versand- oder Zustellnachweis entsteht erst mit einer eingerichteten Mailanbindung.',documents:'Fotos und PDF können zugeordnet werden. Scannersteuerung und automatische OCR sind noch nicht angeschlossen.',tenders:'Vergaben mit Fundstelle und Frist können erfasst werden. Der automatische Quellenscan ist noch nicht angeschlossen.',acceptance:'Handschriftliche Unterschriften werden mit dem angezeigten Protokollstand gespeichert. Zentrale Originalablage und qualifizierte elektronische Signatur sind nicht angeschlossen.',personnel:'Einsatzzeiträume werden auf Doppelbelegung geprüft. Sensible Lohn-, Steuer- und SV-Stammdaten benötigen geschützte serverseitige Rollen.'};
+    const missing={pricelists:'CSV, XLSX, XLS (Excel 2.0 bis 2003) und DATANORM 4 werden mit Spaltenzuordnung, Preisberechnung und verbindlicher Vorschau übernommen. Importierte Preise müssen einzeln freigegeben werden. DATANORM 5 und Geräteabnahme sind noch offen.',correspondence:'Nachrichten werden als Entwurf geführt. Ein Versand- oder Zustellnachweis entsteht erst mit einer eingerichteten Mailanbindung.',documents:'Fotos und PDF können zugeordnet werden. Scannersteuerung und automatische OCR sind noch nicht angeschlossen.',tenders:'Vergaben mit Fundstelle und Frist können erfasst werden. Der automatische Quellenscan ist noch nicht angeschlossen.',acceptance:'Handschriftliche Unterschriften werden mit dem angezeigten Protokollstand gespeichert. Zentrale Originalablage und qualifizierte elektronische Signatur sind nicht angeschlossen.',personnel:'Einsatzzeiträume werden auf Doppelbelegung geprüft. Jeder Benutzer sieht im Kalender nur seine eigenen Einsätze; Administrator und Personal sehen alle. WhatsApp öffnet nur eine vorbereitete Nachricht, einen Zustellnachweis gibt es nicht. Outlook-Kalender, Feiertage und Teilzeitschichten sind noch nicht angebunden. Sensible Lohn-, Steuer- und SV-Stammdaten benötigen geschützte serverseitige Rollen.'};
     if(missing[mod.id]) integration=panel('Funktionsstand',`<p>${esc(missing[mod.id])}</p>`);
     const attachments=list.flatMap(r=>(r.attachments || []).map(a=>`<li>${esc(names(r.id))} · ${esc(a.name)} ${btn('Öffnen','file',`${r.id}/${a.id}`)}</li>`));
-    shell(mod.name,`${integration}${recordForm(mod)}${panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
+    shell(mod.name,`${integration}${mod.id==='personnel'?calendarPanel():''}${recordForm(mod)}${panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
   }
   function deliveryPanel() {
     const rows=db.deliverySchedule();
@@ -310,9 +310,71 @@
       output.textContent=`Einkaufspreis netto: ${money(price)} / ${material.data.unit} · ${values.packageUnit.trim() || 'Preisgebinde'} = ${quantity} ${material.data.unit}. Fracht gilt je Preisgebinde. Vorschau – noch nicht gespeichert.`;
     } catch(error){output.textContent=error.message;}
   }
+  // ---- Kalender (Modul 18): Wochenansicht, Rückmeldung, WhatsApp-Versand ----
+  let calendarWeek=null;
+  const calendarRole=()=>window.DWPRemote?.active?state.currentRole:'admin';
+  const canPlan=()=>['admin','hr','manager'].includes(calendarRole());
+  const isoAdd=(iso,days)=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+  const mondayOf=iso=>{const d=new Date(iso+'T00:00:00Z');return isoAdd(iso,-((d.getUTCDay()+6)%7));};
+  const dayLabel=(iso,year=false)=>{const d=new Date(iso+'T00:00:00Z');return ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getUTCDay()]+' '+iso.slice(8,10)+'.'+iso.slice(5,7)+'.'+(year?iso.slice(0,4):'');};
+  // Sonntags zeigt der Kalender schon die kommende Woche.
+  const defaultMonday=()=>{const t=core.berlinDay();return new Date(t+'T00:00:00Z').getUTCDay()===0?isoAdd(t,1):mondayOf(t);};
+  const isoWeek=iso=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+3-(d.getUTCDay()+6)%7);const y=new Date(Date.UTC(d.getUTCFullYear(),0,4));return 1+Math.round(((d-y)/864e5-3+(y.getUTCDay()+6)%7)/7);};
+  function calendarEntries() {
+    // Server mode for non-admins: the server sends only the entries this user may see.
+    if(Array.isArray(db.data.calendarEntries))return db.data.calendarEntries;
+    return db.list('personnel').flatMap(e=>(e.assignments || []).map(a=>{const p=db.get(a.projectId);return {...a,employeeId:e.id,employeeName:e.data.name,own:false,projectLabel:p?[p.data.name,p.data.address].filter(Boolean).join(' · '):'Projekt'};}));
+  }
+  const responseLabel=a=>a.cancelled?'Storniert':a.response || 'Offen';
+  const responseClass=a=>a.cancelled?'is-cancelled':a.response==='Zugesagt'?'is-accepted':a.response==='Abgesagt'?'is-declined':'is-open';
+  const range=a=>a.start===a.end?dayLabel(a.start,true):`${dayLabel(a.start)} bis ${dayLabel(a.end,true)}`;
+  function whatsappLink(a) {
+    let digits=String(db.get(a.employeeId)?.data.mobile || '').replace(/\D/g,'');
+    if(!digits)return '';
+    if(digits.startsWith('00'))digits=digits.slice(2);else if(digits.startsWith('0'))digits='49'+digits.slice(1);
+    const url=new URL(window.location.href);url.search='';url.hash='';url.searchParams.set('start','app');url.searchParams.set('module','personnel');
+    const text=`Hallo ${a.employeeName}, dein Einsatz: ${range(a)}, ${a.projectLabel}${a.task?` (${a.task})`:''}. Bitte in DachwerkPro zusagen oder absagen: ${url}`;
+    return `<a class="button button-secondary" href="https://wa.me/${digits}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Per WhatsApp senden</a>`;
+  }
+  function calendarPanel() {
+    const today=core.berlinDay(),monday=calendarWeek || defaultMonday(),days=[0,1,2,3,4,5].map(n=>isoAdd(monday,n)),saturday=days[5];
+    const active=calendarEntries().filter(a=>!a.cancelled && a.start<=saturday && a.end>=monday);
+    const people=new Map();
+    if(calendarRole()==='admin' || db.data.calendarScope==='all')db.list('personnel').forEach(e=>people.set(e.id,e.data.name));
+    calendarEntries().forEach(a=>{if(!people.has(a.employeeId))people.set(a.employeeId,a.employeeName);});
+    const tones=['blue','purple','green','amber'],tone=id=>tones[[...String(id)].reduce((n,c)=>n+c.charCodeAt(0),0)%tones.length];
+    const rows=[...people].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'de')).map(([id,name])=>{
+      const bars=active.filter(a=>a.employeeId===id).map(a=>{
+        const from=days.indexOf(a.start<monday?monday:a.start),to=days.indexOf(a.end>saturday?saturday:a.end);
+        const mark={'Zugesagt':'✓ ','Abgesagt':'✗ '}[a.response] || '';
+        return `<button type="button" class="dwp-cal-bar tone-${tone(a.projectId)} ${responseClass(a)}" style="grid-column:${from+2}/${to+3}" data-dwp="calendar-focus" data-id="${esc(a.id)}" title="${esc(`${a.projectLabel} · ${responseLabel(a)}`)}">${esc(mark+a.projectLabel)}</button>`;
+      }).join('');
+      return `<div class="dwp-cal-row"><span class="dwp-cal-name">${esc(name)}</span>${days.map((d,i)=>`<span class="dwp-cal-cell${d===today?' is-today':''}" style="grid-column:${i+2}"></span>`).join('')}${bars}</div>`;
+    }).join('');
+    const scope=calendarRole()==='admin' || db.data.calendarScope==='all'?'Du siehst die Einsätze aller Mitarbeiter.':'Du siehst nur deine eigenen Einsätze.';
+    return `<section class="panel panel-pad dwp-panel" id="dwp-calendar"><h2>Kalender · Wochenansicht</h2><p>${esc(scope)}</p><div class="dwp-cal-nav">${btn('‹','calendar-week','-7')}<strong>KW ${isoWeek(monday)} · ${esc(dayLabel(monday))} bis ${esc(dayLabel(saturday,true))}</strong>${btn('›','calendar-week','7')}${monday!==defaultMonday()?btn('Heute','calendar-week','0'):''}</div><div class="dwp-cal"><div class="dwp-cal-row dwp-cal-head"><span></span>${days.map(d=>`<span class="${d===today?'is-today':''}">${esc(dayLabel(d)).replace(' ','<br>')}</span>`).join('')}</div>${rows || '<p class="dwp-cal-empty">Noch keine Einsätze geplant.</p>'}</div><p class="dwp-cal-legend">✓ zugesagt · ✗ abgesagt · ohne Zeichen: Rückmeldung offen. Tippen auf einen Balken zeigt den Einsatz in der Liste.</p></section>`;
+  }
+  function scheduleListPanel() {
+    const today=core.berlinDay();
+    const list=[...calendarEntries()].sort((a,b)=>(a.end<today)-(b.end<today) || (a.end<today?b.start.localeCompare(a.start):a.start.localeCompare(b.start)));
+    const rows=list.map(a=>{
+      const actions=[];
+      if(!a.cancelled && (a.own || calendarRole()==='admin')){if(a.response!=='Zugesagt')actions.push(btn(a.own?'Zusagen':'Zusage eintragen','respond-schedule',`${a.employeeId}/${a.id}/Zugesagt`));if(a.response!=='Abgesagt')actions.push(btn(a.own?'Absagen':'Absage eintragen','respond-schedule',`${a.employeeId}/${a.id}/Abgesagt`));}
+      if(!a.cancelled && canPlan()){const wa=whatsappLink(a);if(wa)actions.push(wa);actions.push(btn('Einsatz stornieren','cancel-schedule',`${a.employeeId}/${a.id}`));}
+      return [`<span id="dwp-einsatz-${esc(a.id)}">${esc(a.employeeName)}</span>`,esc(a.projectLabel),esc(range(a)),esc(a.task),`<span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span>`,actions.join(' ') || '–'];
+    });
+    return panel(calendarRole()==='admin' || db.data.calendarScope==='all'?'Einsätze aller Projekte':'Meine Einsätze',table(['Mitarbeiter','Projekt','Zeitraum','Aufgabe','Rückmeldung','Aktion'],rows));
+  }
   function schedulePanel() {
     const options=records=>`<option value="">Bitte auswählen</option>${records.map(r=>`<option value="${esc(r.id)}" ${r.id===db.data.selectedProject?'selected':''}>${esc(names(r.id))}</option>`).join('')}`;
-    return panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage und Teilzeitschichten sind noch nicht berücksichtigt.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`)+panel('Einsatzübersicht aller Projekte',table(['Mitarbeiter','Projekt','Von','Bis','Aufgabe','Status'],db.list('personnel').flatMap(e=>(e.assignments || []).map(a=>[esc(e.data.name),esc(names(a.projectId)),esc(a.start),esc(a.end),esc(a.task),a.cancelled?'Storniert':btn('Einsatz stornieren','cancel-schedule',`${e.id}/${a.id}`)]))));
+    const plan=canPlan()?panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage und Teilzeitschichten sind noch nicht berücksichtigt. Damit ein Mitarbeiter seine Einsätze sieht und zusagen kann, trag in seinem Personalsatz die DWP-Benutzer-ID ein; für den WhatsApp-Versand die Mobilnummer.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`):'';
+    return plan+scheduleListPanel();
+  }
+  function upcomingPanel() {
+    const today=core.berlinDay(),until=isoAdd(today,6),all=calendarRole()==='admin' || db.data.calendarScope==='all';
+    const next=calendarEntries().filter(a=>!a.cancelled && a.end>=today && a.start<=until).sort((a,b)=>a.start.localeCompare(b.start)).slice(0,8);
+    const items=next.map(a=>`<li class="dwp-upcoming-item"><span class="dwp-upcoming-date">${esc(a.start<=today?'Heute':dayLabel(a.start))}</span><span class="dwp-upcoming-copy"><strong>${esc(a.projectLabel)}</strong><small>${esc([all?a.employeeName:'',a.task,a.end>a.start?`bis ${dayLabel(a.end)}`:''].filter(Boolean).join(' · '))}</small></span><span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span></li>`).join('');
+    return panel(all?'Anstehend · nächste 7 Tage':'Deine Einsätze · nächste 7 Tage',`${items?`<ul class="dwp-upcoming">${items}</ul>`:'<p>Keine Einsätze in den nächsten 7 Tagen.</p>'}${btn('Wochenansicht öffnen','calendar-open')}`);
   }
   function priceImportPanel() {
     priceSource=null;pricePreview=null;priceReadToken++;
@@ -842,6 +904,10 @@
       if(action==='print')printRecord(db.get(id));
       if(action==='demand-purchase'){mutate('createPurchase',[id,{owner:state.currentUser}],()=>{notice('Bestellentwurf aus dem offenen Bedarf angelegt.');openModule('purchase');});}
       if(action==='use-quote'){const [supplierId,quoteId]=id.split('/');mutate('useQuote',[supplierId,quoteId,state.currentUser],()=>{notice('Preisquelle freigegeben und Artikelhistorie aktualisiert.');openModule(current);});}
+      if(action==='calendar-week'){calendarWeek=id==='0'?null:isoAdd(calendarWeek || defaultMonday(),Number(id));const panelEl=main.querySelector('#dwp-calendar');if(panelEl)panelEl.outerHTML=calendarPanel();return;}
+      if(action==='calendar-focus'){const row=main.querySelector(`#dwp-einsatz-${CSS.escape(id)}`)?.closest('tr');if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.classList.add('dwp-row-flash');setTimeout(()=>row.classList.remove('dwp-row-flash'),1600);}return;}
+      if(action==='calendar-open'){openModule('personnel');setTimeout(()=>main.querySelector('#dwp-calendar')?.scrollIntoView({block:'start'}),0);return;}
+      if(action==='respond-schedule'){const [employeeId,assignmentId,answer]=id.split('/');mutate('respondSchedule',[employeeId,assignmentId,{answer}],()=>{notice(answer==='Zugesagt'?'Zusage gespeichert.':'Absage gespeichert.');openModule(current);});return;}
       if(action==='cancel-schedule'){const [employeeId,assignmentId]=id.split('/');mutate('cancelSchedule',[employeeId,assignmentId],()=>{notice('Einsatz storniert und im Logbuch erhalten.');openModule(current);});}
       if(action==='signature')signatureView(id);
       if(action==='clear-signature'){const canvas=main.querySelector('#dwp-signature');canvas.getContext('2d').clearRect(0,0,640,240);signatureStrokes=[], importPreview=null;}
