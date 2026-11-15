@@ -736,7 +736,7 @@
       printDoc={heading:d.title || mod.name,number:d.number || '',project:projectName?(/^BV\b/i.test(projectName)?projectName:'BV '+projectName):'',
         numberLabel:isOffer?'Angebots-Nr.':isInvoice?'Rechnung-Nr.':'AB-Nr.',dateLabel:isOffer?'Angebotsdatum':isInvoice?'Rechnungsdatum':'Datum',date:created,
         refs:[...(r.confirmation?[['Angebot',d.offerNumber],['AG-Auftrag',d.orderNumber || 'ohne Nummer']]:[]),...(isOffer?[['Version',d.version || 1],['Nachtrag',d.baseOfferId?(d.changeNumber || 'ohne Nummer'):''],['Gültig bis',d.validUntil]]:[]),...(isInvoice?[['Angebot',sourceOffer?.data.number || '']]:[]),['Kundennr.',cust.customerNumber],['USt-IdNr. Kunde',cust.vatId],['Käuferreferenz',d.buyerReference]],
-        recipient:[cust.name,...core.customerAddressLines(cust)].filter(Boolean)};
+        recipient:[cust.name,...core.customerAddressLines(d.customer)].filter(Boolean)};
       const eur=L.eur,sum=isOffer?'ANGEBOTSSUMME':isInvoice?'RECHNUNGSBETRAG':'AUFTRAGSSUMME';
       body=d.project?.address?`<div class="dwp-doc-summary"><strong>Objekt</strong><span>${esc(d.project.address)}</span></div>`:'';
       body+=L.itemsTable(d.positions || []);
