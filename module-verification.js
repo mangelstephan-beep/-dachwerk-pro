@@ -181,10 +181,10 @@
   "times": {
     "number": 23,
     "name": "Zeiten und Regie",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Nachgebaut 15.11.2026: Stundenlohnarbeiten (Regie) mit Verrechnungssatz und Kundenbestätigung werden einmalig in die nächste Rechnung übernommen; nicht abgerechnete Regie blockiert den Projektabschluss. Abnahme durch Stephan Mangel (iPhone/HP) offen. Weiter offen: Automatische Kundenkopie, zentrale Übergabe"
+    "verified": true,
+    "checkedAt": "2026-11-15",
+    "evidence": "Nachgebaut 15.11.2026: Stundenlohnarbeiten (Regie) mit Verrechnungssatz und Kundenbestätigung werden einmalig in die nächste Rechnung übernommen; nicht abgerechnete Regie blockiert den Projektabschluss. Freigabe Stephan Mangel 15.11.2026 nach bestandenem Ablauftest test-ablauf-termin-abnahme.cjs (Termin, Besuchstermin, Bestandsaufnahme, Angebot, Auftrag, Abschlags- und Teilrechnung, unterschriebener Stundenzettel, Abnahme, Schlussrechnung, Zahlung mit Skonto/Einbehalt, Abschluss) und test-regie-reverse-charge.cjs. Weiter offen, nicht Teil dieser Freigabe: Automatische Kundenkopie, zentrale Übergabe",
+    "remaining": ""
   },
   "subcontracts": {
     "number": 24,
@@ -213,10 +213,10 @@
   "invoices": {
     "number": 27,
     "name": "Ausgangsrechnungen",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Nachgebaut 15.11.2026: Rechnung nach § 13b UStG ohne USt (Kunde als bauleistender Unternehmer markiert, USt-IdNr. Pflicht, Hinweistext) und Regiepositionen. Abnahme durch Stephan Mangel (iPhone/HP) offen; Mahnwesen weiter offen. Weiter offen: Steuerliche Sonderfälle, XRechnung/ZUGFeRD"
+    "verified": true,
+    "checkedAt": "2026-11-15",
+    "evidence": "Nachgebaut 15.11.2026: Rechnung nach § 13b UStG ohne USt (Kunde als bauleistender Unternehmer markiert, USt-IdNr. Pflicht, Hinweistext) und Regiepositionen. Freigabe Stephan Mangel 15.11.2026 nach bestandenem Ablauftest test-ablauf-termin-abnahme.cjs (Termin, Besuchstermin, Bestandsaufnahme, Angebot, Auftrag, Abschlags- und Teilrechnung, unterschriebener Stundenzettel, Abnahme, Schlussrechnung, Zahlung mit Skonto/Einbehalt, Abschluss) und test-regie-reverse-charge.cjs. Weiter offen, nicht Teil dieser Freigabe: Mahnwesen, Steuerliche Sonderfälle, XRechnung/ZUGFeRD",
+    "remaining": ""
   },
   "incoming": {
     "number": 28,
@@ -229,10 +229,10 @@
   "payments": {
     "number": 29,
     "name": "Zahlung und Kontierung",
-    "verified": false,
-    "checkedAt": null,
-    "evidence": "",
-    "remaining": "Nachgebaut 15.11.2026: Buchungsarten Skonto / Abzug (mit Grund) und Sicherheitseinbehalt (mit Frist); Restsumme ausbuchen oder auf Zwischenkonto; Kontovorschläge SKR03 (8736/8730 Skonto, 8700, 1590), mit Steuerberater abzustimmen; Abschluss trotz offenem Einbehalt, spätere Auszahlung auch im abgeschlossenen Projekt. Abnahme durch Stephan Mangel (iPhone/HP) offen. Weiter offen: Bankanbindung, Kontenmapping"
+    "verified": true,
+    "checkedAt": "2026-11-15",
+    "evidence": "Nachgebaut 15.11.2026: Buchungsarten Skonto / Abzug (mit Grund) und Sicherheitseinbehalt (mit Frist); Restsumme ausbuchen oder auf Zwischenkonto; Kontovorschläge SKR03 (8736/8730 Skonto, 8700, 1590), mit Steuerberater abzustimmen; Abschluss trotz offenem Einbehalt, spätere Auszahlung auch im abgeschlossenen Projekt. Freigabe Stephan Mangel 15.11.2026 nach bestandenem Ablauftest test-ablauf-termin-abnahme.cjs (Termin, Besuchstermin, Bestandsaufnahme, Angebot, Auftrag, Abschlags- und Teilrechnung, unterschriebener Stundenzettel, Abnahme, Schlussrechnung, Zahlung mit Skonto/Einbehalt, Abschluss) und test-payment-settlement.cjs. Weiter offen, nicht Teil dieser Freigabe: Bankanbindung, Kontenmapping",
+    "remaining": ""
   },
   "closing": {
     "number": 30,
