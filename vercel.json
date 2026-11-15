@@ -40,6 +40,10 @@
     {
       "source": "/workspace",
       "destination": "/api/workspace"
+    },
+    {
+      "source": "/kalender/:file",
+      "destination": "/api/calendar?file=:file"
     }
   ],
   "buildCommand": "npm run build",

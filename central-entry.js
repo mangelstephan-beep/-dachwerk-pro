@@ -40,6 +40,7 @@
     export(options){return access({action:'export',...options});},
     file(options){return access({action:'file',...options});},
     users(){return users();},
+    calendarFeed(body){return fetch('/api/calendar',body?{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{credentials:'same-origin',cache:'no-store'}).then(responseJson);},
     userAction(body){return users(body);},
     get active(){return active;},
     async uploadFile(recordId,file) {

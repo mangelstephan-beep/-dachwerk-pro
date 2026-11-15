@@ -782,7 +782,7 @@ function handleAction(action) {
     "run-analysis": ["Analyse gestartet", "184 Positionen werden technisch und kaufmännisch geprüft."],
     "review-issue": ["Prüfvorgang geöffnet", "Der Hinweis ist zur fachlichen Bewertung vorgemerkt."],
     "save-settings": ["Einstellungen gespeichert", "Die Testwerte wurden in diesem Browser lokal übernommen."],
-    calendar: ["Kalender", "Die Outlook-Kalenderanbindung folgt mit Microsoft Graph."],
+    calendar: ["Kalender", "Wochenansicht, Feiertage und Outlook-Abo stehen in Modul 18 „Personal und Termine“."],
     activity: ["Aktivitätsprotokoll", "Das vollständige Änderungsjournal ist für Release 0.2 vorgesehen."],
     "open-project": ["Projektakte geöffnet", "Detailansicht, Dokumente und Kalkulation werden zusammengeführt."],
     "list-view": ["Listenansicht", "Die Tabellenansicht wird für die Projektübersicht ergänzt."],
