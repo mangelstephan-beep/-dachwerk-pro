@@ -9,7 +9,7 @@ Status: bereit zur Einrichtung. Die App versendet den Link zum Zurücksetzen üb
 | Name | Wert | Typ |
 |---|---|---|
 | `DWP_SMTP_USER` | vollständige Postfach-Adresse, z. B. `info@dachwerkpro.de` | normal |
-| `DWP_SMTP_PASSWORD` | Passwort dieses Postfachs (wie in Strato) | **Sensitive** |
+| `DWP_SMTP_PASSWORD` | Passwort dieses Postfachs (wie in Strato) | **Sensitive** (auch `DWP_SMTP_PASSWORT` wird akzeptiert) |
 
 Optional: `DWP_MAIL_FROM` (Absendername, Standard „DachWerkPro <Postfach-Adresse>“), `DWP_SMTP_HOST`/`DWP_SMTP_PORT` (Standard Strato 465). Das Postfach-Passwort nie in GitHub oder im Chat eintragen.
 

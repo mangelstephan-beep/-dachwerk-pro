@@ -9,6 +9,7 @@ const {sendMail,mailConfig,buildMessage,resetMail}=require('./lib/mailer.cjs');
   const cfg=mailConfig({DWP_SMTP_USER:' info@dachwerkpro.de ',DWP_SMTP_PASSWORD:'geheim'});
   assert.deepEqual({host:cfg.host,port:cfg.port,secure:cfg.secure,from:cfg.from},{host:'smtp.strato.de',port:465,secure:true,from:'DachWerkPro <info@dachwerkpro.de>'});
   assert.equal(mailConfig({DWP_SMTP_USER:'a@b.de',DWP_SMTP_PASSWORD:'x',DWP_SMTP_PORT:'587'}).secure,false);
+  assert.equal(mailConfig({DWP_SMTP_USER:'a@b.de',DWP_SMTP_PASSWORT:'deutsch'}).password,'deutsch','deutsche Schreibweise PASSWORT wird akzeptiert');
   assert.throws(()=>mailConfig({DWP_SMTP_USER:'a@b.de',DWP_SMTP_PASSWORD:'x',DWP_SMTP_PORT:'99999'}),/PORT/);
   assert.equal(mailConfig({RESEND_API_KEY:'k',DWP_MAIL_FROM:'x@y.de'}).kind,'resend');
 
