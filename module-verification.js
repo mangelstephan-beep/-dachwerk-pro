@@ -111,7 +111,7 @@
     "name": "Auftrag und Bestätigung",
     "verified": true,
     "checkedAt": "2026-11-15",
-    "evidence": "Freigabe Stephan Mangel 15.11.2026: live auf www.dachwerkpro.de geöffnet und bearbeitet; Gesamtablauf am 15.11.2026 mit Beispielprojekt Flachdach (Kunde bis Controlling) geprüft. Frühere Prüfung: Angebotsbedingungen und Auftragshinweise werden mit unveränderlicher Auftragsbestätigung gespeichert und gedruckt; Server-/DOM-Test bestanden. Weiter offen, nicht Teil dieser Freigabe: Live-Abnahme von Auftragsbestätigung und Bedingungen; weitergehende Auftragsänderungen.",
+    "evidence": "Freigabe Stephan Mangel 15.11.2026: live auf www.dachwerkpro.de geöffnet und bearbeitet; Gesamtablauf am 15.11.2026 mit Beispielprojekt Flachdach (Kunde bis Controlling) geprüft. Frühere Prüfung: Angebotsbedingungen und Auftragshinweise werden mit unveränderlicher Auftragsbestätigung gespeichert und gedruckt; Server-/DOM-Test bestanden. Weiter offen, nicht Teil dieser Freigabe: Live-Abnahme von Auftragsbestätigung und Bedingungen; weitergehende Auftragsänderungen. Erweitert 15.11.2026: Pauschalpreis im Hauptauftrag (Häkchen + Pauschalsumme) – Abschlag schon vor Aufmaß, Abschlags-/Teil-/Schlussrechnung in % der Pauschalsumme ohne Aufmaß; Einheitspreis weiter nach Aufmaß. Abgedeckt durch test-ablauf-termin-abnahme.cjs.",
     "remaining": ""
   },
   "correspondence": {
@@ -215,7 +215,7 @@
     "name": "Ausgangsrechnungen",
     "verified": true,
     "checkedAt": "2026-11-15",
-    "evidence": "Nachgebaut 15.11.2026: Rechnung nach § 13b UStG ohne USt (Kunde als bauleistender Unternehmer markiert, USt-IdNr. Pflicht, Hinweistext) und Regiepositionen. Freigabe Stephan Mangel 15.11.2026 nach bestandenem Ablauftest test-ablauf-termin-abnahme.cjs (Termin, Besuchstermin, Bestandsaufnahme, Angebot, Auftrag, Abschlags- und Teilrechnung, unterschriebener Stundenzettel, Abnahme, Schlussrechnung, Zahlung mit Skonto/Einbehalt, Abschluss) und test-regie-reverse-charge.cjs. Weiter offen, nicht Teil dieser Freigabe: Mahnwesen, Steuerliche Sonderfälle, XRechnung/ZUGFeRD",
+    "evidence": "Nachgebaut 15.11.2026: Rechnung nach § 13b UStG ohne USt (Kunde als bauleistender Unternehmer markiert, USt-IdNr. Pflicht, Hinweistext) und Regiepositionen. Freigabe Stephan Mangel 15.11.2026 nach bestandenem Ablauftest test-ablauf-termin-abnahme.cjs (Termin, Besuchstermin, Bestandsaufnahme, Angebot, Auftrag, Abschlags- und Teilrechnung, unterschriebener Stundenzettel, Abnahme, Schlussrechnung, Zahlung mit Skonto/Einbehalt, Abschluss) und test-regie-reverse-charge.cjs. Weiter offen, nicht Teil dieser Freigabe: Mahnwesen, Steuerliche Sonderfälle, XRechnung/ZUGFeRD Erweitert 15.11.2026: Pauschalpreis im Hauptauftrag (Häkchen + Pauschalsumme) – Abschlag schon vor Aufmaß, Abschlags-/Teil-/Schlussrechnung in % der Pauschalsumme ohne Aufmaß; Einheitspreis weiter nach Aufmaß. Abgedeckt durch test-ablauf-termin-abnahme.cjs.",
     "remaining": ""
   },
   "incoming": {

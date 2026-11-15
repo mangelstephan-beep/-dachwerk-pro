@@ -70,6 +70,8 @@
   definitions.purchase.fields.push(f('overDeliveryPercent','Zulässige Mehrlieferung %','number'),f('underDeliveryPercent','Zulässige Minderlieferung %','number'),f('toleranceReason','Vereinbarung zur Mengentoleranz','textarea'));
   definitions.contract.fields.push(f('decision','Prüfentscheidung / Begründung','textarea'));
   // Modul 27: Kunde ist selbst Bauleister → Steuerschuld geht nach § 13b UStG auf ihn über (Rechnung ohne USt).
+  // Pauschalpreis (15.11.2026): Hauptauftrag wird in % der Pauschalsumme abgerechnet, ohne Aufmaß. Einheitspreis bleibt beim Aufmaß.
+  definitions.orders.fields.splice(2,0,f('lumpSum','Pauschalpreis vereinbart (Abrechnung in % der Pauschalsumme, ohne Aufmaß)','checkbox'),f('lumpSumNet','Pauschalsumme netto € (leer = Angebotssumme)','number'));
   definitions.customers.fields.push(f('reverseCharge','Bauleistender Unternehmer: Rechnung ohne USt nach § 13b UStG','checkbox'));
   definitions.lv.fields.push(f('epPrecision','EP-Nachkommastellen (0 / 2 = Standard, 3 = LV-Original)','number'));
   definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('useNuMarkup','Eigenen NU-Zuschlag statt globaler AGK/W&G verwenden','checkbox'),f('subcontractMarkup','NU-Zuschlag %','number'));
@@ -418,9 +420,14 @@
         record.autoCheck={positionId:finding.positionId,code:finding.code,basis:finding.basis};
       }
       if(module==='materials')delete record.pendingPrice;
+      if(module==='orders') {
+        if(data.lumpSumNet>0 && !data.lumpSum)throw Error('Pauschalsumme nur eintragen, wenn „Pauschalpreis vereinbart“ angehakt ist.');
+        if(data.lumpSum && this.get(data.offerId)?.data.baseOfferId)throw Error('Pauschalpreis nur beim Hauptauftrag. Nachträge werden nach Aufmaß abgerechnet.');
+      }
       if(module==='orders' && status==='Freigegeben') {
         const offer=this.get(data.offerId);
-        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',number:before?.confirmation?.number || this.nextDocumentNumber('AB',data.date),documentFamily:undefined,documentRevision:1,offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
+        const lumpNote=data.lumpSum?'Pauschalpreis: '+round(data.lumpSumNet || offer.data.net).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' € netto. Abrechnung nach Leistungsstand in % der Pauschalsumme, ohne Aufmaß.':'';
+        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',number:before?.confirmation?.number || this.nextDocumentNumber('AB',data.date),documentFamily:undefined,documentRevision:1,offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:[lumpNote,data.notes].filter(Boolean).join('\n'),...(data.lumpSum?{lumpSum:true,lumpSumNet:round(data.lumpSumNet || offer.data.net)}:{})}));
       }
       return this.transaction(before?'Geändert':'Angelegt',module,record.id,d=>{
         if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,validUntil:before.data.validUntil || '',priceBasis:before.data.priceBasis || '',supplier:before.data.supplier,source:before.data.source}] : [])].slice(-3);
@@ -471,7 +478,7 @@
       const orders=this.list('orders').filter(r=>r.status==='Freigegeben');
       if(!orders.length)add('orders','Freigegebene Beauftragung fehlt.');
       const assigned=new Map();
-      for(const o of orders)for(const p of this.get(o.data.offerId).data.positions)assigned.set(p.id,p);
+      for(const o of orders.filter(o=>o.data.lumpSum!==true))for(const p of this.get(o.data.offerId).data.positions)assigned.set(p.id,p);
       for(const p of assigned.values())if(this.measured(p.id)<=0)add('measurements','Freigegebenes Aufmaß für Position '+p.number+' fehlt.',p.id);
       for(const r of this.list('defects').filter(r=>r.status!=='Erledigt'))add('defects','Offener Mangel: '+r.data.title,r.id);
       if(!this.list('acceptance').some(r=>r.status==='Freigegeben' && r.data.result==='Abgenommen' && r.signatures?.length))add('acceptance','Freigegebene, unterschriebene Abnahme ohne offene Restpunkte fehlt.');
@@ -814,7 +821,8 @@
         const changeOffers=this.list('orders').filter(r=>r.status==='Freigegeben').map(r=>this.get(r.data.offerId)).filter(r=>r?.data.baseOfferId===offer.id);
         const all=[...offer.data.positions,...changeOffers.flatMap(r=>r.data.positions)];
         if(new Set(all.map(p=>p.id)).size!==all.length)throw Error('Beauftragte Position mehrfach vorhanden.');
-        positions=all.map(p=>{
+        const lumpSum=order.data.lumpSum===true,mainIds=new Set(offer.data.positions.map(p=>p.id));
+        positions=all.filter(p=>!lumpSum || !mainIds.has(p.id)).map(p=>{
           const measured=this.measured(p.id),cumulativeQty=round(measured*percentage/100);
           if(measured<=0 && invoiceType==='Schlussrechnung')throw Error('Für jede beauftragte Position ist ein freigegebenes Aufmaß erforderlich.');
           const billedQty=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===p.id).reduce((a,x)=>a+x.qty,0),0));
@@ -822,6 +830,15 @@
           if(cumulativeQty<billedQty)throw Error('Kumulativer Leistungsstand liegt unter bereits berechneten Mengen.');
           return {...p,qty:round(cumulativeQty-billedQty),cumulativeQty,previousQty:billedQty,gp:round(round(cumulativeQty*p.ep)-billedGrossPosition)};
         }).filter(p=>p.qty>0 || p.gp!==0);
+        if(lumpSum) {
+          // Pauschale: Menge = kumulativer Leistungsstand in %, EP = 1 % der Pauschalsumme; Betrag exakt aus der Pauschalsumme.
+          const id='pauschal-'+order.id,lumpNet=round(order.data.lumpSumNet || offer.data.net);
+          const billedPct=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===id).reduce((a,x)=>a+x.qty,0),0));
+          const billedGross=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===id).reduce((a,x)=>a+x.gp,0),0));
+          if(percentage<billedPct)throw Error('Kumulativer Leistungsstand liegt unter bereits berechneten '+billedPct+' %.');
+          const lump={id,number:'P',kind:'Pauschale',text:'Pauschalpreis gemäß Auftragsbestätigung '+(order.confirmation?.number || '')+' – Leistungsstand kumulativ '+percentage+' %',qty:round(percentage-billedPct),cumulativeQty:percentage,previousQty:billedPct,unit:'%',ep:round(lumpNet/100),gp:round(round(lumpNet*percentage/100)-billedGross)};
+          if(lump.qty>0 || lump.gp!==0)positions.unshift(lump);
+        }
         positions.push(...this.openRegie().map(r=>({id:r.id,number:'Regie',kind:'Stundenlohnarbeit',text:'Stundenlohnarbeit '+r.data.date+': '+r.data.work+' (bestätigt: '+r.data.customerConfirmation+')',qty:r.open,cumulativeQty:r.data.hours,previousQty:round(r.data.hours-r.open),unit:'Std.',ep:round(r.data.billingRate),gp:round(r.open*r.data.billingRate)})));
         if(!positions.length)throw Error('Keine noch nicht berechnete Leistung vorhanden.');
         if(customer.data.reverseCharge===true && !smallBusiness) {

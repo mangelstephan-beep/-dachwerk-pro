@@ -85,5 +85,49 @@ assert.equal(c.outstanding,0);assert.equal(c.retained,retention);
 db.save('documents',{title:'Abnahmeprotokoll',category:'Nachweis',description:'Abnahme unterschrieben',relatedRecordId:acceptance.id});
 assert.deepEqual(db.workflow().issues.map(i=>i.message),[]);
 db.advancePhase('Abgeschlossen');assert.equal(db.project().data.phase,'Abgeschlossen');
-console.log('Ablauf Termin → Besuchstermin → Bestandsaufnahme → Angebot → AZ → TR → ST → Abnahme → Schlussrechnung → Zahlung → Abschluss passed.');
+
+// Pauschalpreis: Abschlag schon vor Aufmaß und Baubeginn, Abrechnung in % der Pauschalsumme, kein Aufmaß nötig.
+{
+  let raw2=null;const db2=new Store({getItem:()=>raw2,setItem:(_k,v)=>raw2=v});
+  const cu=db2.save('customers',{name:'Familie Kruse',customerType:'Privatkunde'});
+  db2.save('projects',{name:'Steildach Pauschal',customerId:cu.id,phase:'Erfassung'});db2.advancePhase('Kalkulation');
+  db2.save('lv',{number:'01',text:'Neueindeckung',qty:180,unit:'m²',material:55},ok);
+  db2.save('lv',{number:'02',text:'Dachrinne',qty:24,unit:'m',material:30},ok);
+  const of=db2.issue('offers');
+  assert.throws(()=>db2.save('orders',{title:'Auftrag',offerId:of.id,date,lumpSumNet:9000},ok),/Pauschalpreis vereinbart/);
+  const or=db2.save('orders',{title:'Auftrag pauschal',offerId:of.id,date,lumpSum:true,lumpSumNet:12500},ok);
+  const ab=db2.get(or.id).confirmation;
+  assert.equal(ab.lumpSum,true);assert.equal(ab.lumpSumNet,12500);assert.match(ab.notes,/Pauschalpreis: 12\.500,00 € netto/);
+  db2.advancePhase('Beauftragt');
+  const v=db2.issue('invoices',{orderId:or.id,invoiceType:'Abschlagsrechnung',percentage:30});
+  assert.equal(v.data.net,3750);assert.equal(v.data.positions.length,1);
+  assert.deepEqual([v.data.positions[0].qty,v.data.positions[0].unit,v.data.positions[0].ep],[30,'%',125]);
+  assert.match(v.data.positions[0].text,/Pauschalpreis gemäß Auftragsbestätigung DWP-AB-/);
+  assert.throws(()=>db2.save('orders',{title:'Auftrag pauschal',offerId:of.id,date,lumpSum:true,lumpSumNet:13000},{...ok,id:or.id}),/bleiben unverändert/);
+  db2.advancePhase('Ausführung');
+  const emp=db2.save('personnel',{name:'Geselle',number:'P1',employment:'Arbeiter',wage:40});
+  const reg=db2.save('times',{title:'Regie Kamin',date,employeeId:emp.id,hours:2,rate:40,billingRate:60,work:'Kaminkopf verwahrt',billable:true,customerConfirmation:'Stundenzettel 3'},ok);db2.sign(reg.id,sign);
+  assert.throws(()=>db2.issue('invoices',{orderId:or.id,invoiceType:'Teilrechnung',percentage:20}),/unter bereits berechneten 30 %/);
+  const t2=db2.issue('invoices',{orderId:or.id,invoiceType:'Teilrechnung',percentage:70});
+  assert.equal(t2.data.net,cent(5000+120));
+  assert(!db2.workflow().issues.some(i=>i.module==='measurements'),'Pauschale braucht kein Aufmaß');
+  db2.advancePhase('Abnahme');
+  const ac=db2.save('acceptance',{title:'Abnahme',date,participants:'AG und AN',result:'Abgenommen'},ok);db2.sign(ac.id,sign);
+  const s2=db2.issue('invoices',{orderId:or.id});
+  assert.equal(s2.data.net,3750);assert.equal(s2.data.positions[0].qty,30);
+  assert.equal(cent(v.data.net+t2.data.net+s2.data.net),cent(12500+120));
+  for(const inv of [v,t2,s2])db2.save('payments',{title:'Zahlung',invoiceId:inv.id,direction:'Zahlungseingang',date,amount:inv.data.gross},ok);
+  db2.save('documents',{title:'Abnahmeprotokoll',category:'Nachweis',description:'Abnahme',relatedRecordId:ac.id});
+  assert.deepEqual(db2.workflow().issues.map(i=>i.message),[]);
+  db2.advancePhase('Abgeschlossen');
+}
+// Einheitspreis bleibt beim Aufmaß: ohne Aufmaß kein Abschlag.
+{
+  let raw3=null;const db3=new Store({getItem:()=>raw3,setItem:(_k,v)=>raw3=v});
+  const cu=db3.save('customers',{name:'EP Kunde'});db3.save('projects',{name:'EP',customerId:cu.id,phase:'Erfassung'});db3.advancePhase('Kalkulation');
+  db3.save('lv',{number:'01',text:'Abdichtung',qty:10,unit:'m²',material:10},ok);const of=db3.issue('offers');
+  const or=db3.save('orders',{title:'Auftrag',offerId:of.id,date},ok);db3.advancePhase('Beauftragt');
+  assert.throws(()=>db3.issue('invoices',{orderId:or.id,invoiceType:'Abschlagsrechnung',percentage:30}),/Keine noch nicht berechnete Leistung/);
+}
+console.log('Ablauf Termin → Besuchstermin → Bestandsaufnahme → Angebot → AZ → TR → ST → Abnahme → Schlussrechnung → Zahlung → Abschluss passed; Pauschalpreis (Abschlag vor Aufmaß, % der Pauschalsumme, ohne Aufmaß) passed.');
 console.log('  Belege: '+[offer.data.number,db.get(order.id).confirmation.number,az.data.number,tr.data.number,sr.data.number].join(', '));
