@@ -31,6 +31,7 @@
     let raw=JSON.stringify(data);
     db=new core.Store({getItem:()=>raw,setItem:(_key,value)=>{raw=value;}});
     if(selected && db.get(selected)?.module==='projects')db.data.selectedProject=selected;
+    if(selectionKey!==key){feedInfo=null;feedUrl='';}
     selectionKey=key;rememberProject();
     state.currentUser=user.name || user.id;
   }};
@@ -279,7 +280,7 @@
     const missing={pricelists:'CSV, XLSX, XLS (Excel 2.0 bis 2003) und DATANORM 4 werden mit Spaltenzuordnung, Preisberechnung und verbindlicher Vorschau übernommen. Importierte Preise müssen einzeln freigegeben werden. DATANORM 5 und Geräteabnahme sind noch offen.',correspondence:'Nachrichten werden als Entwurf geführt. Ein Versand- oder Zustellnachweis entsteht erst mit einer eingerichteten Mailanbindung.',documents:'Fotos und PDF können zugeordnet werden. Scannersteuerung und automatische OCR sind noch nicht angeschlossen.',tenders:'Vergaben mit Fundstelle und Frist können erfasst werden. Der automatische Quellenscan ist noch nicht angeschlossen.',acceptance:'Handschriftliche Unterschriften werden mit dem angezeigten Protokollstand gespeichert. Zentrale Originalablage und qualifizierte elektronische Signatur sind nicht angeschlossen.',personnel:'Einsatzzeiträume werden auf Doppelbelegung geprüft. Jeder Benutzer sieht im Kalender nur seine eigenen Einsätze; Administrator und Personal sehen alle. WhatsApp öffnet nur eine vorbereitete Nachricht, einen Zustellnachweis gibt es nicht. Outlook-Kalender, Feiertage und Teilzeitschichten sind noch nicht angebunden. Sensible Lohn-, Steuer- und SV-Stammdaten benötigen geschützte serverseitige Rollen.'};
     if(missing[mod.id]) integration=panel('Funktionsstand',`<p>${esc(missing[mod.id])}</p>`);
     const attachments=list.flatMap(r=>(r.attachments || []).map(a=>`<li>${esc(names(r.id))} · ${esc(a.name)} ${btn('Öffnen','file',`${r.id}/${a.id}`)}</li>`));
-    shell(mod.name,`${integration}${mod.id==='personnel'?calendarPanel():''}${recordForm(mod)}${panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
+    shell(mod.name,`${integration}${mod.id==='personnel'?calendarPanel()+feedPanel():''}${recordForm(mod)}${panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
   }
   function deliveryPanel() {
     const rows=db.deliverySchedule();
@@ -328,17 +329,22 @@
   const responseLabel=a=>a.cancelled?'Storniert':a.response || 'Offen';
   const responseClass=a=>a.cancelled?'is-cancelled':a.response==='Zugesagt'?'is-accepted':a.response==='Abgesagt'?'is-declined':'is-open';
   const range=a=>a.start===a.end?dayLabel(a.start,true):`${dayLabel(a.start)} bis ${dayLabel(a.end,true)}`;
+  // Feiertage nach dem Bundesland aus den Einstellungen (Standard Bremen); Sonntage zählen nicht.
+  const holidayState=()=>db.data.settings?.holidayState || 'HB';
+  const holidaysIn=(from,to)=>core.holidaysBetween(from,to,holidayState()).filter(h=>new Date(h.date+'T00:00:00Z').getUTCDay()!==0);
+  const holidayNote=a=>holidaysIn(a.start,a.end).map(h=>`${dayLabel(h.date)} ${h.name}`).join(', ');
   function whatsappLink(a) {
     let digits=String(db.get(a.employeeId)?.data.mobile || '').replace(/\D/g,'');
     if(!digits)return '';
     if(digits.startsWith('00'))digits=digits.slice(2);else if(digits.startsWith('0'))digits='49'+digits.slice(1);
     const url=new URL(window.location.href);url.search='';url.hash='';url.searchParams.set('start','app');url.searchParams.set('module','personnel');
-    const text=`Hallo ${a.employeeName}, dein Einsatz: ${range(a)}, ${a.projectLabel}${a.task?` (${a.task})`:''}. Bitte in DachwerkPro zusagen oder absagen: ${url}`;
+    const free=holidayNote(a),text=`Hallo ${a.employeeName}, dein Einsatz: ${range(a)}, ${a.projectLabel}${a.task?` (${a.task})`:''}.${free?` Achtung Feiertag: ${free}.`:''} Bitte in DachwerkPro zusagen oder absagen: ${url}`;
     return `<a class="button button-secondary" href="https://wa.me/${digits}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Per WhatsApp senden</a>`;
   }
   function calendarPanel() {
     const today=core.berlinDay(),monday=calendarWeek || defaultMonday(),days=[0,1,2,3,4,5].map(n=>isoAdd(monday,n)),saturday=days[5];
     const active=calendarEntries().filter(a=>!a.cancelled && a.start<=saturday && a.end>=monday);
+    const free=new Map(holidaysIn(monday,saturday).map(h=>[h.date,h.name]));
     const people=new Map();
     if(calendarRole()==='admin' || db.data.calendarScope==='all')db.list('personnel').forEach(e=>people.set(e.id,e.data.name));
     calendarEntries().forEach(a=>{if(!people.has(a.employeeId))people.set(a.employeeId,a.employeeName);});
@@ -349,10 +355,34 @@
         const mark={'Zugesagt':'✓ ','Abgesagt':'✗ '}[a.response] || '';
         return `<button type="button" class="dwp-cal-bar tone-${tone(a.projectId)} ${responseClass(a)}" style="grid-column:${from+2}/${to+3}" data-dwp="calendar-focus" data-id="${esc(a.id)}" title="${esc(`${a.projectLabel} · ${responseLabel(a)}`)}">${esc(mark+a.projectLabel)}</button>`;
       }).join('');
-      return `<div class="dwp-cal-row"><span class="dwp-cal-name">${esc(name)}</span>${days.map((d,i)=>`<span class="dwp-cal-cell${d===today?' is-today':''}" style="grid-column:${i+2}"></span>`).join('')}${bars}</div>`;
+      return `<div class="dwp-cal-row"><span class="dwp-cal-name">${esc(name)}</span>${days.map((d,i)=>`<span class="dwp-cal-cell${d===today?' is-today':''}${free.has(d)?' is-holiday':''}" style="grid-column:${i+2}"></span>`).join('')}${bars}</div>`;
     }).join('');
     const scope=calendarRole()==='admin' || db.data.calendarScope==='all'?'Du siehst die Einsätze aller Mitarbeiter.':'Du siehst deine Einsätze und die deiner Kollegen aus gemeinsamen Projekten.';
-    return `<section class="panel panel-pad dwp-panel" id="dwp-calendar"><h2>Kalender · Wochenansicht</h2><p>${esc(scope)}</p><div class="dwp-cal-nav">${btn('‹','calendar-week','-7')}<strong>KW ${isoWeek(monday)} · ${esc(dayLabel(monday))} bis ${esc(dayLabel(saturday,true))}</strong>${btn('›','calendar-week','7')}${monday!==defaultMonday()?btn('Heute','calendar-week','0'):''}</div><div class="dwp-cal"><div class="dwp-cal-row dwp-cal-head"><span></span>${days.map(d=>`<span class="${d===today?'is-today':''}">${esc(dayLabel(d)).replace(' ','<br>')}</span>`).join('')}</div>${rows || '<p class="dwp-cal-empty">Noch keine Einsätze geplant.</p>'}</div><p class="dwp-cal-legend">✓ zugesagt · ✗ abgesagt · ohne Zeichen: Rückmeldung offen. Tippen auf einen Balken zeigt den Einsatz in der Liste.</p></section>`;
+    return `<section class="panel panel-pad dwp-panel" id="dwp-calendar"><h2>Kalender · Wochenansicht</h2><p>${esc(scope)}</p><div class="dwp-cal-nav">${btn('‹','calendar-week','-7')}<strong>KW ${isoWeek(monday)} · ${esc(dayLabel(monday))} bis ${esc(dayLabel(saturday,true))}</strong>${btn('›','calendar-week','7')}${monday!==defaultMonday()?btn('Heute','calendar-week','0'):''}</div>${free.size?`<p class="dwp-cal-holidays">Feiertag ${esc(core.holidayStates[holidayState()])}: ${[...free].map(([d,n])=>`${esc(dayLabel(d))} ${esc(n)}`).join(', ')}</p>`:''}<div class="dwp-cal"><div class="dwp-cal-row dwp-cal-head"><span></span>${days.map(d=>`<span class="${[d===today?'is-today':'',free.has(d)?'is-holiday':''].filter(Boolean).join(' ')}"${free.has(d)?` title="${esc(free.get(d))}"`:''}>${esc(dayLabel(d)).replace(' ','<br>')}${free.has(d)?`<small>${esc(free.get(d))}</small>`:''}</span>`).join('')}</div>${rows || '<p class="dwp-cal-empty">Noch keine Einsätze geplant.</p>'}</div><p class="dwp-cal-legend">✓ zugesagt · ✗ abgesagt · ohne Zeichen: Rückmeldung offen · grau: Feiertag. Tippen auf einen Balken zeigt den Einsatz in der Liste.</p></section>`;
+  }
+  // Kalender-Abo: persönlicher Link für Outlook, iPhone und Google (nur angemeldet).
+  let feedInfo=null,feedUrl='',feedLoading=false;
+  const feedRemote=()=>window.DWPRemote?.active && typeof window.DWPRemote.calendarFeed==='function';
+  function loadFeed() {
+    if(!feedRemote() || feedInfo || feedLoading)return;
+    feedLoading=true;
+    window.DWPRemote.calendarFeed().then(data=>{feedInfo=data;refreshFeed();}).catch(error=>{feedInfo={error:error.message};refreshFeed();}).finally(()=>{feedLoading=false;});
+  }
+  function refreshFeed(){const el=main.querySelector('#dwp-feed');if(el)el.outerHTML=feedPanel();}
+  function feedPanel() {
+    const head='<section class="panel panel-pad dwp-panel" id="dwp-feed"><h2>Outlook und iPhone · Kalender abonnieren</h2>';
+    if(!feedRemote())return `${head}<p>Nach der Anmeldung in DachwerkPro kannst du hier einen persönlichen Kalender-Link erstellen. Outlook, iPhone und Google zeigen dann deine Einsätze und die Feiertage automatisch an.</p></section>`;
+    loadFeed();
+    if(!feedInfo)return `${head}<p>Wird geladen …</p></section>`;
+    if(feedInfo.error)return `${head}<p>${esc(feedInfo.error)}</p></section>`;
+    const scope=calendarRole()==='admin' || db.data.calendarScope==='all'?'alle Einsätze':'dieselben Einsätze wie hier in DachwerkPro';
+    const intro=`<p>Dein persönlicher Link zeigt ${scope} sowie die Feiertage (${esc(core.holidayStates[holidayState()])}) in Outlook, auf dem iPhone oder in Google Kalender. Outlook holt Änderungen selbst ab, je nach Programm alle paar Stunden. Zusagen und Absagen bleiben in DachwerkPro. Den Link nicht weitergeben: Wer ihn hat, sieht diese Termine.</p>`;
+    if(feedUrl) {
+      const enc=encodeURIComponent(feedUrl),name=encodeURIComponent('DachwerkPro');
+      return `${head}${intro}<p><strong>Dein Link (nur jetzt sichtbar):</strong></p><input class="dwp-feed-url" readonly value="${esc(feedUrl)}" aria-label="Kalender-Link"><div class="dwp-feed-actions">${btn('Link kopieren','feed-copy')}<a class="button button-primary" href="https://outlook.office.com/calendar/0/addfromweb?url=${enc}&name=${name}" target="_blank" rel="noopener">In Outlook (Microsoft 365) hinzufügen</a><a class="button button-secondary" href="https://outlook.live.com/calendar/0/addfromweb?url=${enc}&name=${name}" target="_blank" rel="noopener">In Outlook.com hinzufügen</a><a class="button button-secondary" href="${esc(feedUrl.replace(/^https:/,'webcal:'))}">iPhone / Outlook am PC</a></div><p class="dwp-cal-legend">Outlook am PC (Windows): falls sich nichts öffnet, Kalender → Kalender hinzufügen → Aus dem Internet, Link einfügen.</p></section>`;
+    }
+    if(feedInfo.active)return `${head}${intro}<p>Ein Link ist aktiv seit ${esc(new Date(feedInfo.createdAt).toLocaleDateString('de-DE'))}${feedInfo.lastUsedAt?`, zuletzt abgerufen am ${esc(new Date(feedInfo.lastUsedAt).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}))}`:', noch nicht abgerufen'}. Aus Sicherheitsgründen wird er nur beim Erstellen angezeigt.</p><div class="dwp-feed-actions">${btn('Neuen Link erstellen','feed-create')}${btn('Link sperren','feed-revoke')}</div></section>`;
+    return `${head}${intro}<div class="dwp-feed-actions">${btn('Kalender-Link erstellen','feed-create')}</div></section>`;
   }
   function scheduleListPanel() {
     const today=core.berlinDay();
@@ -363,13 +393,13 @@
       const phone=String(db.get(a.employeeId)?.data.mobile || '').replace(/[^\d+]/g,'');
       if(!a.cancelled && !a.own && phone)actions.push(`<a class="button button-secondary" href="tel:${esc(phone)}">Anrufen</a>`);
       if(!a.cancelled && canPlan()){const wa=whatsappLink(a);if(wa)actions.push(wa);actions.push(btn('Einsatz stornieren','cancel-schedule',`${a.employeeId}/${a.id}`));}
-      return [`<span id="dwp-einsatz-${esc(a.id)}">${esc(a.employeeName)}</span>`,esc(a.projectLabel),esc(range(a)),esc(a.task),`<span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span>`,actions.join(' ') || '–'];
+      return [`<span id="dwp-einsatz-${esc(a.id)}">${esc(a.employeeName)}</span>`,esc(a.projectLabel),esc(range(a))+(!a.cancelled && holidayNote(a)?`<br><small class="dwp-cal-holiday-note">Feiertag: ${esc(holidayNote(a))}</small>`:''),esc(a.task),`<span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span>`,actions.join(' ') || '–'];
     });
     return panel(calendarRole()==='admin' || db.data.calendarScope==='all'?'Einsätze aller Projekte':'Einsätze in meinen Projekten',table(['Mitarbeiter','Projekt','Zeitraum','Aufgabe','Rückmeldung','Aktion'],rows));
   }
   function schedulePanel() {
     const options=records=>`<option value="">Bitte auswählen</option>${records.map(r=>`<option value="${esc(r.id)}" ${r.id===db.data.selectedProject?'selected':''}>${esc(names(r.id))}</option>`).join('')}`;
-    const plan=canPlan()?panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage und Teilzeitschichten sind noch nicht berücksichtigt. Damit ein Mitarbeiter seine Einsätze sieht und zusagen kann, trag in seinem Personalsatz die DWP-Benutzer-ID ein; für den WhatsApp-Versand die Mobilnummer.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`):'';
+    const plan=canPlan()?panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage (Bundesland in den Einstellungen) sind in der Wochenansicht grau markiert; liegt ein Feiertag im Einsatz, steht das in der Liste und in der WhatsApp-Nachricht. Teilzeitschichten sind noch nicht berücksichtigt. Damit ein Mitarbeiter seine Einsätze sieht und zusagen kann, trag in seinem Personalsatz die DWP-Benutzer-ID ein; für den WhatsApp-Versand die Mobilnummer.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`):'';
     return plan+scheduleListPanel();
   }
   // ---- Benutzerverwaltung (nur Administrator, nur im angemeldeten Betrieb) ----
@@ -440,8 +470,9 @@
   function upcomingPanel() {
     const today=core.berlinDay(),until=isoAdd(today,6),all=calendarRole()==='admin' || db.data.calendarScope==='all';
     const next=calendarEntries().filter(a=>!a.cancelled && a.end>=today && a.start<=until).sort((a,b)=>a.start.localeCompare(b.start)).slice(0,8);
-    const items=next.map(a=>`<li class="dwp-upcoming-item"><span class="dwp-upcoming-date">${esc(a.start<=today?'Heute':dayLabel(a.start))}</span><span class="dwp-upcoming-copy"><strong>${esc(a.projectLabel)}</strong><small>${esc([all?a.employeeName:'',a.task,a.end>a.start?`bis ${dayLabel(a.end)}`:''].filter(Boolean).join(' · '))}</small></span><span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span></li>`).join('');
-    return panel(all?'Anstehend · nächste 7 Tage':'Deine Einsätze · nächste 7 Tage',`${items?`<ul class="dwp-upcoming">${items}</ul>`:'<p>Keine Einsätze in den nächsten 7 Tagen.</p>'}${btn('Wochenansicht öffnen','calendar-open')}`);
+    const free=holidaysIn(today,until).map(h=>`<li class="dwp-upcoming-item is-holiday" data-date="${esc(h.date)}"><span class="dwp-upcoming-date">${esc(h.date===today?'Heute':dayLabel(h.date))}</span><span class="dwp-upcoming-copy"><strong>${esc(h.name)}</strong><small>Gesetzlicher Feiertag · ${esc(core.holidayStates[holidayState()])}</small></span><span class="dwp-cal-status is-holiday">Feiertag</span></li>`);
+    const items=[...free,...next.map(a=>`<li class="dwp-upcoming-item" data-date="${esc(a.start<=today?today:a.start)}"><span class="dwp-upcoming-date">${esc(a.start<=today?'Heute':dayLabel(a.start))}</span><span class="dwp-upcoming-copy"><strong>${esc(a.projectLabel)}</strong><small>${esc([all?a.employeeName:'',a.task,a.end>a.start?`bis ${dayLabel(a.end)}`:''].filter(Boolean).join(' · '))}</small></span><span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span></li>`)].sort((x,y)=>x.match(/data-date="([^"]+)"/)[1].localeCompare(y.match(/data-date="([^"]+)"/)[1])).join('');
+    return panel(all?'Anstehend · nächste 7 Tage':'Deine Einsätze · nächste 7 Tage',`${items?`<ul class="dwp-upcoming">${items}</ul>`:'<p>Keine Einsätze und keine Feiertage in den nächsten 7 Tagen.</p>'}${btn('Wochenansicht öffnen','calendar-open')}`);
   }
   function priceImportPanel() {
     priceSource=null;pricePreview=null;priceReadToken++;
@@ -774,11 +805,12 @@
   }
   function settings() {
     const s=db.data.settings;
-    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}${field('Umsatzsteuer',`<select name="smallBusiness"><option value="false" ${s.smallBusiness===true?'':'selected'}>Regelbesteuerung (USt laut Kalkulationsbasis)</option><option value="true" ${s.smallBusiness===true?'selected':''}>Kleinunternehmer – § 19 UStG, keine USt</option></select>`)}${field('Belegnummern fortlaufend ab',`<input name="documentNumberStart" inputmode="numeric" pattern="[0-9]{1,4}" value="${esc(s.documentNumberStart ?? '')}" placeholder="0100">`)}<p class="field-span">Format: DWP-A-JJJJMM-NNNN/Version (A Angebot, AB Auftragsbestätigung, R Rechnung). Jede Belegart zählt fortlaufend weiter; ist bereits eine höhere Nummer vergeben, wird dort weitergezählt. Vor dem ersten neuen Beleg den letzten außerhalb der App vergebenen Zähler + 1 eintragen.</p><p class="field-span">Original-DachWerkPro-Briefpapier mit Logo, roter Kopf- und Fußlinie. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+panel('Sicherung und Wiederherstellung',`<p>Eine Sicherung enthält sämtliche lokalen Projektakten und zugeordneten Testdateien. Eine Wiederherstellung ersetzt den Arbeitsbestand nach ausdrücklicher Bestätigung; das aktuelle Logbuch bleibt erhalten.</p>${btn('Sicherung herunterladen','backup')}<label>Sicherung auswählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>`);
+    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}${field('Umsatzsteuer',`<select name="smallBusiness"><option value="false" ${s.smallBusiness===true?'':'selected'}>Regelbesteuerung (USt laut Kalkulationsbasis)</option><option value="true" ${s.smallBusiness===true?'selected':''}>Kleinunternehmer – § 19 UStG, keine USt</option></select>`)}${field('Bundesland für Feiertage',`<select name="holidayState">${Object.entries(core.holidayStates).map(([k,v])=>`<option value="${k}" ${(s.holidayState || 'HB')===k?'selected':''}>${esc(v)}</option>`).join('')}</select>`)}${field('Belegnummern fortlaufend ab',`<input name="documentNumberStart" inputmode="numeric" pattern="[0-9]{1,4}" value="${esc(s.documentNumberStart ?? '')}" placeholder="0100">`)}<p class="field-span">Format: DWP-A-JJJJMM-NNNN/Version (A Angebot, AB Auftragsbestätigung, R Rechnung). Jede Belegart zählt fortlaufend weiter; ist bereits eine höhere Nummer vergeben, wird dort weitergezählt. Vor dem ersten neuen Beleg den letzten außerhalb der App vergebenen Zähler + 1 eintragen.</p><p class="field-span">Original-DachWerkPro-Briefpapier mit Logo, roter Kopf- und Fußlinie. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+panel('Sicherung und Wiederherstellung',`<p>Eine Sicherung enthält sämtliche lokalen Projektakten und zugeordneten Testdateien. Eine Wiederherstellung ersetzt den Arbeitsbestand nach ausdrücklicher Bestätigung; das aktuelle Logbuch bleibt erhalten.</p>${btn('Sicherung herunterladen','backup')}<label>Sicherung auswählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>`);
   }
   function openModule(id) {
     if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und Bereich wechseln?')) return;
     id=validModule(id)?id:'dashboard';
+    if(id!=='personnel')feedUrl='';
     if(moduleTrail.at(-1)!==id)moduleTrail.push(id);
     if(moduleTrail.length>100)moduleTrail.shift();
     window.history.replaceState(window.history.state,'',moduleUrl(id));
@@ -981,6 +1013,14 @@
       if(action==='user-block' || action==='user-unblock'){const u=usersData.users.find(x=>x.id===id);if(action==='user-block' && !window.confirm(`${u.name} sperren? Er wird sofort abgemeldet.`))return;userAction({action:action.slice(5),userId:id},()=>notice(action==='user-block'?`${u.name} ist gesperrt.`:`${u.name} ist wieder freigegeben.`));return;}
       if(action==='calendar-week'){calendarWeek=id==='0'?null:isoAdd(calendarWeek || defaultMonday(),Number(id));const panelEl=main.querySelector('#dwp-calendar');if(panelEl)panelEl.outerHTML=calendarPanel();return;}
       if(action==='calendar-focus'){const row=main.querySelector(`#dwp-einsatz-${CSS.escape(id)}`)?.closest('tr');if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.classList.add('dwp-row-flash');setTimeout(()=>row.classList.remove('dwp-row-flash'),1600);}return;}
+      if(action==='feed-create' || action==='feed-revoke'){
+        if(action==='feed-create' && feedInfo?.active && !window.confirm('Neuen Link erstellen? Der bisherige Link funktioniert danach nicht mehr; Outlook muss neu abonniert werden.'))return;
+        if(action==='feed-revoke' && !window.confirm('Link sperren? Outlook und iPhone zeigen die Termine danach nicht mehr an.'))return;
+        target.disabled=true;
+        window.DWPRemote.calendarFeed({action:action==='feed-create'?'create':'revoke'}).then(data=>{feedUrl=data.url || '';feedInfo=data;refreshFeed();notice(action==='feed-create'?'Kalender-Link erstellt.':'Kalender-Link gesperrt.');}).catch(showError).finally(()=>{target.disabled=false;});
+        return;
+      }
+      if(action==='feed-copy'){navigator.clipboard?.writeText(feedUrl).then(()=>notice('Kalender-Link kopiert.')).catch(()=>notice('Kopieren nicht möglich. Bitte Link markieren und kopieren.'));return;}
       if(action==='calendar-open'){openModule('personnel');setTimeout(()=>main.querySelector('#dwp-calendar')?.scrollIntoView({block:'start'}),0);return;}
       if(action==='respond-schedule'){const [employeeId,assignmentId,answer]=id.split('/');mutate('respondSchedule',[employeeId,assignmentId,{answer}],()=>{notice(answer==='Zugesagt'?'Zusage gespeichert.':'Absage gespeichert.');openModule(current);});return;}
       if(action==='cancel-schedule'){const [employeeId,assignmentId]=id.split('/');mutate('cancelSchedule',[employeeId,assignmentId],()=>{notice('Einsatz storniert und im Logbuch erhalten.');openModule(current);});}

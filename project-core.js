@@ -438,6 +438,7 @@
       if(values.smallBusiness!==undefined)clean.smallBusiness=[true,'true','ja','on'].includes(values.smallBusiness);
       if(clean.smallBusiness===true)clean.tax=0;
       else if(this.data.settings.smallBusiness===true && clean.tax===0 && values.tax===undefined)clean.tax=19;
+      if(values.holidayState!==undefined && !Object.hasOwn(holidayStates,values.holidayState))throw Error('Bundesland für Feiertage ungültig.');
       if(values.documentNumberStart!==undefined) {
         if(String(values.documentNumberStart).trim()==='')delete clean.documentNumberStart;
         else {
@@ -1205,7 +1206,42 @@
       String(p.text || ''),decimal(p.ep),''
     ])];
   };
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,berlinDay,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
+  // Gesetzliche Feiertage je Bundesland (Standard Bremen). Sonntage wie Oster- und
+  // Pfingstsonntag fehlen, weil Einsätze nur Mo–Sa geplant werden. Mariä Himmelfahrt
+  // nur Saarland (in Bayern gemeindeabhängig), Buß- und Bettag nur Sachsen.
+  const holidayStates={BW:'Baden-Württemberg',BY:'Bayern',BE:'Berlin',BB:'Brandenburg',HB:'Bremen',HH:'Hamburg',HE:'Hessen',MV:'Mecklenburg-Vorpommern',NI:'Niedersachsen',NW:'Nordrhein-Westfalen',RP:'Rheinland-Pfalz',SL:'Saarland',SN:'Sachsen',ST:'Sachsen-Anhalt',SH:'Schleswig-Holstein',TH:'Thüringen'};
+  function easterSunday(year) {
+    const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),n=h+l-7*m+114;
+    return Date.UTC(year,Math.floor(n/31)-1,n%31+1);
+  }
+  function holidays(year, state='HB') {
+    year=Number(year);
+    if(!Number.isInteger(year) || year<1995 || year>2200)return [];
+    if(!Object.hasOwn(holidayStates,state))state='HB';
+    const iso=t=>new Date(t).toISOString().slice(0,10),easter=easterSunday(year),rel=n=>iso(easter+n*864e5),fix=(m,d)=>`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const list=[[fix(1,1),'Neujahr'],[rel(-2),'Karfreitag'],[rel(1),'Ostermontag'],[fix(5,1),'Tag der Arbeit'],[rel(39),'Christi Himmelfahrt'],[rel(50),'Pfingstmontag'],[fix(10,3),'Tag der Deutschen Einheit'],[fix(12,25),'1. Weihnachtstag'],[fix(12,26),'2. Weihnachtstag']];
+    const add=(states,date,name,since=0)=>{if(year>=since && states.includes(state))list.push([date,name]);};
+    add(['BW','BY','ST'],fix(1,6),'Heilige Drei Könige');
+    add(['BE'],fix(3,8),'Internationaler Frauentag',2019);
+    add(['MV'],fix(3,8),'Internationaler Frauentag',2023);
+    add(['BW','BY','HE','NW','RP','SL'],rel(60),'Fronleichnam');
+    add(['SL'],fix(8,15),'Mariä Himmelfahrt');
+    add(['TH'],fix(9,20),'Weltkindertag',2019);
+    add(['BB','MV','SN','ST','TH'],fix(10,31),'Reformationstag');
+    add(['HB','HH','NI','SH'],fix(10,31),'Reformationstag',2018);
+    if(year===2017 && !list.some(h=>h[1]==='Reformationstag'))list.push([fix(10,31),'Reformationstag']);
+    add(['BW','BY','NW','RP','SL'],fix(11,1),'Allerheiligen');
+    if(state==='SN'){const t=Date.UTC(year,10,22);list.push([iso(t-((new Date(t).getUTCDay()+4)%7)*864e5),'Buß- und Bettag']);}
+    return list.map(([date,name])=>({date,name})).sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  // Feiertage im Zeitraum from..to (je JJJJ-MM-TT, einschließlich).
+  function holidaysBetween(from, to, state='HB') {
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '') || from>to)return [];
+    const out=[];
+    for(let y=Number(from.slice(0,4));y<=Number(to.slice(0,4)) && y<=Number(from.slice(0,4))+5;y++)out.push(...holidays(y,state).filter(h=>h.date>=from && h.date<=to));
+    return out;
+  }
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,berlinDay,holidays,holidaysBetween,holidayStates,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

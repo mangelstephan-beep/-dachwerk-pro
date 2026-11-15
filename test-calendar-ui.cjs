@@ -56,4 +56,49 @@ assert(vq('#dwp-calendar').textContent.includes('Du siehst deine Einsätze und d
 assert(vq('[data-dwp="respond-schedule"][data-id="pe1/x1/Zugesagt"]').textContent==='Zusagen');
 assert(!vq('a[href^="https://wa.me/"]'),'kein WhatsApp-Versand für Mitarbeiter');
 assert(!vq('[data-dwp="cancel-schedule"]'));
-console.log('Kalender-Oberflächentests bestanden');
+
+// Feiertage: Wochenansicht, Einsatzliste, Startseite, Einstellung Bundesland.
+{
+  const h=boot(),hq=s=>h.document.querySelector('#main-content').querySelector(s),hdb=()=>h.DWPWorkspace.store;
+  h.DWPProject.berlinDay=()=>'2026-12-21';
+  const hc=hdb().save('customers',{name:'Kunde'}),hp=hdb().save('projects',{name:'Halle Burg',customerId:hc.id,phase:'Erfassung'});
+  const he=hdb().save('personnel',{name:'Peters',number:'P9',employment:'Arbeiter',mobile:'0171 999'});
+  hdb().schedule(he.id,{projectId:hp.id,start:'2026-12-23',end:'2026-12-28',task:'Notabdichtung'});
+  h.DWPWorkspace.open('dashboard');
+  const up=hq('.dwp-upcoming');
+  assert(up.textContent.includes('1. Weihnachtstag') && up.textContent.includes('2. Weihnachtstag'),'Startseite zeigt Feiertage');
+  const dates=[...up.querySelectorAll('li')].map(li=>li.dataset.date);assert.deepEqual(dates,[...dates].sort(),'Startseite nach Datum sortiert');
+  h.DWPWorkspace.open('personnel');
+  assert(hq('.dwp-cal-holidays').textContent.includes('Fr 25.12. 1. Weihnachtstag'),'Hinweis in der Wochenansicht');
+  assert.equal(hq('.dwp-cal-head .is-holiday small').textContent,'1. Weihnachtstag');
+  assert.equal(hq('#dwp-calendar').querySelectorAll('.dwp-cal-cell.is-holiday').length,2,'Fr und Sa grau');
+  assert(hq('.dwp-cal-holiday-note').textContent.includes('1. Weihnachtstag'),'Einsatzliste nennt Feiertag');
+  assert(decodeURIComponent(hq('a[href^="https://wa.me/"]').href).includes('Achtung Feiertag: Fr 25.12. 1. Weihnachtstag'),'WhatsApp nennt Feiertag');
+  assert(hq('#dwp-feed').textContent.includes('Nach der Anmeldung'),'Abo-Hinweis im lokalen Betrieb');
+  // Bundesland umstellen: Nordrhein-Westfalen hat Allerheiligen.
+  h.DWPWorkspace.open('settings');
+  const select=hq('select[name="holidayState"]');assert.equal(select.value,'HB');
+  select.value='NW';hq('#dwp-company').requestSubmit();
+  assert.equal(hdb().data.settings.holidayState,'NW');
+}
+// Angemeldet: Kalender-Link erstellen, anzeigen, kopieren, sperren.
+(async()=>{
+  const f=boot(),fq=s=>f.document.querySelector('#main-content').querySelector(s);const calls=[];
+  let info={active:false};
+  f.DWPRemote={active:true,run:async()=>null,trackModule:async()=>{},calendarFeed:async body=>{calls.push(body?.action || 'status');if(body?.action==='create'){info={active:true,createdAt:'2026-11-15T10:00:00Z',lastUsedAt:null};return {...info,url:'https://www.dachwerkpro.de/kalender/'+'a'.repeat(43)+'.ics'};}if(body?.action==='revoke'){info={active:false};return info;}return info;}};
+  f.eval("state.currentRole='admin'");
+  f.DWPWorkspace.acceptServerState(JSON.parse(JSON.stringify(f.DWPWorkspace.store.data)),{id:'boss',name:'Stephan',role:'admin'});
+  f.DWPWorkspace.open('personnel');
+  await new Promise(r=>setTimeout(r,0));
+  fq('[data-dwp="feed-create"]').click();await new Promise(r=>setTimeout(r,0));
+  const url=fq('.dwp-feed-url').value;assert(url.endsWith('.ics'));
+  assert(fq(`a[href="https://outlook.office.com/calendar/0/addfromweb?url=${encodeURIComponent(url)}&name=DachwerkPro"]`),'Outlook-365-Link');
+  assert(fq('a[href^="webcal://www.dachwerkpro.de/kalender/"]'),'webcal für iPhone');
+  f.DWPWorkspace.open('dashboard');f.DWPWorkspace.open('personnel');
+  assert(!fq('.dwp-feed-url'),'Link nach Verlassen nicht mehr sichtbar');
+  assert(fq('#dwp-feed').textContent.includes('Ein Link ist aktiv seit'));
+  fq('[data-dwp="feed-revoke"]').click();await new Promise(r=>setTimeout(r,0));
+  assert(fq('[data-dwp="feed-create"]'),'nach dem Sperren wieder erstellbar');
+  assert.deepEqual(calls,['status','create','revoke']);
+  console.log('Kalender-Oberflächentests bestanden');
+})().catch(error=>{console.error(error);process.exit(1);});

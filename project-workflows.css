@@ -100,3 +100,10 @@
 .dwp-workspace label.dwp-check{display:flex;align-items:center;gap:10px;font-weight:400;font-size:14px;padding:4px 0;margin:0;min-height:36px}.dwp-workspace label.dwp-check input{width:20px;height:20px;margin:0;flex:none}
 .dwp-hint{font-size:13px;color:#667085}
 .dwp-credentials{border:2px solid #1c8a5a}.dwp-credentials dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:10px 0}.dwp-credentials dt{color:#667085}.dwp-secret{font-family:ui-monospace,Menlo,monospace;font-size:16px;letter-spacing:.02em;word-break:break-all}
+/* Feiertage und Outlook-Abo (Modul 18) */
+.dwp-cal-head span.is-holiday{background:#eceef2;color:#475467}.dwp-cal-head span small{display:block;font-size:10px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dwp-cal-cell.is-holiday{background:repeating-linear-gradient(135deg,#e7e9ee 0 6px,#f1f2f5 6px 12px)}
+.dwp-cal-holidays{margin:0 0 8px;font-size:13px;color:#475467}.dwp-cal-holiday-note{color:#8a5a00}
+.dwp-cal-status.is-holiday{background:#eceef2;color:#475467}.dwp-upcoming-item.is-holiday strong{color:#475467}
+.dwp-feed-url{width:100%;font:inherit;font-size:13px;padding:8px;border:1px solid #d0d5dd;border-radius:8px;background:#f9fafb;word-break:break-all}
+.dwp-feed-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.dwp-feed-actions .button{min-height:40px}
