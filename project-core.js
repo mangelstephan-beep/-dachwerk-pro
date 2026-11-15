@@ -1063,6 +1063,27 @@
       if(!employee?.assignments?.some(a=>a.id===assignmentId && !a.cancelled))throw Error('Aktiver Einsatz nicht gefunden.');
       return this.transaction('Einsatz storniert','personnel',employeeId,d=>{const a=d.records.find(r=>r.id===employeeId).assignments.find(a=>a.id===assignmentId);a.cancelled=true;a.cancelledAt=new Date().toISOString();});
     }
+    // Benutzerrechte (nur Administrator): Projekt-Häkchen, Verknüpfung mit dem Personalsatz und Sonderschalter.
+    setUserAccess(userId, values={}) {
+      userId=String(userId || '').trim();
+      if(!/^[A-Za-z0-9_-]{1,100}$/.test(userId))throw Error('Benutzer fehlt.');
+      const projectIds=new Set(Array.isArray(values.projectIds)?values.projectIds.map(String):[]);
+      for(const id of projectIds)if(this.get(id)?.module!=='projects')throw Error('Projekt nicht gefunden.');
+      const personnelId=values.personnelId?String(values.personnelId):'';
+      if(personnelId && this.get(personnelId)?.module!=='personnel')throw Error('Personalsatz nicht gefunden.');
+      return this.transaction('Benutzerrechte geändert','operating',null,d=>{
+        for(const p of d.records.filter(r=>r.module==='projects')) {
+          const members=String(p.data.memberIds || '').split(',').map(s=>s.trim()).filter(Boolean).filter(id=>id!==userId);
+          if(projectIds.has(p.id))members.push(userId);
+          p.data.memberIds=members.join(',');
+        }
+        for(const e of d.records.filter(r=>r.module==='personnel')) {
+          if(e.id===personnelId)e.data.userId=userId;
+          else if(String(e.data.userId || '').trim()===userId)e.data.userId='';
+        }
+        d.settings.userAccess={...(d.settings.userAccess || {}),[userId]:{allCalendars:values.allCalendars===true,hidePhone:values.hidePhone===true}};
+      });
+    }
     respondSchedule(employeeId, assignmentId, values={}) {
       const employee=this.get(employeeId),answer=values.answer,note=String(values.note || '').trim().slice(0,300);
       if(!['Zugesagt','Abgesagt'].includes(answer))throw Error('Bitte zusagen oder absagen.');

@@ -47,12 +47,12 @@ const v=boot(),vq=s=>v.document.querySelector('#main-content').querySelector(s);
 v.DWPRemote={active:true,run:async()=>null,trackModule:async()=>{}};v.eval("state.currentRole='viewer'");
 const state={schema:1,revision:3,selectedProject:null,settings:{wage:55,agk:0,profit:10,tax:19,company:'DWP',address:''},
   records:[{id:'pe1',module:'personnel',projectId:null,status:'Entwurf',data:{name:'Meier',number:'P2',employment:'Arbeiter',wage:0},assignments:[]},{id:'pe2',module:'personnel',projectId:null,status:'Entwurf',data:{name:'Schulz',number:'P3',employment:'Arbeiter',wage:0},assignments:[]}],
-  audit:[],calendarScope:'own',calendarEntries:[{id:'x1',projectId:'hidden',start:workday,end:workday,task:'Aufmaß',employeeId:'pe1',employeeName:'Meier',own:true,projectLabel:'Geheimes Dach'}]};
+  audit:[],calendarScope:'team',calendarEntries:[{id:'x1',projectId:'hidden',start:workday,end:workday,task:'Aufmaß',employeeId:'pe1',employeeName:'Meier',own:true,projectLabel:'Geheimes Dach'}]};
 v.DWPWorkspace.acceptServerState(state,{id:'u2',name:'Meier',role:'viewer'});
 v.DWPWorkspace.open('personnel');
 assert(!vq('#dwp-schedule'),'kein Planungsformular ohne Berechtigung');
 assert.equal(vq('#dwp-calendar').querySelectorAll('.dwp-cal-row:not(.dwp-cal-head)').length,1,'nur die eigene Zeile');
-assert(vq('#dwp-calendar').textContent.includes('Du siehst nur deine eigenen Einsätze'));
+assert(vq('#dwp-calendar').textContent.includes('Du siehst deine Einsätze und die deiner Kollegen'));
 assert(vq('[data-dwp="respond-schedule"][data-id="pe1/x1/Zugesagt"]').textContent==='Zusagen');
 assert(!vq('a[href^="https://wa.me/"]'),'kein WhatsApp-Versand für Mitarbeiter');
 assert(!vq('[data-dwp="cancel-schedule"]'));

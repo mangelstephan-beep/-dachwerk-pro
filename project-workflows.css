@@ -91,3 +91,12 @@
 .dwp-row-flash td{background:#fff6df!important;transition:background .3s}
 .dwp-upcoming{list-style:none;margin:0 0 12px;padding:0}.dwp-upcoming-item{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid #e5e7eb}.dwp-upcoming-date{width:62px;flex:none;font-size:13px;font-weight:600}.dwp-upcoming-copy{flex:1;min-width:0}.dwp-upcoming-copy strong{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dwp-workspace .data-table td a.button{margin:3px;font-size:12px;padding:7px 9px;display:inline-flex}
+
+/* Benutzerverwaltung */
+.dwp-user-list{list-style:none;margin:0;padding:0}.dwp-user-card{padding:12px 0;border-top:1px solid #e5e7eb}.dwp-user-card:first-child{border-top:0}
+.dwp-user-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.dwp-user-head strong{font-size:15px}
+.dwp-user-card small{margin-top:4px;line-height:1.5}.dwp-user-card .dwp-actions .button{min-height:40px}.dwp-user-card.is-blocked strong{color:#667085}
+.dwp-user-rights{border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px;margin:6px 0 12px}.dwp-user-rights legend{font-weight:600;font-size:13px;padding:0 4px}
+.dwp-workspace label.dwp-check{display:flex;align-items:center;gap:10px;font-weight:400;font-size:14px;padding:4px 0;margin:0;min-height:36px}.dwp-workspace label.dwp-check input{width:20px;height:20px;margin:0;flex:none}
+.dwp-hint{font-size:13px;color:#667085}
+.dwp-credentials{border:2px solid #1c8a5a}.dwp-credentials dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:10px 0}.dwp-credentials dt{color:#667085}.dwp-secret{font-family:ui-monospace,Menlo,monospace;font-size:16px;letter-spacing:.02em;word-break:break-all}

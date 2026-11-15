@@ -21,7 +21,7 @@ function createHandler(deps={sessionFromRequest,repository}) {
       return res.status(200).json(await execute(db,actor,body));
     }catch(error) {
       const status=error.status || (error instanceof SyntaxError?400:503);
-      return res.status(status).json({error:status>=500?'Zentrale Speicherung ist noch nicht verfügbar.':error.message});
+      return res.status(status).json({error:status>=500?'Zentrale Speicherung ist noch nicht verfügbar.':error.message,code:error.code});
     }
   };
 }

@@ -183,10 +183,10 @@
           </div>
 
           <form id="login-form" novalidate>
-            <label for="username">E-Mail</label>
+            <label for="username">Benutzername</label>
             <div class="input-wrap">
               <span aria-hidden="true">@</span>
-              <input id="username" name="username" type="email" autocomplete="username" placeholder="E-Mail-Adresse" />
+              <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Benutzername, z. B. meier" />
             </div>
 
             <label for="password">Passwort</label>
@@ -202,6 +202,18 @@
             <button class="button button-secondary button-block" id="demo-login" type="button" style="display:none" aria-hidden="true" tabindex="-1">Demo starten</button>
           </form>
 
+          <form id="password-change-form" class="is-hidden" novalidate>
+            <p class="login-change-intro"><strong>Eigenes Passwort festlegen.</strong> Du hast dich mit einem Startpasswort angemeldet. Lege jetzt dein eigenes Passwort fest, danach gilt das Startpasswort nicht mehr.</p>
+            <label for="change-current">Startpasswort</label>
+            <div class="input-wrap"><span aria-hidden="true">••</span><input id="change-current" type="password" autocomplete="current-password" placeholder="Startpasswort" /></div>
+            <label for="change-new">Neues Passwort (mindestens 12 Zeichen)</label>
+            <div class="input-wrap"><span aria-hidden="true">••</span><input id="change-new" type="password" autocomplete="new-password" minlength="12" placeholder="Neues Passwort" /></div>
+            <label for="change-repeat">Neues Passwort wiederholen</label>
+            <div class="input-wrap"><span aria-hidden="true">••</span><input id="change-repeat" type="password" autocomplete="new-password" minlength="12" placeholder="Wiederholen" /></div>
+            <p class="form-error" id="change-error" role="alert"></p>
+            <button class="button button-primary button-block" type="submit">Passwort speichern und starten</button>
+          </form>
+
           <div class="login-note"><span class="status-dot"></span>DachWerk Pro · geschützter Arbeitsbereich</div>
           <button class="test-access-link" type="button" data-open-request>Noch keinen Zugang? Testzugang anfragen</button>
           <p class="brand-claim">Das Tool vom Dachhandwerker für Dachhandwerker.</p>
@@ -213,7 +225,7 @@
       <section class="request-dialog" role="dialog" aria-modal="true" aria-labelledby="password-reset-title">
         <div class="request-head"><div><span class="eyebrow">Kontowiederherstellung</span><h2 id="password-reset-title">Passwort zurücksetzen</h2></div><button class="icon-button" id="password-reset-close" type="button" aria-label="Schließen">×</button></div>
         <form id="password-reset-request-form" class="request-form">
-          <div class="field-span"><label for="password-reset-email">Hinterlegte E-Mail-Adresse</label><input id="password-reset-email" type="email" autocomplete="email" required /></div>
+          <div class="field-span"><label for="password-reset-email">Benutzername</label><input id="password-reset-email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="z. B. meier" required /><small>Der Link kommt an die E-Mail-Adresse, die der Administrator bei dir hinterlegt hat.</small></div>
           <p id="password-reset-status" class="request-status field-span" role="status" aria-live="polite"></p>
           <div class="request-actions field-span"><button class="button button-secondary" id="password-reset-cancel" type="button">Abbrechen</button><button class="button button-primary" type="submit">Reset-Link anfordern</button></div>
         </form>

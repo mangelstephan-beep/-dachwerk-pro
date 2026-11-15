@@ -2892,3 +2892,7 @@ body.promo-modal-open { overflow: hidden; }
   .promo-scene { animation: none; }
   .promo-scene:first-child { opacity: 1; }
 }
+
+/* Erster Login: eigenes Passwort festlegen */
+.login-change-intro{margin:0 0 14px;padding:12px 14px;border-radius:10px;background:#fff6df;color:#5c4100;font-size:14px;line-height:1.5}
+#password-change-form label{display:block;margin-top:12px}
