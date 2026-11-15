@@ -34,7 +34,7 @@ const html=L.render({title:'R',test:false,company:{company:'DachWerk Pro',propri
 const d=new JSDOM(html).window.document;
 assert.equal(d.querySelector('.dwp-doc-title').textContent,'Schlussrechnung');
 assert.match(d.querySelector('.dwp-meta').textContent,/Rechnung-Nr\.: DWP-R-202611-0104\/1/);assert(!d.querySelector('.dwp-meta').textContent.includes('leer'));
-assert.equal(d.querySelectorAll('.dwp-address div').length,3);assert.match(d.querySelector('.dwp-sender-line').textContent,/Dachdeckermeister Stephan Mangel · Upsalastraße 48 · 28719 Bremen/);
+assert.equal(d.querySelectorAll('.dwp-address > div:not(.dwp-sender-line)').length,3);assert.match(d.querySelector('.dwp-sender-line').textContent,/Dachdeckermeister Stephan Mangel · Upsalastraße 48 · 28719 Bremen/);
 assert(d.querySelector('.dwp-barcode') && d.querySelector('.dwp-qrcode'),'Barcode und QR vorhanden');
 assert.equal(d.querySelector('.dwp-barcode-text').textContent,'DWP-R-202611-0104/1');
 assert.match(d.querySelector('.dwp-letterhead-title').textContent,/Kleingewerbe nach § 19/);
