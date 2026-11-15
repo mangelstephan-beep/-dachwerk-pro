@@ -21,13 +21,15 @@
     e.preventDefault();requestStatus.textContent='Anfrage wird verarbeitet …';
     const submit=requestForm.querySelector('[type=submit]');submit.disabled=true;
     try{
-      const email=document.getElementById('password-reset-email').value.trim();
+      const entered=document.getElementById('password-reset-email').value.trim().toLowerCase();
+      // Kurzname „meier“ steht für meier@dachwerkpro.de.
+      const email=entered.includes('@')?entered:entered+'@dachwerkpro.de';
       const res=await fetch('/api/auth/request-password-reset',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({email,redirectTo:location.origin+'/reset-password'})
       });
       if(!res.ok)throw Error('Versand derzeit nicht verfügbar. Bitte Administrator kontaktieren.');
-      requestStatus.textContent='Falls für diese Adresse ein Konto existiert, erhältst du einen Link zum Zurücksetzen.';
+      requestStatus.textContent='Falls es diesen Benutzer gibt, kommt ein Link zum Zurücksetzen an die hinterlegte E-Mail-Adresse.';
     }catch(err){requestStatus.textContent=err.message}
     finally{submit.disabled=false}
   });

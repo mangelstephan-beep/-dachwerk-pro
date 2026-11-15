@@ -17,7 +17,7 @@
   try {db=new core.Store(localStorage);} catch(error) {
     main.innerHTML=panel('Bestand kann nicht geöffnet werden',`<p>${esc(error.message)}</p><p>Der vorhandene Speicher wird nicht überschrieben.</p>`);return;
   }
-  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings','register'].includes(id);
+  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings','register','users'].includes(id);
   const moduleUrl=id=>{const url=new URL(window.location.href);url.searchParams.set('start','app');url.searchParams.set('module',validModule(id)?id:'dashboard');url.hash='';return url;};
   window.DWPWorkspace={get store(){return db;},open:openModule,start(){
     const requested=new URLSearchParams(window.location.search).get('module');
@@ -351,7 +351,7 @@
       }).join('');
       return `<div class="dwp-cal-row"><span class="dwp-cal-name">${esc(name)}</span>${days.map((d,i)=>`<span class="dwp-cal-cell${d===today?' is-today':''}" style="grid-column:${i+2}"></span>`).join('')}${bars}</div>`;
     }).join('');
-    const scope=calendarRole()==='admin' || db.data.calendarScope==='all'?'Du siehst die Einsätze aller Mitarbeiter.':'Du siehst nur deine eigenen Einsätze.';
+    const scope=calendarRole()==='admin' || db.data.calendarScope==='all'?'Du siehst die Einsätze aller Mitarbeiter.':'Du siehst deine Einsätze und die deiner Kollegen aus gemeinsamen Projekten.';
     return `<section class="panel panel-pad dwp-panel" id="dwp-calendar"><h2>Kalender · Wochenansicht</h2><p>${esc(scope)}</p><div class="dwp-cal-nav">${btn('‹','calendar-week','-7')}<strong>KW ${isoWeek(monday)} · ${esc(dayLabel(monday))} bis ${esc(dayLabel(saturday,true))}</strong>${btn('›','calendar-week','7')}${monday!==defaultMonday()?btn('Heute','calendar-week','0'):''}</div><div class="dwp-cal"><div class="dwp-cal-row dwp-cal-head"><span></span>${days.map(d=>`<span class="${d===today?'is-today':''}">${esc(dayLabel(d)).replace(' ','<br>')}</span>`).join('')}</div>${rows || '<p class="dwp-cal-empty">Noch keine Einsätze geplant.</p>'}</div><p class="dwp-cal-legend">✓ zugesagt · ✗ abgesagt · ohne Zeichen: Rückmeldung offen. Tippen auf einen Balken zeigt den Einsatz in der Liste.</p></section>`;
   }
   function scheduleListPanel() {
@@ -360,16 +360,83 @@
     const rows=list.map(a=>{
       const actions=[];
       if(!a.cancelled && (a.own || calendarRole()==='admin')){if(a.response!=='Zugesagt')actions.push(btn(a.own?'Zusagen':'Zusage eintragen','respond-schedule',`${a.employeeId}/${a.id}/Zugesagt`));if(a.response!=='Abgesagt')actions.push(btn(a.own?'Absagen':'Absage eintragen','respond-schedule',`${a.employeeId}/${a.id}/Abgesagt`));}
+      const phone=String(db.get(a.employeeId)?.data.mobile || '').replace(/[^\d+]/g,'');
+      if(!a.cancelled && !a.own && phone)actions.push(`<a class="button button-secondary" href="tel:${esc(phone)}">Anrufen</a>`);
       if(!a.cancelled && canPlan()){const wa=whatsappLink(a);if(wa)actions.push(wa);actions.push(btn('Einsatz stornieren','cancel-schedule',`${a.employeeId}/${a.id}`));}
       return [`<span id="dwp-einsatz-${esc(a.id)}">${esc(a.employeeName)}</span>`,esc(a.projectLabel),esc(range(a)),esc(a.task),`<span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span>`,actions.join(' ') || '–'];
     });
-    return panel(calendarRole()==='admin' || db.data.calendarScope==='all'?'Einsätze aller Projekte':'Meine Einsätze',table(['Mitarbeiter','Projekt','Zeitraum','Aufgabe','Rückmeldung','Aktion'],rows));
+    return panel(calendarRole()==='admin' || db.data.calendarScope==='all'?'Einsätze aller Projekte':'Einsätze in meinen Projekten',table(['Mitarbeiter','Projekt','Zeitraum','Aufgabe','Rückmeldung','Aktion'],rows));
   }
   function schedulePanel() {
     const options=records=>`<option value="">Bitte auswählen</option>${records.map(r=>`<option value="${esc(r.id)}" ${r.id===db.data.selectedProject?'selected':''}>${esc(names(r.id))}</option>`).join('')}`;
     const plan=canPlan()?panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage und Teilzeitschichten sind noch nicht berücksichtigt. Damit ein Mitarbeiter seine Einsätze sieht und zusagen kann, trag in seinem Personalsatz die DWP-Benutzer-ID ein; für den WhatsApp-Versand die Mobilnummer.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`):'';
     return plan+scheduleListPanel();
   }
+  // ---- Benutzerverwaltung (nur Administrator, nur im angemeldeten Betrieb) ----
+  let usersData=null,editingUser=null,passwordUser=null,lastCredentials=null;
+  const roleLabel=r=>usersData?.roles?.[r] || r;
+  function suggestPassword() {
+    const words=['Ziegel','Rinne','Sparren','Traufe','Kehle','Lattung','Pfette','Schiefer','Gaube','Firstziegel','Kappe','Bitumen','Blech','Dachhaken'];
+    const n=new Uint32Array(4);(window.crypto || {getRandomValues:a=>a.map(()=>Math.floor(Math.random()*1e9))}).getRandomValues(n);
+    return `${words[n[0]%words.length]}-${words[n[1]%words.length]}-${String(1000+n[2]%9000)}${'!?#+'[n[3]%4]}`;
+  }
+  function loadUsers() {
+    if(!window.DWPRemote?.active || typeof window.DWPRemote.users!=='function')return;
+    window.DWPRemote.users().then(data=>{usersData=data;if(current==='users')renderUsers();}).catch(showError);
+  }
+  function userAction(body,after) {
+    return window.DWPRemote.userAction(body).then(data=>{usersData={domain:data.domain,roles:data.roles,users:data.users};after?.(data);renderUsers();}).catch(showError);
+  }
+  function credentialsPanel() {
+    if(!lastCredentials)return '';
+    const c=lastCredentials,text=`DachWerk Pro Zugang\nAdresse: ${location.origin}/?start=app\nBenutzername: ${c.username}\nStartpasswort: ${c.password}\nBeim ersten Anmelden ein eigenes Passwort festlegen.`;
+    return `<section class="panel panel-pad dwp-panel dwp-credentials"><h2>Zugangsdaten für ${esc(c.name)}</h2><p>Nur jetzt sichtbar. DachWerk Pro speichert Passwörter nicht lesbar. Beim ersten Anmelden muss ${esc(c.name)} ein eigenes Passwort festlegen.</p><dl><dt>Benutzername</dt><dd><strong>${esc(c.username)}</strong></dd><dt>Startpasswort</dt><dd><strong class="dwp-secret">${esc(c.password)}</strong></dd></dl><div class="dwp-actions"><button type="button" class="button button-secondary" data-dwp="user-copy" data-id="" data-text="${esc(text)}">Kopieren</button><a class="button button-secondary" href="https://wa.me/?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Per WhatsApp senden</a>${btn('Ausblenden','user-credentials-close')}</div></section>`;
+  }
+  function userEditPanel(u) {
+    const access=db.data.settings.userAccess?.[u.id] || {};
+    const projects=core.sortRecords('projects',db.list('projects'));
+    const memberOf=p=>String(p.data.memberIds || '').split(',').map(s=>s.trim()).includes(u.id);
+    const linked=db.list('personnel').find(e=>String(e.data.userId || '').trim()===u.id);
+    const roles=Object.entries(usersData.roles).map(([k,v])=>`<option value="${esc(k)}" ${k===u.role?'selected':''}>${esc(v)}</option>`).join('');
+    const rights=u.role==='admin'?'<p>Administratoren sehen und bearbeiten alles. Projekt-Häkchen sind hier nicht nötig.</p>':`<fieldset class="dwp-user-rights"><legend>Projekte, die ${esc(u.name)} sehen darf</legend>${projects.length?projects.map(p=>`<label class="dwp-check"><input type="checkbox" name="projectIds" value="${esc(p.id)}" ${memberOf(p)?'checked':''}> ${esc(names(p.id))}</label>`).join(''):'<p>Noch keine Projekte angelegt.</p>'}<p class="dwp-hint">Wer zusammen in einem Projekt ist, sieht dort die Termine der anderen und deren Telefonnummer.</p></fieldset><fieldset class="dwp-user-rights"><legend>Sonderrechte</legend><label class="dwp-check"><input type="checkbox" name="allCalendars" ${access.allCalendars?'checked':''}> darf alle Kalender sehen (z. B. Vorarbeiter)</label><label class="dwp-check"><input type="checkbox" name="hidePhone" ${access.hidePhone?'checked':''}> eigene Telefonnummer vor anderen ausblenden</label></fieldset>`;
+    return `<section class="panel panel-pad dwp-panel" id="dwp-user-edit"><h2>${esc(u.name)} bearbeiten</h2><form id="dwpu-edit" class="quick-form" data-user="${esc(u.id)}">${field('Name',`<input name="name" required value="${esc(u.name)}">`)}${field('Benutzername',`<input name="username" required autocapitalize="none" autocomplete="off" value="${esc(u.username || '')}" placeholder="z. B. meier">`)}${field('E-Mail für „Passwort vergessen“',`<input name="contactEmail" type="email" value="${esc(u.contactEmail || '')}" placeholder="private oder Firmenadresse">`)}${field('Rolle',`<select name="role" ${u.self?'disabled':''}>${roles}</select>`)}${field('Mitarbeiter im Personal (Modul 18)',`<select name="personnelId"><option value="">Kein Personalsatz</option>${db.list('personnel').map(e=>`<option value="${esc(e.id)}" ${linked?.id===e.id?'selected':''}>${esc(e.data.name)}</option>`).join('')}</select>`)}<div class="field-span">${rights}</div><div class="dwp-actions field-span"><button class="button button-primary" type="submit">Speichern</button>${btn('Abbrechen','user-edit-close')}</div></form></section>`;
+  }
+  function passwordPanel(u) {
+    return `<section class="panel panel-pad dwp-panel" id="dwp-user-password"><h2>Neues Passwort für ${esc(u.name)}</h2><p>${u.self?'Dein neues Passwort gilt sofort. Alle anderen Sitzungen werden abgemeldet.':`${esc(u.name)} wird abgemeldet und muss beim nächsten Anmelden ein eigenes Passwort festlegen.`}</p><form id="dwpu-password" class="quick-form" data-user="${esc(u.id)}">${field('Neues Passwort (mind. 12 Zeichen)',`<input name="password" required minlength="12" autocomplete="new-password" value="${u.self?'':esc(suggestPassword())}">`)}<div class="dwp-actions field-span"><button class="button button-primary" type="submit">Passwort setzen</button>${btn('Abbrechen','user-password-close')}</div></form></section>`;
+  }
+  function renderUsers() {
+    if(!window.DWPRemote?.active)return shell('Benutzerverwaltung',panel('Benutzerverwaltung','<p>Benutzer anlegen, sperren und Rechte vergeben geht nur im angemeldeten Betrieb auf www.dachwerkpro.de.</p>'));
+    if(calendarRole()!=='admin')return shell('Benutzerverwaltung',panel('Benutzerverwaltung','<p>Nur der Administrator verwaltet Benutzer.</p>'));
+    if(!usersData){shell('Benutzerverwaltung',panel('Benutzer','<p>Benutzer werden geladen …</p>'));loadUsers();return;}
+    const status=u=>u.blocked?'<span class="dwp-cal-status is-declined">Gesperrt</span>':u.mustChangePassword?'<span class="dwp-cal-status is-open">Wartet auf eigenes Passwort</span>':'<span class="dwp-cal-status is-accepted">Aktiv</span>';
+    const when=v=>v?new Date(v).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'noch nie';
+    const cards=usersData.users.map(u=>`<li class="dwp-user-card${u.blocked?' is-blocked':''}"><div class="dwp-user-head"><strong>${esc(u.name)}${u.self?' (du)':''}</strong>${status(u)}</div><small>Anmeldung: <b>${esc(u.username || u.login)}</b> · ${esc(roleLabel(u.role))} · zuletzt angemeldet: ${esc(when(u.lastLogin))}</small><div class="dwp-actions">${btn('Rechte und Daten','user-edit',u.id,true)}${u.self?'':u.blocked?btn('Entsperren','user-unblock',u.id):btn('Sperren','user-block',u.id)}${btn(u.self?'Mein Passwort ändern':'Neues Passwort','user-password',u.id)}</div></li>`).join('');
+    const roles=Object.entries(usersData.roles).map(([k,v])=>`<option value="${esc(k)}" ${k==='viewer'?'selected':''}>${esc(v)}</option>`).join('');
+    const editing=usersData.users.find(u=>u.id===editingUser),pw=usersData.users.find(u=>u.id===passwordUser);
+    shell('Benutzerverwaltung',`${credentialsPanel()}${editing?userEditPanel(editing):''}${pw?passwordPanel(pw):''}${panel('Benutzer',`<p>Anmelden mit dem Benutzernamen, z. B. <b>meier</b>. Gesperrte Benutzer werden sofort abgemeldet.</p><ul class="dwp-user-list">${cards}</ul>`)}${panel('Neuen Benutzer anlegen',`<form id="dwpu-create" class="quick-form">${field('Name',`<input name="name" required placeholder="z. B. Peter Meier">`)}${field('Benutzername',`<input name="username" required autocapitalize="none" autocomplete="off" placeholder="z. B. meier">`)}${field('E-Mail für „Passwort vergessen“',`<input name="contactEmail" type="email" placeholder="optional">`)}${field('Rolle',`<select name="role">${roles}</select>`)}${field('Startpasswort (mind. 12 Zeichen)',`<input name="password" required minlength="12" autocomplete="off" value="${esc(suggestPassword())}">`)}<div class="dwp-actions field-span"><button class="button button-primary" type="submit">Benutzer anlegen</button></div></form><p class="dwp-hint">Rollen: Bauleitung plant Einsätze, „bearbeiten“ darf in seinen Projekten erfassen, „nur lesen“ sieht nur. Projekte und Sonderrechte vergibst du danach mit „Rechte und Daten“.</p>`)}`);
+  }
+  main.addEventListener('submit',event=>{
+    const form=event.target;if(!form.id?.startsWith('dwpu-'))return;
+    event.preventDefault();event.stopImmediatePropagation();
+    const values=Object.fromEntries(new FormData(form));
+    const button=form.querySelector('[type="submit"]');if(button)button.disabled=true;
+    const done=()=>{if(button)button.disabled=false;};
+    if(form.id==='dwpu-create') {
+      userAction({action:'create',name:values.name,username:values.username,contactEmail:values.contactEmail,role:values.role,password:values.password},data=>{lastCredentials={name:values.name,username:data.username,password:values.password};editingUser=data.id;notice('Benutzer angelegt. Jetzt Projekte und Rechte festlegen.');}).finally(done);
+    }
+    if(form.id==='dwpu-password') {
+      const u=usersData.users.find(x=>x.id===form.dataset.user);
+      userAction({action:'set-password',userId:u.id,password:values.password},()=>{passwordUser=null;if(!u.self)lastCredentials={name:u.name,username:u.username || u.login,password:values.password};notice(u.self?'Passwort geändert.':'Neues Startpasswort gesetzt.');}).finally(done);
+    }
+    if(form.id==='dwpu-edit') {
+      const u=usersData.users.find(x=>x.id===form.dataset.user);
+      const rights={projectIds:new FormData(form).getAll('projectIds'),personnelId:values.personnelId || '',allCalendars:values.allCalendars==='on',hidePhone:values.hidePhone==='on'};
+      window.DWPRemote.userAction({action:'update',userId:u.id,name:values.name,username:values.username,contactEmail:values.contactEmail,...(u.self?{}:{role:values.role})})
+        .then(data=>{usersData={domain:data.domain,roles:data.roles,users:data.users};return mutate('setUserAccess',[u.id,rights]);})
+        .then(()=>{editingUser=null;notice('Benutzer und Rechte gespeichert.');renderUsers();})
+        .catch(showError).finally(done);
+    }
+  },true);
   function upcomingPanel() {
     const today=core.berlinDay(),until=isoAdd(today,6),all=calendarRole()==='admin' || db.data.calendarScope==='all';
     const next=calendarEntries().filter(a=>!a.cancelled && a.end>=today && a.start<=until).sort((a,b)=>a.start.localeCompare(b.start)).slice(0,8);
@@ -728,7 +795,7 @@
   }
   function renderModule(id) {
     current=id;editing=null;search='';importPreview=null;excelSource=null;
-    const section=id==='register'?'documents':core.definitions[id]?.view || (['help','settings'].includes(id)?id:'dashboard');
+    const section=id==='register'?'documents':core.definitions[id]?.view || (['help','settings','users'].includes(id)?id:'dashboard');
     state.currentView=section;localStorage.setItem('dwp-current-view',section);
     document.querySelectorAll('.nav-item[data-view]').forEach(item=>item.classList.toggle('is-active',item.dataset.view===section));
     if(window.DWPRemote?.active && core.definitions[id])window.DWPRemote.trackModule(id,db.data.selectedProject).catch(e=>showError(Error('Nutzungsprotokoll konnte nicht gespeichert werden: '+e.message)));
@@ -742,6 +809,7 @@
     }
     if(id==='workflow')return shell('Gemeinsamer Projektworkflow',workflowPanel());
     if(id==='access')return shell('Zugriff und Modulnutzung',accessPanel());
+    if(id==='users')return renderUsers();
     if(id==='audit')return shell('Projektlogbuch',panel('Lokales Änderungsjournal',`<p>Im normalen Arbeitsbereich werden keine Einträge gelöscht. Der lokale Testbestand ist technisch veränderbar und daher noch kein revisionssicherer Audit-Trail.</p>${table(['Zeit','Aktion','Bereich','Vorgang'],db.data.audit.filter(r=>!db.project() || r.projectId===db.data.selectedProject || !r.projectId).slice().reverse().map(r=>[esc(new Date(r.at).toLocaleString('de-DE')),esc(r.action),esc(core.definitions[r.module]?.name || r.module),esc(r.recordId || '')]))}`));
     if(id==='help')return shell('DachWerk Hilfe',panel('Durchgängiger Ablauf',`<ol><li>Kunde und Projekt anlegen.</li><li>LV erfassen oder CSV importieren, Material und Zeitansätze ergänzen.</li><li>Fachlich prüfen, Verantwortlichen nennen und LV freigeben.</li><li>Angebotsfassung erzeugen; Auftrag mit Angebotsbezug freigeben.</li><li>Aufmaß, Bautagebuch, Mängel, Zeiten und Kosten im gleichen Projekt erfassen.</li><li>Aufmaß freigeben, Rechnung erzeugen und Zahlungen zuordnen.</li><li>Nachkalkulation und Export prüfen.</li></ol><p>Der freie KI-Assistent ist noch nicht angeschlossen. Die Hilfe erläutert den tatsächlichen Funktionsstand.</p>`));
     if(id==='settings')return shell('Einstellungen',settings());
@@ -904,6 +972,13 @@
       if(action==='print')printRecord(db.get(id));
       if(action==='demand-purchase'){mutate('createPurchase',[id,{owner:state.currentUser}],()=>{notice('Bestellentwurf aus dem offenen Bedarf angelegt.');openModule('purchase');});}
       if(action==='use-quote'){const [supplierId,quoteId]=id.split('/');mutate('useQuote',[supplierId,quoteId,state.currentUser],()=>{notice('Preisquelle freigegeben und Artikelhistorie aktualisiert.');openModule(current);});}
+      if(action==='user-edit'){editingUser=id;passwordUser=null;renderUsers();main.querySelector('#dwp-user-edit')?.scrollIntoView({block:'start'});return;}
+      if(action==='user-edit-close'){editingUser=null;renderUsers();return;}
+      if(action==='user-password'){passwordUser=id;editingUser=null;renderUsers();main.querySelector('#dwp-user-password')?.scrollIntoView({block:'start'});return;}
+      if(action==='user-password-close'){passwordUser=null;renderUsers();return;}
+      if(action==='user-credentials-close'){lastCredentials=null;renderUsers();return;}
+      if(action==='user-copy'){navigator.clipboard?.writeText(target.dataset.text).then(()=>notice('Zugangsdaten kopiert.')).catch(()=>notice('Kopieren nicht möglich. Bitte markieren und kopieren.'));return;}
+      if(action==='user-block' || action==='user-unblock'){const u=usersData.users.find(x=>x.id===id);if(action==='user-block' && !window.confirm(`${u.name} sperren? Er wird sofort abgemeldet.`))return;userAction({action:action.slice(5),userId:id},()=>notice(action==='user-block'?`${u.name} ist gesperrt.`:`${u.name} ist wieder freigegeben.`));return;}
       if(action==='calendar-week'){calendarWeek=id==='0'?null:isoAdd(calendarWeek || defaultMonday(),Number(id));const panelEl=main.querySelector('#dwp-calendar');if(panelEl)panelEl.outerHTML=calendarPanel();return;}
       if(action==='calendar-focus'){const row=main.querySelector(`#dwp-einsatz-${CSS.escape(id)}`)?.closest('tr');if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.classList.add('dwp-row-flash');setTimeout(()=>row.classList.remove('dwp-row-flash'),1600);}return;}
       if(action==='calendar-open'){openModule('personnel');setTimeout(()=>main.querySelector('#dwp-calendar')?.scrollIntoView({block:'start'}),0);return;}
@@ -1079,6 +1154,7 @@
   };
   for(const [view,module] of Object.entries(viewsToModule))views[view]=()=>{setTimeout(()=>openModule(module),0);return '';};
   views.dashboard=()=>{setTimeout(()=>openModule('dashboard'),0);return '';};
+  views.users=()=>{setTimeout(()=>openModule('users'),0);return '';};
   document.querySelector('#f3-button')?.addEventListener('click',event=>{event.stopImmediatePropagation();closeQuickModal();openModule(state.currentView==='customers'?'customers':'projects');},true);
   document.addEventListener('keydown',event=>{if(event.key==='F3' && !document.querySelector('#app-shell').classList.contains('is-hidden')){event.preventDefault();event.stopImmediatePropagation();openModule(state.currentView==='customers'?'customers':'projects');}},true);
   const globalSearch=document.querySelector('#global-search');

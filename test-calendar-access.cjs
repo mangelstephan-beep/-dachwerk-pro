@@ -24,7 +24,7 @@ const load=state=>new Store({getItem:()=>JSON.stringify(state),setItem(){}});
 
   // Nutzer 2: nur der eigene Einsatz, Projektname trotz fehlender Projektmitgliedschaft lesbar.
   const v2=visibleState(state,user2);
-  assert.equal(v2.calendarScope,'own');
+  assert.equal(v2.calendarScope,'team');
   assert.deepEqual(v2.calendarEntries.map(e=>e.employeeName),['Meier']);
   assert.equal(v2.calendarEntries[0].projectLabel,'Geheimes Dach · Lesum');
   assert(!JSON.stringify(v2).includes('Umdeckung'),'Nutzer 2 sieht keine Einsätze von Nutzer 3');
@@ -58,6 +58,28 @@ const load=state=>new Store({getItem:()=>JSON.stringify(state),setItem(){}});
   const stored=(await repo.read('company')).state.records.find(r=>r.id===p2.recordId).assignments[0];
   assert.equal(stored.response,'Zugesagt');assert.equal(stored.responseNote,'Komme um 7 Uhr');
   await assert.rejects(run(user2,'schedule',[p2.recordId,{projectId:geheim.recordId,start:'2026-11-20',end:'2026-11-20'}]),/Berechtigung/);
+
+  // Projekt-Häkchen: Nutzer 4 ist im Teamdach und sieht dort die Einsätze und die Nummer von Schulz, aber nichts von Meier.
+  const user4={id:'u4',name:'Vorarbeiter',role:'viewer',tenantId:'company'};
+  await assert.rejects(run(user3,'setUserAccess',['u4',{projectIds:[team.recordId]}]),/Administrator/);
+  await run(admin,'setUserAccess',['u4',{projectIds:[team.recordId]}]);
+  let v4=visibleState((await repo.read('company')).state,user4);
+  assert.deepEqual(v4.calendarEntries.map(e=>e.employeeName),['Schulz']);
+  assert.equal(v4.records.find(r=>r.id===p3.recordId).data.mobile,'0172 7654321','Kollege im selben Projekt: Nummer sichtbar');
+  assert.equal(v4.records.find(r=>r.id===p2.recordId).data.mobile,undefined,'fremdes Projekt: keine Nummer');
+  assert.equal(v4.settings.userAccess,undefined,'Rechteliste bleibt beim Administrator');
+  // Nummer ausblenden und „alle Kalender sehen“.
+  await run(admin,'setUserAccess',['u3',{projectIds:[team.recordId],personnelId:p3.recordId,hidePhone:true}]);
+  await run(admin,'setUserAccess',['u4',{projectIds:[team.recordId],allCalendars:true}]);
+  v4=visibleState((await repo.read('company')).state,user4);
+  assert.equal(v4.calendarScope,'all');assert.equal(v4.calendarEntries.length,2);
+  assert.equal(v4.records.find(r=>r.id===p3.recordId).data.mobile,undefined,'ausgeblendete Nummer');
+  assert.equal(visibleState((await repo.read('company')).state,user3).records.find(r=>r.id===p3.recordId).data.mobile,'0172 7654321','eigene Nummer bleibt sichtbar');
+  // Verknüpfung Personalsatz ↔ Benutzer per Auswahl, ohne ID-Eingabe.
+  await run(admin,'setUserAccess',['u2',{personnelId:p3.recordId}]);
+  const linked=(await repo.read('company')).state.records;
+  assert.equal(linked.find(r=>r.id===p3.recordId).data.userId,'u2');assert.equal(linked.find(r=>r.id===p2.recordId).data.userId,'','ein Benutzer gehört zu genau einem Personalsatz');
+  assert.equal(linked.find(r=>r.module==='projects' && r.id===team.recordId).data.memberIds.split(',').sort().join(','),'u3,u4');
 
   // Lokaler Testbetrieb kennt dieselbe Rückmeldung.
   const local=new Store({_v:null,getItem(){return this._v;},setItem(_k,v){this._v=v;}});

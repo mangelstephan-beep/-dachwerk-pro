@@ -6,7 +6,7 @@
   let active=false,busy=false,revision=0;
   async function responseJson(response) {
     const body=await response.json();
-    if(!response.ok)throw Error(body.error?.message || body.error || body.message || 'Anfrage konnte nicht abgeschlossen werden.');
+    if(!response.ok)throw Object.assign(Error(body.error?.message || body.error || body.message || 'Anfrage konnte nicht abgeschlossen werden.'),{status:response.status,code:body.code});
     return body;
   }
   function accept(payload) {
@@ -21,6 +21,17 @@
   async function load() {
     accept(await responseJson(await fetch('/api/projects',{credentials:'same-origin',cache:'no-store'})));
   }
+  // Anmeldung mit Kurznamen: „meier“ steht für meier@dachwerkpro.de.
+  const loginEmail=value=>{const v=String(value || '').trim().toLowerCase();return v.includes('@')?v:v+'@dachwerkpro.de';};
+  const passwordForm=document.querySelector('#password-change-form'),loginForm=document.querySelector('#login-form');
+  function askPasswordChange(startPassword='') {
+    showLogin();loginForm.classList.add('is-hidden');passwordForm.classList.remove('is-hidden');
+    document.querySelector('#change-current').value=startPassword;
+    setTimeout(()=>document.querySelector(startPassword?'#change-new':'#change-current')?.focus(),60);
+  }
+  async function users(body) {
+    return responseJson(await fetch('/api/users',body?{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{credentials:'same-origin',cache:'no-store'}));
+  }
   async function access(body) {return responseJson(await fetch('/api/access',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));}
   window.DWPRemote={
     trackModule(module,projectId){return access({action:'module',module,projectId});},
@@ -28,6 +39,8 @@
     pair(token){return access({action:'pair',token});},
     export(options){return access({action:'export',...options});},
     file(options){return access({action:'file',...options});},
+    users(){return users();},
+    userAction(body){return users(body);},
     get active(){return active;},
     async uploadFile(recordId,file) {
       if(!active)throw Error('Bitte zuerst anmelden.');
@@ -62,7 +75,7 @@
       return {blob,name:first.name};
     },
     async login(email,password) {
-      await responseJson(await fetch('/api/auth/sign-in/email',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}));
+      await responseJson(await fetch('/api/auth/sign-in/email',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:loginEmail(email),password})}));
       await load();
     },
     async logout() {
@@ -89,7 +102,22 @@
   document.querySelector('#login-form').addEventListener('submit',async event=>{
     event.preventDefault();event.stopImmediatePropagation();
     const error=document.querySelector('#login-error');error.textContent='Anmeldung wird geprüft …';
-    try{await window.DWPRemote.login(document.querySelector('#username').value.trim(),document.querySelector('#password').value);document.querySelector('#password').value='';error.textContent='';startApp();}catch(e){error.textContent=e.message;}
+    const password=document.querySelector('#password').value;
+    try{await window.DWPRemote.login(document.querySelector('#username').value.trim(),password);document.querySelector('#password').value='';error.textContent='';startApp();}
+    catch(e){if(e.status===428){document.querySelector('#password').value='';error.textContent='';askPasswordChange(password);}else error.textContent=e.message;}
+  },true);
+  passwordForm?.addEventListener('submit',async event=>{
+    event.preventDefault();event.stopImmediatePropagation();
+    const error=document.querySelector('#change-error'),current=document.querySelector('#change-current').value,next=document.querySelector('#change-new').value;
+    if(next.length<12){error.textContent='Das neue Passwort braucht mindestens 12 Zeichen.';return;}
+    if(next!==document.querySelector('#change-repeat').value){error.textContent='Die beiden neuen Passwörter stimmen nicht überein.';return;}
+    if(next===current){error.textContent='Das neue Passwort muss sich vom Startpasswort unterscheiden.';return;}
+    error.textContent='Passwort wird gespeichert …';
+    try{
+      await users({action:'change-own-password',currentPassword:current,newPassword:next});
+      passwordForm.reset();passwordForm.classList.add('is-hidden');loginForm.classList.remove('is-hidden');error.textContent='';
+      await load();startApp();
+    }catch(e){error.textContent=e.message;}
   },true);
   document.querySelector('#logout-button').addEventListener('click',async event=>{
     event.preventDefault();event.stopImmediatePropagation();
@@ -97,5 +125,5 @@
     try{await window.DWPRemote.logout();}catch(e){showToast('Abmeldung fehlgeschlagen',e.message);}
   },true);
   // Cookie sessions can resume only after the server confirms access to the tenant.
-  load().then(()=>startApp()).catch(()=>{});
+  load().then(()=>startApp()).catch(e=>{if(e.status===428)askPasswordChange();});
 })();
