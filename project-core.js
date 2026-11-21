@@ -103,6 +103,30 @@
   const DOC_NUMBER_START=100;
   const SMALL_BUSINESS_NOTE='Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.';
   const REVERSE_CHARGE_NOTE='Steuerschuldnerschaft des Leistungsempfängers (§ 13b Abs. 2 Nr. 4, Abs. 5 UStG). Die Umsatzsteuer ist vom Leistungsempfänger anzumelden und abzuführen.';
+  // Datierte Sicherungsdatei: DWP_Sicherung_JJJJ-MM-TT_HH-MM.json mit Kopfangaben,
+  // damit beim Einspielen aus Dropbox, Drive oder eigener Cloud sofort erkennbar ist,
+  // von wann und von wem die Sicherung stammt. Uhrzeit immer deutsche Ortszeit.
+  const backupFormat={
+    FORMAT:'DachWerkPro-Sicherung',
+    stamp(date=new Date()){
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(date)).map(p=>[p.type,p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}_${parts.hour}-${parts.minute}`;
+    },
+    fileName(date=new Date()){return `DWP_Sicherung_${backupFormat.stamp(date)}.json`;},
+    label(date){return new Date(date).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+' Uhr';},
+    summary(state){const records=Array.isArray(state?.records)?state.records:[];return {projects:records.filter(r=>r.module==='projects').length,customers:records.filter(r=>r.module==='customers').length,records:records.length};},
+    wrap(state,{createdAt=new Date().toISOString(),createdBy='',kind='manuell'}={}){
+      return {format:backupFormat.FORMAT,version:1,createdAt:new Date(createdAt).toISOString(),createdBy:String(createdBy || ''),kind,revision:state.revision,summary:backupFormat.summary(state),state};
+    },
+    unwrap(parsed){
+      if(parsed && parsed.format===backupFormat.FORMAT){
+        if(parsed.version!==1 || !parsed.state)throw Error('Sicherungsdatei: Format wird nicht unterstützt.');
+        return {state:parsed.state,meta:{createdAt:parsed.createdAt || null,createdBy:parsed.createdBy || '',kind:parsed.kind || '',summary:backupFormat.summary(parsed.state)}};
+      }
+      if(parsed && parsed.schema===1 && Array.isArray(parsed.records))return {state:parsed,meta:{createdAt:null,createdBy:'',kind:'ältere Sicherung',summary:backupFormat.summary(parsed)}};
+      throw Error('Diese Datei ist keine DachWerkPro-Sicherung.');
+    }
+  };
   const berlinDay=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(new Date());
   function validatePricing(module,data) {
     if(module==='projects' && (data.plannedOverhead || data.actualOverhead) && !data.overheadBasis?.trim())throw Error('Zusätzliche Gemeinkosten benötigen Abgrenzung und Nachweis.');
@@ -1206,10 +1230,13 @@
       });
     }
     restore(text) {
-      const data=JSON.parse(text);this.validate(data);
+      // Akzeptiert das datierte Sicherungsformat (ab 21.11.2026) und ältere reine Bestandsdateien.
+      const data=backupFormat.unwrap(typeof text==='string'?JSON.parse(text):text).state;this.validate(data);
       return this.transaction('Sicherung wiederhergestellt','projects',null,d=>{
         d.records=data.records;d.selectedProject=data.selectedProject;d.settings=data.settings;
-        d.audit.push(...data.audit);
+        // Logbuch bleibt erhalten; Einträge, die schon vorhanden sind, werden nicht doppelt angehängt.
+        const known=new Set(d.audit.map(e=>e.id).filter(Boolean));
+        d.audit.push(...data.audit.filter(e=>!e.id || !known.has(e.id)));
       });
     }
   }
@@ -1258,7 +1285,7 @@
     for(let y=Number(from.slice(0,4));y<=Number(to.slice(0,4)) && y<=Number(from.slice(0,4))+5;y++)out.push(...holidays(y,state).filter(h=>h.date>=from && h.date<=to));
     return out;
   }
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,berlinDay,holidays,holidaysBetween,holidayStates,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,berlinDay,backupFormat,holidays,holidaysBetween,holidayStates,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

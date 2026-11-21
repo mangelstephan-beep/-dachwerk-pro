@@ -46,6 +46,12 @@
       "destination": "/api/calendar?file=:file"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "15 5 * * *"
+    }
+  ],
   "buildCommand": "npm run build",
   "outputDirectory": "public"
 }

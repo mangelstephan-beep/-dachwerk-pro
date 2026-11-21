@@ -17,7 +17,7 @@
   try {db=new core.Store(localStorage);} catch(error) {
     main.innerHTML=panel('Bestand kann nicht geöffnet werden',`<p>${esc(error.message)}</p><p>Der vorhandene Speicher wird nicht überschrieben.</p>`);return;
   }
-  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings','register','users'].includes(id);
+  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings','register','users','backup'].includes(id);
   const moduleUrl=id=>{const url=new URL(window.location.href);url.searchParams.set('start','app');url.searchParams.set('module',validModule(id)?id:'dashboard');url.hash='';return url;};
   window.DWPWorkspace={get store(){return db;},open:openModule,start(){
     const requested=new URLSearchParams(window.location.search).get('module');
@@ -148,7 +148,7 @@
     const mod=core.definitions[current], isGlobal=mod?.scope==='global' && !['customers','projects'].includes(current);
     const subtitle=moduleSubtitles[current] || (isGlobal?'Betriebsweite Stammdaten für alle Projekte.':'Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.');
     const context=isGlobal?`<p class="dwp-global-note"><strong>Betriebsweite Stammdaten</strong> · Kein Projekt erforderlich. Einträge stehen in allen Projekten zur Verfügung.</p>`:projectBar();
-    return `<nav class="dwp-module-navigation" aria-label="Modulnavigation">${btn('← Zurück','module-back')}${btn('Alle Module','open','dashboard')}<a class="button button-secondary" data-dwp="direct-link" href="${esc(moduleUrl(current).href)}">Direktlink</a></nav><header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>${esc(subtitle)}</p></div><div class="header-actions">${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${context}`;
+    return `<nav class="dwp-module-navigation" aria-label="Modulnavigation">${btn('← Zurück','module-back')}${btn('Alle Module','open','dashboard')}<a class="button button-secondary" data-dwp="direct-link" href="${esc(moduleUrl(current).href)}">Direktlink</a></nav><header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>${esc(subtitle)}</p></div><div class="header-actions">${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','open','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${context}`;
   }
   function shell(name,body) {
     subpage=!renderingModule;
@@ -174,14 +174,15 @@
     if(!window.DWPRemote?.active)return panel('Zugriffsschutz','<p>Anmelde- und Modulprotokoll sowie Gerätefreigaben sind ausschließlich in der zentralen Betriebsfassung verfügbar. Im lokalen Modultest werden keine produktiven Anmeldungen protokolliert.</p>');
     window.DWPRemote.accessReport().then(report=>{
       const node=main.querySelector('#dwp-access-report');if(!node)return;
-      node.innerHTML=panel('Modulnutzung der letzten 30 Tage',table(['Benutzer','Modul','Aufrufe','Zuletzt'],report.usage.map(r=>[esc(r.actor_name || r.actor),esc(core.definitions[r.module_id]?.name || r.module_id),esc(r.opens),esc(new Date(r.last_used).toLocaleString('de-DE'))])))+panel('Anmeldungen und Zugriffsvorgänge',table(['Wann','Wer','Vorgang','Ergebnis','Browser'],report.events.map(r=>[esc(new Date(r.created_at).toLocaleString('de-DE')),esc(r.actor_name || r.actor),esc(({login:'Anmeldung',password_reset:'Passwort per Mail-Link zurückgesetzt',module_open:'Modul geöffnet',export_denied:'Export gesperrt'})[r.event_type] || r.event_type),esc(r.outcome),esc(r.user_agent)])))+panel('Freigegebene Exportgeräte',table(['Gerät','Freigabe'],report.devices.map(d=>[esc(d.slot),esc(new Date(d.paired_at).toLocaleString('de-DE'))])));
+      node.innerHTML=panel('Modulnutzung der letzten 30 Tage',table(['Benutzer','Modul','Aufrufe','Zuletzt'],report.usage.map(r=>[esc(r.actor_name || r.actor),esc(core.definitions[r.module_id]?.name || r.module_id),esc(r.opens),esc(new Date(r.last_used).toLocaleString('de-DE'))])))+panel('Anmeldungen und Zugriffsvorgänge',table(['Wann','Wer','Vorgang','Ergebnis','Browser'],report.events.map(r=>[esc(new Date(r.created_at).toLocaleString('de-DE')),esc(r.actor_name || r.actor),esc(({login:'Anmeldung',password_reset:'Passwort per Mail-Link zurückgesetzt',module_open:'Modul geöffnet',export_denied:'Export gesperrt',export:'Export',backup_created:'Sicherung angelegt',backup_download:'Sicherung heruntergeladen',backup_restored:'Sicherung eingespielt',user_create:'Benutzer angelegt',user_update:'Benutzer geändert',user_block:'Benutzer gesperrt',user_unblock:'Benutzer entsperrt',user_set_password:'Neues Passwort gesetzt',password_changed:'Eigenes Passwort geändert'})[r.event_type] || r.event_type),esc(r.outcome),esc(r.user_agent)])))+panel('Freigegebene Exportgeräte',table(['Gerät','Freigabe'],report.devices.map(d=>[esc(d.slot),esc(new Date(d.paired_at).toLocaleString('de-DE'))])));
     }).catch(showError);
     return panel('Eigentümer-Zugriff',`<p>Nur Stephan kann dieses Protokoll lesen. Modulaufrufe werden gezählt, nicht die aktive Arbeitszeit. Direkte API-Schreibvorgänge stehen zusätzlich im Projektlogbuch.</p><div id="dwp-access-report">Protokoll wird geladen …</div><form id="dwp-pair" class="quick-form">${field('Einmaliger Gerätefreigabecode', '<input name="token" type="password" autocomplete="off" required>')}<button class="button button-primary" type="submit">Dieses Gerät freigeben</button></form><p>Die kurz gültigen Codes werden außerhalb der App für iPhone oder HP-Laptop ausgestellt. Auf anderen Geräten bleiben Exporte gesperrt.</p>`);
   }
   function dashboard() {
     const p=db.project(), stats=p?db.controlling():null;
-    shell('Alle Arbeitsmodule',`${panel('Modul 37 · Schriftverkehr-Sammelpool',btn('Dokumentenregister öffnen','open','register',true))}${upcomingPanel()}${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
+    shell('Alle Arbeitsmodule',`<div id="dwp-expiry-alerts"></div>${panel('Modul 37 · Schriftverkehr-Sammelpool',btn('Dokumentenregister öffnen','open','register',true))}${upcomingPanel()}${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
     filterModules();
+    setTimeout(dashboardAlerts,0);
   }
   function searchRecords(query) {
     if(state.unsavedChanges && !confirm('Ungespeicherte Eingaben verwerfen und Suche öffnen?'))return;
@@ -402,9 +403,55 @@
     const plan=canPlan()?panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage (Bundesland in den Einstellungen) sind in der Wochenansicht grau markiert; liegt ein Feiertag im Einsatz, steht das in der Liste und in der WhatsApp-Nachricht. Teilzeitschichten sind noch nicht berücksichtigt. Damit ein Mitarbeiter seine Einsätze sieht und zusagen kann, trag in seinem Personalsatz die DWP-Benutzer-ID ein; für den WhatsApp-Versand die Mobilnummer.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`):'';
     return plan+scheduleListPanel();
   }
+  // ---- Modul Sicherung: Verlauf nach Datum/Uhrzeit, Ablage in Dropbox/Drive/Cloud, Wiederherstellung ----
+  let backupList=null,readyFile=null,restoreCandidate=null;
+  const sizeLabel=n=>n>=1048576?`${(n/1048576).toLocaleString('de-DE',{maximumFractionDigits:1})} MB`:`${Math.max(1,Math.round((n || 0)/1024))} KB`;
+  function loadBackups() {
+    window.DWPRemote.backups().then(data=>{backupList=data.backups;if(current==='backup')renderBackup();}).catch(showError);
+  }
+  function offerFile(file){readyFile=file;if(current==='backup')renderBackup();else openModule('backup');main.querySelector('#dwp-backup-ready')?.scrollIntoView({block:'nearest'});}
+  function readyPanel() {
+    if(!readyFile)return '';
+    const share=typeof navigator.share==='function' && typeof File==='function' && navigator.canShare?.({files:[new File(['x'],'x.json',{type:'application/json'})]});
+    return `<section class="panel panel-pad dwp-panel dwp-credentials" id="dwp-backup-ready"><h2>Sicherungsdatei bereit</h2><p><strong>${esc(readyFile.name)}</strong> · ${esc(sizeLabel(new Blob([readyFile.text]).size))}</p><p>Datum und Uhrzeit stehen im Dateinamen. Jetzt in Dropbox, Google Drive, iCloud oder deiner eigenen Cloud ablegen:</p><ul><li>iPhone/iPad: „Teilen“ → Dropbox, oder „In Dateien sichern“ → Ordner in Dropbox/Drive wählen.</li><li>Laptop: „Herunterladen“ und die Datei in den Dropbox-/Drive-Ordner verschieben.</li></ul><div class="dwp-actions">${share?btn('Teilen (Dropbox, Drive …)','backup-share','',true):''}${btn('Herunterladen','backup-save','',!share)}${btn('Ausblenden','backup-ready-close')}</div></section>`;
+  }
+  function restorePanel() {
+    const c=restoreCandidate,m=c?.meta;
+    const preview=c?`<div class="dwp-restore-preview" id="dwp-restore-preview"><p><strong>${esc(c.name)}</strong></p><p>Sicherung vom <strong>${m.createdAt?esc(core.backupFormat.label(m.createdAt)):'unbekannten Datum (ältere Sicherung ohne Zeitangabe)'}</strong>${m.createdBy?' · erstellt von '+esc(m.createdBy):''}<br>${esc(m.summary.projects)} Projekte · ${esc(m.summary.customers)} Kunden · ${esc(m.summary.records)} Vorgänge</p><div class="dwp-actions">${btn('Diese Sicherung einspielen','backup-file-restore','',true)}${btn('Abbrechen','backup-file-cancel')}</div></div>`:'';
+    return panel('Aus Datei wiederherstellen (Dropbox, Drive, eigene Cloud)',`<p>Sicherungsdatei auswählen – auf dem iPhone über „Durchsuchen“ direkt aus Dropbox, Google Drive oder iCloud. Vor dem Einspielen siehst du, von wann die Sicherung ist.</p><label>Sicherungsdatei wählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>${preview}`);
+  }
+  function renderBackup() {
+    const title='Sicherung und Wiederherstellung',remote=window.DWPRemote?.active;
+    if(remote && calendarRole()!=='admin')return shell(title,panel('Sicherung','<p>Nur der Administrator sichert und stellt wieder her.</p>'));
+    const steps=remote
+      ?`<ol><li><strong>Sichern:</strong> „Jetzt sichern“ legt eine Sicherung mit Datum und Uhrzeit im Verlauf unten ab. Zusätzlich sichert DachWerkPro jeden Morgen automatisch.</li><li><strong>Extern ablegen:</strong> „Herunterladen“ erzeugt die Datei <b>DWP_Sicherung_JJJJ-MM-TT_HH-MM.json</b> – diese in Dropbox, Google Drive oder eigener Cloud speichern.</li><li><strong>Wiederherstellen:</strong> im Verlauf „Wiederherstellen“ wählen oder unten die Datei aus der Cloud auswählen. Der aktuelle Stand wird vorher automatisch gesichert.</li></ol>`
+      :`<ol><li><strong>Sichern:</strong> „Sicherung herunterladen“ erzeugt <b>DWP_Sicherung_JJJJ-MM-TT_HH-MM.json</b> – in Dropbox, Drive oder eigener Cloud ablegen.</li><li><strong>Wiederherstellen:</strong> unten die Datei auswählen, Datum prüfen, einspielen.</li></ol><p class="dwp-hint">Lokaler Testbetrieb: Der Verlauf und die automatische Tagessicherung gibt es nur auf www.dachwerkpro.de.</p>`;
+    const intro=panel('So funktioniert die Sicherung',steps);
+    if(!remote)return shell(title,readyPanel()+intro+panel('Neue Sicherung',`<div class="dwp-actions">${btn('Sicherung herunterladen','backup','',true)}</div>`)+restorePanel());
+    const rows=(backupList || []).map(b=>[`<strong>${esc(core.backupFormat.label(b.createdAt))}</strong>`,esc(b.kind)+(b.sourceCreatedAt?`<br><small>Datei vom ${esc(core.backupFormat.label(b.sourceCreatedAt))}</small>`:''),esc(b.createdBy || '—'),esc(b.projects),esc(b.records),esc(sizeLabel(b.bytes)),`<div class="dwp-actions">${btn('Herunterladen','backup-download',b.id)}${btn('Wiederherstellen','backup-restore',b.id)}</div>`]);
+    shell(title,readyPanel()+intro+panel('Neue Sicherung',`<div class="dwp-actions">${btn('Jetzt sichern','backup-create','',true)}${btn('Aktuellen Stand herunterladen','backup')}</div><p class="dwp-hint">Herunterladen geht nur auf dem freigegebenen iPhone oder HP-Laptop (Gerätefreigabe unter „Zugriff und Nutzung“). Sichern und Wiederherstellen aus dem Verlauf geht überall.</p>`)
+      +panel('Sicherungsverlauf nach Datum und Uhrzeit',backupList?`${table(['Datum / Uhrzeit','Art','Erstellt von','Projekte','Vorgänge','Größe','Aktion'],rows)}<p class="dwp-hint">Automatische Tagessicherungen bleiben 35 Tage, insgesamt werden die letzten 80 Sicherungen aufbewahrt.</p>`:'<p>Verlauf wird geladen …</p>')+restorePanel());
+    if(!backupList)loadBackups();
+  }
   // ---- Benutzerverwaltung (nur Administrator, nur im angemeldeten Betrieb) ----
   let usersData=null,editingUser=null,passwordUser=null,lastCredentials=null;
   const roleLabel=r=>usersData?.roles?.[r] || r;
+  const deDate=v=>v?String(v).split('-').reverse().join('.'):'';
+  const validityText=u=>!u.validUntil?'unbefristet':u.daysLeft<0?`abgelaufen am ${deDate(u.validUntil)}`:u.daysLeft===0?`läuft heute ab (${deDate(u.validUntil)})`:`bis ${deDate(u.validUntil)} (noch ${u.daysLeft} ${u.daysLeft===1?'Tag':'Tage'})`;
+  function expiryPanel(alerts) {
+    if(!alerts?.length)return '';
+    return `<section class="panel panel-pad dwp-panel dwp-expiry-alerts" id="dwp-expiry-alerts-panel"><h2>Zugänge laufen ab</h2><ul class="dwp-user-list">${alerts.map(a=>`<li class="dwp-user-card${a.daysLeft<0?' is-blocked':''}"><div class="dwp-user-head"><strong>${esc(a.text)}</strong></div><div class="dwp-actions">${btn('Verlängern oder beenden','user-extend',a.userId,true)}</div></li>`).join('')}</ul><p class="dwp-hint">Zusätzlich bekommst du eine E-Mail 7, 3 und 1 Tag vorher, am Ablauftag und nach Ablauf. Nach Ablauf ist keine Anmeldung mehr möglich.</p></section>`;
+  }
+  let expiryToastShown=false;
+  // Startseite: Administrator sieht ablaufende Zugänge sofort (einmal pro Sitzung zusätzlich als Meldung).
+  function dashboardAlerts() {
+    if(!window.DWPRemote?.active || calendarRole()!=='admin' || typeof window.DWPRemote.users!=='function')return;
+    window.DWPRemote.users().then(data=>{
+      usersData=data;const node=main.querySelector('#dwp-expiry-alerts');
+      if(node && current==='dashboard')node.innerHTML=expiryPanel(data.alerts);
+      if(data.alerts?.length && !expiryToastShown){expiryToastShown=true;notice(data.alerts.map(a=>a.text).join(' · '));}
+    }).catch(()=>{});
+  }
   function suggestPassword() {
     const words=['Ziegel','Rinne','Sparren','Traufe','Kehle','Lattung','Pfette','Schiefer','Gaube','Firstziegel','Kappe','Bitumen','Blech','Dachhaken'];
     const n=new Uint32Array(4);(window.crypto || {getRandomValues:a=>a.map(()=>Math.floor(Math.random()*1e9))}).getRandomValues(n);
@@ -429,7 +476,7 @@
     const linked=db.list('personnel').find(e=>String(e.data.userId || '').trim()===u.id);
     const roles=Object.entries(usersData.roles).map(([k,v])=>`<option value="${esc(k)}" ${k===u.role?'selected':''}>${esc(v)}</option>`).join('');
     const rights=u.role==='admin'?'<p>Administratoren sehen und bearbeiten alles. Projekt-Häkchen sind hier nicht nötig.</p>':`<fieldset class="dwp-user-rights"><legend>Projekte, die ${esc(u.name)} sehen darf</legend>${projects.length?projects.map(p=>`<label class="dwp-check"><input type="checkbox" name="projectIds" value="${esc(p.id)}" ${memberOf(p)?'checked':''}> ${esc(names(p.id))}</label>`).join(''):'<p>Noch keine Projekte angelegt.</p>'}<p class="dwp-hint">Wer zusammen in einem Projekt ist, sieht dort die Termine der anderen und deren Telefonnummer.</p></fieldset><fieldset class="dwp-user-rights"><legend>Sonderrechte</legend><label class="dwp-check"><input type="checkbox" name="allCalendars" ${access.allCalendars?'checked':''}> darf alle Kalender sehen (z. B. Vorarbeiter)</label><label class="dwp-check"><input type="checkbox" name="hidePhone" ${access.hidePhone?'checked':''}> eigene Telefonnummer vor anderen ausblenden</label></fieldset>`;
-    return `<section class="panel panel-pad dwp-panel" id="dwp-user-edit"><h2>${esc(u.name)} bearbeiten</h2><form id="dwpu-edit" class="quick-form" data-user="${esc(u.id)}">${field('Name',`<input name="name" required value="${esc(u.name)}">`)}${field('Benutzername',`<input name="username" required autocapitalize="none" autocomplete="off" value="${esc(u.username || '')}" placeholder="z. B. meier">`)}${field('E-Mail für „Passwort vergessen“',`<input name="contactEmail" type="email" value="${esc(u.contactEmail || '')}" placeholder="private oder Firmenadresse">`)}${field('Rolle',`<select name="role" ${u.self?'disabled':''}>${roles}</select>`)}${field('Mitarbeiter im Personal (Modul 18)',`<select name="personnelId"><option value="">Kein Personalsatz</option>${db.list('personnel').map(e=>`<option value="${esc(e.id)}" ${linked?.id===e.id?'selected':''}>${esc(e.data.name)}</option>`).join('')}</select>`)}<div class="field-span">${rights}</div><div class="dwp-actions field-span"><button class="button button-primary" type="submit">Speichern</button>${btn('Abbrechen','user-edit-close')}</div></form></section>`;
+    return `<section class="panel panel-pad dwp-panel" id="dwp-user-edit"><h2>${esc(u.name)} bearbeiten</h2><form id="dwpu-edit" class="quick-form" data-user="${esc(u.id)}">${field('Name',`<input name="name" required value="${esc(u.name)}">`)}${field('Benutzername',`<input name="username" required autocapitalize="none" autocomplete="off" value="${esc(u.username || '')}" placeholder="z. B. meier">`)}${field('E-Mail für „Passwort vergessen“',`<input name="contactEmail" type="email" value="${esc(u.contactEmail || '')}" placeholder="private oder Firmenadresse">`)}${field('Rolle',`<select name="role" ${u.self?'disabled':''}>${roles}</select>`)}${u.self?field('Zugang gültig bis','<input value="unbefristet (eigener Administratorzugang)" disabled>'):field('Zugang gültig bis (leer = unbefristet)',`<input name="validUntil" type="date" value="${esc(u.validUntil || '')}">`)}${field('Mitarbeiter im Personal (Modul 18)',`<select name="personnelId"><option value="">Kein Personalsatz</option>${db.list('personnel').map(e=>`<option value="${esc(e.id)}" ${linked?.id===e.id?'selected':''}>${esc(e.data.name)}</option>`).join('')}</select>`)}<div class="field-span">${rights}</div><div class="dwp-actions field-span"><button class="button button-primary" type="submit">Speichern</button>${btn('Abbrechen','user-edit-close')}</div></form></section>`;
   }
   function passwordPanel(u) {
     return `<section class="panel panel-pad dwp-panel" id="dwp-user-password"><h2>Neues Passwort für ${esc(u.name)}</h2><p>${u.self?'Dein neues Passwort gilt sofort. Alle anderen Sitzungen werden abgemeldet.':`${esc(u.name)} wird abgemeldet und muss beim nächsten Anmelden ein eigenes Passwort festlegen.`}</p><form id="dwpu-password" class="quick-form" data-user="${esc(u.id)}">${field('Neues Passwort (mind. 12 Zeichen)',`<input name="password" required minlength="12" autocomplete="new-password" value="${u.self?'':esc(suggestPassword())}">`)}<div class="dwp-actions field-span"><button class="button button-primary" type="submit">Passwort setzen</button>${btn('Abbrechen','user-password-close')}</div></form></section>`;
@@ -438,12 +485,14 @@
     if(!window.DWPRemote?.active)return shell('Benutzerverwaltung',panel('Benutzerverwaltung','<p>Benutzer anlegen, sperren und Rechte vergeben geht nur im angemeldeten Betrieb auf www.dachwerkpro.de.</p>'));
     if(calendarRole()!=='admin')return shell('Benutzerverwaltung',panel('Benutzerverwaltung','<p>Nur der Administrator verwaltet Benutzer.</p>'));
     if(!usersData){shell('Benutzerverwaltung',panel('Benutzer','<p>Benutzer werden geladen …</p>'));loadUsers();return;}
-    const status=u=>u.blocked?'<span class="dwp-cal-status is-declined">Gesperrt</span>':u.mustChangePassword?'<span class="dwp-cal-status is-open">Wartet auf eigenes Passwort</span>':'<span class="dwp-cal-status is-accepted">Aktiv</span>';
+    const status=u=>u.blocked?'<span class="dwp-cal-status is-declined">Gesperrt</span>':u.expired?'<span class="dwp-cal-status is-declined">Abgelaufen</span>':u.mustChangePassword?'<span class="dwp-cal-status is-open">Wartet auf eigenes Passwort</span>':u.daysLeft!==null && u.daysLeft!==undefined && u.daysLeft<=7?`<span class="dwp-cal-status is-open">Läuft ${u.daysLeft===0?'heute':`in ${u.daysLeft} ${u.daysLeft===1?'Tag':'Tagen'}`} ab</span>`:'<span class="dwp-cal-status is-accepted">Aktiv</span>';
     const when=v=>v?new Date(v).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'noch nie';
-    const cards=usersData.users.map(u=>`<li class="dwp-user-card${u.blocked?' is-blocked':''}"><div class="dwp-user-head"><strong>${esc(u.name)}${u.self?' (du)':''}</strong>${status(u)}</div><small>Anmeldung: <b>${esc(u.username || u.login)}</b> · ${esc(roleLabel(u.role))} · zuletzt angemeldet: ${esc(when(u.lastLogin))}</small><div class="dwp-actions">${btn('Rechte und Daten','user-edit',u.id,true)}${u.self?'':u.blocked?btn('Entsperren','user-unblock',u.id):btn('Sperren','user-block',u.id)}${btn(u.self?'Mein Passwort ändern':'Neues Passwort','user-password',u.id)}</div></li>`).join('');
+    const use=u=>u.usage || {logins30:0,loginsTotal:0,moduleOpens30:0,lastActive:u.lastLogin || null};
+    const overview=panel('Nutzerübersicht – wer nutzt DachWerkPro wie oft',`${table(['Benutzer','Status','Zugang','Anmeldungen 30 Tage','Anmeldungen gesamt','Modulaufrufe 30 Tage','Zuletzt aktiv'],usersData.users.map(u=>[`<strong>${esc(u.name)}</strong><br><small>${esc(u.username || u.login)} · ${esc(roleLabel(u.role))}</small>`,status(u),esc(validityText(u)),esc(use(u).logins30),esc(use(u).loginsTotal),esc(use(u).moduleOpens30),esc(when(use(u).lastActive))]))}<p class="dwp-hint">Gezählt werden Anmeldungen und geöffnete Module (nicht die Arbeitszeit). Einzelne Vorgänge mit Uhrzeit: ${btn('Zugriffsprotokoll öffnen','open','access')}</p>`);
+    const cards=usersData.users.map(u=>`<li class="dwp-user-card${u.blocked?' is-blocked':''}"><div class="dwp-user-head"><strong>${esc(u.name)}${u.self?' (du)':''}</strong>${status(u)}</div><small>Anmeldung: <b>${esc(u.username || u.login)}</b> · ${esc(roleLabel(u.role))} · Zugang ${esc(validityText(u))} · zuletzt angemeldet: ${esc(when(u.lastLogin))}</small><div class="dwp-actions">${btn('Rechte und Daten','user-edit',u.id,true)}${u.self?'':u.blocked?btn('Entsperren','user-unblock',u.id):btn('Sperren','user-block',u.id)}${btn(u.self?'Mein Passwort ändern':'Neues Passwort','user-password',u.id)}</div></li>`).join('');
     const roles=Object.entries(usersData.roles).map(([k,v])=>`<option value="${esc(k)}" ${k==='viewer'?'selected':''}>${esc(v)}</option>`).join('');
     const editing=usersData.users.find(u=>u.id===editingUser),pw=usersData.users.find(u=>u.id===passwordUser);
-    shell('Benutzerverwaltung',`${credentialsPanel()}${editing?userEditPanel(editing):''}${pw?passwordPanel(pw):''}${panel('Benutzer',`<p>Anmelden mit dem Benutzernamen, z. B. <b>meier</b>. Gesperrte Benutzer werden sofort abgemeldet.</p><ul class="dwp-user-list">${cards}</ul>`)}${panel('Neuen Benutzer anlegen',`<form id="dwpu-create" class="quick-form">${field('Name',`<input name="name" required placeholder="z. B. Peter Meier">`)}${field('Benutzername',`<input name="username" required autocapitalize="none" autocomplete="off" placeholder="z. B. meier">`)}${field('E-Mail für „Passwort vergessen“',`<input name="contactEmail" type="email" placeholder="optional">`)}${field('Rolle',`<select name="role">${roles}</select>`)}${field('Startpasswort (mind. 12 Zeichen)',`<input name="password" required minlength="12" autocomplete="off" value="${esc(suggestPassword())}">`)}<div class="dwp-actions field-span"><button class="button button-primary" type="submit">Benutzer anlegen</button></div></form><p class="dwp-hint">Rollen: Bauleitung plant Einsätze, „bearbeiten“ darf in seinen Projekten erfassen, „nur lesen“ sieht nur. Projekte und Sonderrechte vergibst du danach mit „Rechte und Daten“.</p>`)}`);
+    shell('Benutzerverwaltung',`${credentialsPanel()}${editing?userEditPanel(editing):''}${pw?passwordPanel(pw):''}${expiryPanel(usersData.alerts)}${overview}${panel('Benutzer',`<p>Anmelden mit dem Benutzernamen, z. B. <b>meier</b>. Gesperrte Benutzer werden sofort abgemeldet.</p><ul class="dwp-user-list">${cards}</ul>`)}${panel('Neuen Benutzer anlegen',`<form id="dwpu-create" class="quick-form">${field('Name',`<input name="name" required placeholder="z. B. Peter Meier">`)}${field('Benutzername',`<input name="username" required autocapitalize="none" autocomplete="off" placeholder="z. B. meier">`)}${field('E-Mail für „Passwort vergessen“',`<input name="contactEmail" type="email" placeholder="optional">`)}${field('Rolle',`<select name="role">${roles}</select>`)}${field('Startpasswort (mind. 12 Zeichen)',`<input name="password" required minlength="12" autocomplete="off" value="${esc(suggestPassword())}">`)}${field('Zugang gültig bis (leer = unbefristet)',`<input name="validUntil" type="date">`)}<div class="dwp-actions field-span"><button class="button button-primary" type="submit">Benutzer anlegen</button></div></form><p class="dwp-hint">Rollen: Bauleitung plant Einsätze, „bearbeiten“ darf in seinen Projekten erfassen, „nur lesen“ sieht nur. Projekte und Sonderrechte vergibst du danach mit „Rechte und Daten“.</p>`)}`);
   }
   main.addEventListener('submit',event=>{
     const form=event.target;if(!form.id?.startsWith('dwpu-'))return;
@@ -452,7 +501,7 @@
     const button=form.querySelector('[type="submit"]');if(button)button.disabled=true;
     const done=()=>{if(button)button.disabled=false;};
     if(form.id==='dwpu-create') {
-      userAction({action:'create',name:values.name,username:values.username,contactEmail:values.contactEmail,role:values.role,password:values.password},data=>{lastCredentials={name:values.name,username:data.username,password:values.password};editingUser=data.id;notice('Benutzer angelegt. Jetzt Projekte und Rechte festlegen.');}).finally(done);
+      userAction({action:'create',name:values.name,username:values.username,contactEmail:values.contactEmail,role:values.role,password:values.password,validUntil:values.validUntil || ''},data=>{lastCredentials={name:values.name,username:data.username,password:values.password};editingUser=data.id;notice('Benutzer angelegt. Jetzt Projekte und Rechte festlegen.');}).finally(done);
     }
     if(form.id==='dwpu-password') {
       const u=usersData.users.find(x=>x.id===form.dataset.user);
@@ -461,7 +510,7 @@
     if(form.id==='dwpu-edit') {
       const u=usersData.users.find(x=>x.id===form.dataset.user);
       const rights={projectIds:new FormData(form).getAll('projectIds'),personnelId:values.personnelId || '',allCalendars:values.allCalendars==='on',hidePhone:values.hidePhone==='on'};
-      window.DWPRemote.userAction({action:'update',userId:u.id,name:values.name,username:values.username,contactEmail:values.contactEmail,...(u.self?{}:{role:values.role})})
+      window.DWPRemote.userAction({action:'update',userId:u.id,name:values.name,username:values.username,contactEmail:values.contactEmail,...(u.self?{}:{role:values.role,validUntil:values.validUntil || ''})})
         .then(data=>{usersData={domain:data.domain,roles:data.roles,users:data.users};return mutate('setUserAccess',[u.id,rights]);})
         .then(()=>{editingUser=null;notice('Benutzer und Rechte gespeichert.');renderUsers();})
         .catch(showError).finally(done);
@@ -805,7 +854,7 @@
   }
   function settings() {
     const s=db.data.settings;
-    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}${field('Umsatzsteuer',`<select name="smallBusiness"><option value="false" ${s.smallBusiness===true?'':'selected'}>Regelbesteuerung (USt laut Kalkulationsbasis)</option><option value="true" ${s.smallBusiness===true?'selected':''}>Kleinunternehmer – § 19 UStG, keine USt</option></select>`)}${field('Bundesland für Feiertage',`<select name="holidayState">${Object.entries(core.holidayStates).map(([k,v])=>`<option value="${k}" ${(s.holidayState || 'HB')===k?'selected':''}>${esc(v)}</option>`).join('')}</select>`)}${field('Belegnummern fortlaufend ab',`<input name="documentNumberStart" inputmode="numeric" pattern="[0-9]{1,4}" value="${esc(s.documentNumberStart ?? '')}" placeholder="0100">`)}<p class="field-span">Format: DWP-A-JJJJMM-NNNN/Version (A Angebot, AB Auftragsbestätigung, R Rechnung). Jede Belegart zählt fortlaufend weiter; ist bereits eine höhere Nummer vergeben, wird dort weitergezählt. Vor dem ersten neuen Beleg den letzten außerhalb der App vergebenen Zähler + 1 eintragen.</p><p class="field-span">Original-DachWerkPro-Briefpapier mit Logo, roter Kopf- und Fußlinie. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+panel('Sicherung und Wiederherstellung',`<p>Eine Sicherung enthält sämtliche lokalen Projektakten und zugeordneten Testdateien. Eine Wiederherstellung ersetzt den Arbeitsbestand nach ausdrücklicher Bestätigung; das aktuelle Logbuch bleibt erhalten.</p>${btn('Sicherung herunterladen','backup')}<label>Sicherung auswählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>`);
+    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}${field('Umsatzsteuer',`<select name="smallBusiness"><option value="false" ${s.smallBusiness===true?'':'selected'}>Regelbesteuerung (USt laut Kalkulationsbasis)</option><option value="true" ${s.smallBusiness===true?'selected':''}>Kleinunternehmer – § 19 UStG, keine USt</option></select>`)}${field('Bundesland für Feiertage',`<select name="holidayState">${Object.entries(core.holidayStates).map(([k,v])=>`<option value="${k}" ${(s.holidayState || 'HB')===k?'selected':''}>${esc(v)}</option>`).join('')}</select>`)}${field('Belegnummern fortlaufend ab',`<input name="documentNumberStart" inputmode="numeric" pattern="[0-9]{1,4}" value="${esc(s.documentNumberStart ?? '')}" placeholder="0100">`)}<p class="field-span">Format: DWP-A-JJJJMM-NNNN/Version (A Angebot, AB Auftragsbestätigung, R Rechnung). Jede Belegart zählt fortlaufend weiter; ist bereits eine höhere Nummer vergeben, wird dort weitergezählt. Vor dem ersten neuen Beleg den letzten außerhalb der App vergebenen Zähler + 1 eintragen.</p><p class="field-span">Original-DachWerkPro-Briefpapier mit Logo, roter Kopf- und Fußlinie. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+panel('Sicherung und Wiederherstellung',`<p>Sichern, Sicherungsverlauf nach Datum und Uhrzeit, Ablage in Dropbox, Drive oder eigener Cloud und Wiederherstellung findest du im Modul „Sicherung“.</p>${btn('Modul Sicherung öffnen','open','backup',true)}`);
   }
   function openModule(id) {
     if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und Bereich wechseln?')) return;
@@ -827,7 +876,7 @@
   }
   function renderModule(id) {
     current=id;editing=null;search='';importPreview=null;excelSource=null;
-    const section=id==='register'?'documents':core.definitions[id]?.view || (['help','settings','users'].includes(id)?id:'dashboard');
+    const section=id==='register'?'documents':core.definitions[id]?.view || (['help','settings','users','backup'].includes(id)?id:'dashboard');
     state.currentView=section;localStorage.setItem('dwp-current-view',section);
     document.querySelectorAll('.nav-item[data-view]').forEach(item=>item.classList.toggle('is-active',item.dataset.view===section));
     if(window.DWPRemote?.active && core.definitions[id])window.DWPRemote.trackModule(id,db.data.selectedProject).catch(e=>showError(Error('Nutzungsprotokoll konnte nicht gespeichert werden: '+e.message)));
@@ -842,6 +891,7 @@
     if(id==='workflow')return shell('Gemeinsamer Projektworkflow',workflowPanel());
     if(id==='access')return shell('Zugriff und Modulnutzung',accessPanel());
     if(id==='users')return renderUsers();
+    if(id==='backup')return renderBackup();
     if(id==='audit')return shell('Projektlogbuch',panel('Lokales Änderungsjournal',`<p>Im normalen Arbeitsbereich werden keine Einträge gelöscht. Der lokale Testbestand ist technisch veränderbar und daher noch kein revisionssicherer Audit-Trail.</p>${table(['Zeit','Aktion','Bereich','Vorgang'],db.data.audit.filter(r=>!db.project() || r.projectId===db.data.selectedProject || !r.projectId).slice().reverse().map(r=>[esc(new Date(r.at).toLocaleString('de-DE')),esc(r.action),esc(core.definitions[r.module]?.name || r.module),esc(r.recordId || '')]))}`));
     if(id==='help')return shell('DachWerk Hilfe',panel('Durchgängiger Ablauf',`<ol><li>Kunde und Projekt anlegen.</li><li>LV erfassen oder CSV importieren, Material und Zeitansätze ergänzen.</li><li>Fachlich prüfen, Verantwortlichen nennen und LV freigeben.</li><li>Angebotsfassung erzeugen; Auftrag mit Angebotsbezug freigeben.</li><li>Aufmaß, Bautagebuch, Mängel, Zeiten und Kosten im gleichen Projekt erfassen.</li><li>Aufmaß freigeben, Rechnung erzeugen und Zahlungen zuordnen.</li><li>Nachkalkulation und Export prüfen.</li></ol><p>Der freie KI-Assistent ist noch nicht angeschlossen. Die Hilfe erläutert den tatsächlichen Funktionsstand.</p>`));
     if(id==='settings')return shell('Einstellungen',settings());
@@ -964,6 +1014,7 @@
         else if(action==='print')printRecord(output.record);
         else if(action==='bfw-csv')csvExport('DachWerkPro_BFW_Uebergabe.csv',core.bfwTransferRows(output.positions || output.record?.data.positions || []));
         else if(['calc-csv','snapshot-csv'].includes(action)){const rows=output.positions || output.record.data.positions;csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto','Leistungsart','Wahlgruppe','In Summe'],...[...rows,...(output.record?.module==='offers'?[...(output.record.data.optionalPositions || []),...(output.record.data.alternativePositions || [])]:[])].map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp,p.kind || 'Hauptleistung',p.choiceGroup || '',output.positions?(!['Bedarfsposition','Alternativposition'].includes(p.kind)?'Ja':'Nein'):(rows.includes(p)?'Ja':'Nein')])]);}
+        else if(action==='backup')offerFile(output);
         else download(output.name,output.text,output.type);
         return;
       }
@@ -1004,6 +1055,33 @@
       if(action==='print')printRecord(db.get(id));
       if(action==='demand-purchase'){mutate('createPurchase',[id,{owner:state.currentUser}],()=>{notice('Bestellentwurf aus dem offenen Bedarf angelegt.');openModule('purchase');});}
       if(action==='use-quote'){const [supplierId,quoteId]=id.split('/');mutate('useQuote',[supplierId,quoteId,state.currentUser],()=>{notice('Preisquelle freigegeben und Artikelhistorie aktualisiert.');openModule(current);});}
+      if(action==='backup-create'){target.disabled=true;const r=await window.DWPRemote.backups({action:'create'});backupList=r.backups;renderBackup();notice(`Sicherung vom ${core.backupFormat.label(r.created.createdAt)} angelegt.`);return;}
+      if(action==='backup-download'){offerFile(await window.DWPRemote.backups({action:'download',id}));return;}
+      if(action==='backup-restore'){
+        const b=backupList?.find(x=>x.id===id);if(!b)return;
+        if(!window.confirm(`Gesamten Arbeitsbestand durch die Sicherung vom ${core.backupFormat.label(b.sourceCreatedAt || b.createdAt)} ersetzen?\n\nDer aktuelle Stand wird vorher automatisch gesichert und bleibt im Verlauf.`))return;
+        const r=await window.DWPRemote.backups({action:'restore',id});backupList=r.backups;renderBackup();notice('Sicherung eingespielt. Der vorherige Stand steht im Verlauf als „vor Wiederherstellung“.');return;
+      }
+      if(action==='backup-file-restore'){
+        const c=restoreCandidate;if(!c)return;
+        const when=c.meta.createdAt?core.backupFormat.label(c.meta.createdAt):'unbekanntem Datum';
+        const remote=window.DWPRemote?.active;
+        if(!window.confirm(`Gesamten Arbeitsbestand durch die Sicherung vom ${when} ersetzen?\n\n${remote?'Der aktuelle Stand wird vorher automatisch gesichert und bleibt im Verlauf.':'Lokaler Testbetrieb: Lade vorher eine Sicherung des aktuellen Stands herunter.'}`))return;
+        if(remote){target.disabled=true;const r=await window.DWPRemote.uploadBackup(c.text);backupList=r.backups;restoreCandidate=null;renderBackup();notice('Sicherung eingespielt. Der vorherige Stand steht im Verlauf als „vor Wiederherstellung“.');}
+        else mutate('restore',[c.text],()=>{restoreCandidate=null;state.unsavedChanges=false;openModule('backup');notice('Sicherung eingespielt.');});
+        return;
+      }
+      if(action==='backup-file-cancel'){restoreCandidate=null;renderBackup();return;}
+      if(action==='backup-ready-close'){readyFile=null;renderBackup();return;}
+      if(action==='backup-save'){if(readyFile)download(readyFile.name,readyFile.text,readyFile.type || 'application/json');return;}
+      if(action==='backup-share'){
+        if(!readyFile)return;
+        const file=new File([readyFile.text],readyFile.name,{type:'application/json'});
+        try{await navigator.share({files:[file],title:readyFile.name});}
+        catch(e){if(e?.name!=='AbortError')download(readyFile.name,readyFile.text,'application/json');}
+        return;
+      }
+      if(action==='user-extend'){editingUser=id;passwordUser=null;if(current!=='users')openModule('users');else renderUsers();const input=main.querySelector('#dwpu-edit [name="validUntil"]');input?.scrollIntoView({block:'center'});input?.focus();return;}
       if(action==='user-edit'){editingUser=id;passwordUser=null;renderUsers();main.querySelector('#dwp-user-edit')?.scrollIntoView({block:'start'});return;}
       if(action==='user-edit-close'){editingUser=null;renderUsers();return;}
       if(action==='user-password'){passwordUser=id;editingUser=null;renderUsers();main.querySelector('#dwp-user-password')?.scrollIntoView({block:'start'});return;}
@@ -1034,7 +1112,7 @@
         finally{target.disabled=false;target.textContent='Projekte neu laden';}
       }
       if(action==='operating-rate')mutate('applyOperatingCosts',[],()=>{notice('Vollkostensatz übernommen; AGK auf 0 gesetzt.');openModule('calculation');});
-      if(action==='backup')download('DachWerkPro_Sicherung.json',db.backup());
+      if(action==='backup')offerFile({name:core.backupFormat.fileName(),type:'application/json',text:JSON.stringify(core.backupFormat.wrap(db.data,{createdBy:state.currentUser}),null,2)});
       if(action==='project-json')download('DachWerkPro_Projektakte.json',JSON.stringify({project:db.project(),customer:db.get(db.project().data.customerId),records:db.data.records.filter(r=>r.projectId===db.data.selectedProject)},null,2));
       if(action==='bfw-csv')csvExport('DachWerkPro_BFW_Uebergabe.csv',core.bfwTransferRows(db.calculation().positions));
       if(action==='calc-csv' || action==='snapshot-csv') {
@@ -1177,8 +1255,14 @@
       if(['dwp-datanorm-known','dwp-datanorm-listprice','dwp-datanorm-filter'].includes(event.target.id) && priceSource?.datanorm)datanormBook();
       if(event.target.id==='dwp-price-sheet' || event.target.id==='dwp-price-header')priceControls(Number(document.querySelector('#dwp-price-sheet').value),event.target.id==='dwp-price-header'?Number(event.target.value):undefined);
       if(event.target.id==='dwp-restore') {
-        const text=await event.target.files[0].text();
-        if(confirm('Aktuellen lokalen Arbeitsbestand durch diese Sicherung ersetzen?')){mutate('restore',[text],()=>{state.unsavedChanges=false;openModule('dashboard');});}
+        // Erst prüfen und anzeigen, von wann die Sicherung ist; eingespielt wird erst nach Bestätigung.
+        const file=event.target.files[0];if(!file)return;
+        const text=await file.text();let parsed;
+        try{parsed=JSON.parse(text);}catch{restoreCandidate=null;throw Error('Diese Datei ist keine DachWerkPro-Sicherung.');}
+        const {state:content,meta}=core.backupFormat.unwrap(parsed);
+        try{new core.Store({getItem:()=>JSON.stringify(content),setItem(){}});}catch(e){restoreCandidate=null;throw Error('Sicherung ist unvollständig: '+e.message);}
+        restoreCandidate={name:file.name,text,meta};renderBackup();
+        main.querySelector('#dwp-restore-preview')?.scrollIntoView({block:'nearest'});
       }
       if(event.target.closest('#dwp-record, #dwp-import'))state.unsavedChanges=true;
     }catch(e){showError(e);}
@@ -1195,6 +1279,7 @@
   for(const [view,module] of Object.entries(viewsToModule))views[view]=()=>{setTimeout(()=>openModule(module),0);return '';};
   views.dashboard=()=>{setTimeout(()=>openModule('dashboard'),0);return '';};
   views.users=()=>{setTimeout(()=>openModule('users'),0);return '';};
+  views.backup=()=>{setTimeout(()=>openModule('backup'),0);return '';};
   document.querySelector('#f3-button')?.addEventListener('click',event=>{event.stopImmediatePropagation();closeQuickModal();openModule(state.currentView==='customers'?'customers':'projects');},true);
   document.addEventListener('keydown',event=>{if(event.key==='F3' && !document.querySelector('#app-shell').classList.contains('is-hidden')){event.preventDefault();event.stopImmediatePropagation();openModule(state.currentView==='customers'?'customers':'projects');}},true);
   const globalSearch=document.querySelector('#global-search');

@@ -42,6 +42,23 @@
     users(){return users();},
     calendarFeed(body){return fetch('/api/calendar',body?{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{credentials:'same-origin',cache:'no-store'}).then(responseJson);},
     userAction(body){return users(body);},
+    // Modul „Sicherung“: Verlauf, anlegen, datierte Datei, Wiederherstellung (Server antwortet dann mit neuem Bestand).
+    async backups(body) {
+      const result=await responseJson(await fetch('/api/backups',body?{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{credentials:'same-origin',cache:'no-store'}));
+      if(result.state && result.user)accept(result);
+      return result;
+    },
+    async uploadBackup(text) {
+      // Große Sicherungen gepackt übertragen (Serverlimit je Anfrage ca. 4,5 MB).
+      let body={action:'upload',text};
+      if(typeof CompressionStream==='function') {
+        const packed=new Uint8Array(await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+        let raw='';for(let i=0;i<packed.length;i+=8192)raw+=String.fromCharCode(...packed.subarray(i,i+8192));
+        body={action:'upload',gzip:btoa(raw)};
+      }
+      if(JSON.stringify(body).length>4_400_000)throw Error('Die Sicherungsdatei ist zu groß zum Hochladen. Bitte eine Sicherung aus dem Verlauf wählen.');
+      return this.backups(body);
+    },
     get active(){return active;},
     async uploadFile(recordId,file) {
       if(!active)throw Error('Bitte zuerst anmelden.');
