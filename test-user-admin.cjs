@@ -27,7 +27,7 @@ const {userAdmin,status,loginEmail,normalizeUsername}=require('./lib/user-admin.
     // Anlegen mit Startpasswort: Pflichtwechsel ist gesetzt, Passwort taucht nirgends in der Liste auf.
     const m=await users.create(admin,{name:'Meier',username:'Meier',contactEmail:'meier@gmx.de',role:'viewer',password:'Startpasswort-2026'});
     assert.equal(m.login,'meier@dachwerkpro.de');
-    assert.deepEqual(await status(db,m.id),{blocked:false,mustChangePassword:true,contactEmail:'meier@gmx.de'});
+    assert.deepEqual(await status(db,m.id),{blocked:false,mustChangePassword:true,contactEmail:'meier@gmx.de',validUntil:'',expired:false});
     const listed=await users.list(admin);
     assert(!JSON.stringify(listed).includes('Startpasswort'),'kein Passwort in der Liste');
     assert.equal(listed.users.find(u=>u.id===m.id).username,'meier');
