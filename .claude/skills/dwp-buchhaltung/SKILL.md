@@ -1,6 +1,6 @@
 ---
 name: dwp-buchhaltung
-description: Buchhaltung in DachWerk Pro (DWP) – Ausgangs-/Eingangsrechnungen, Zahlungen kontieren (SKR03), § 19 / § 13b UStG, Storno, offene Posten, Monatsabschluss/Export. Verwenden, wenn Belege geprüft, Zahlungen gebucht, Konten vorgeschlagen oder die Module 27–31 geändert werden.
+description: Buchhaltung in DachWerk Pro (DWP) nach SKR03 – Rechnungen, Zahlungen, Mahnwesen, Eingangsrechnungen/Zahlungsausgang, Buchungsjournal und DATEV-CSV, § 19 / § 13b UStG, Storno. Verwenden, wenn Belege geprüft, Zahlungen gebucht, Mahnungen erstellt, Konten vorgeschlagen oder die Module 27–31 geändert werden.
 ---
 
 # DWP-Buchhaltung
@@ -41,19 +41,27 @@ zugehörigen Module geändert werden. Gilt zusätzlich zu
 | – | Einstellungen (§ 19, Nummernstart, Bank/Steuer) | `settings` | https://www.dachwerkpro.de/?start=app&module=settings |
 
 Code-Stellen:
-- `project-core.js` – Felddefinitionen (`modules`), `PAYMENT_KINDS`, `SKR03`, `paymentEffect`,
-  `Store.save()` (Prüfregeln), `issue()` (Rechnungen), `stornoInvoice()`, `controlling()`,
+- `project-core.js` – Felddefinitionen (`modules`), `PAYMENT_KINDS`, `SKR03`, `ACCOUNTS`,
+  `ACCOUNT_LABELS`, `DUNNING_LEVELS`, `BASE_RATES`, `lateInterest()`, `paymentEffect`,
+  `Store.save()` (Prüfregeln), `issue()` (Rechnungen mit Zahlungsziel), `stornoInvoice()`,
+  `accounts()`, `invoiceDates()`, `openItems()`, `dunInvoice()`, `dunningLetter()`,
+  `payIncoming()`, `openPayables()`, `journal()`, `balances()`, `controlling()`,
   `customerOverview()`, `nextDocumentNumber()`, `SMALL_BUSINESS_NOTE`, `REVERSE_CHARGE_NOTE`.
-- `project-workflows.js` – Oberfläche, Export `closing-csv` / `project-json`.
+- `project-workflows.js` – Oberfläche: `dunningPanels()` (Modul 29), `payablesPanel()` (Modul 28),
+  `journalPanel()` / `journalFile()` (Modul 30), `accountingSettings()` (Einstellungen),
+  `printDunning()`, Export `closing-csv` / `project-json`.
+- `lib/project-service.cjs` – `dunInvoice` und `payIncoming` sind freigabepflichtig (admin/manager).
 - `lib/project-service.cjs` – `execute()` und `memoryRepository()` für Server-Prüfungen.
-- Tests: `test-billing.cjs`, `test-payment-settlement.cjs`, `test-small-business.cjs`,
+- Tests: `test-accounting-dunning.cjs`, `test-accounting-ui.cjs`, `test-billing.cjs`, `test-payment-settlement.cjs`, `test-small-business.cjs`,
   `test-regie-reverse-charge.cjs`, `test-document-numbers.cjs`, `test-ablauf-termin-abnahme.cjs`.
 
 ## Belege und Nummern
 
 - Format `DWP-<Art>-JJJJMM-NNNN/Version`, z. B. `DWP-R-202611-0104/1`.
-  A = Angebot, AB = Auftragsbestätigung, R = Rechnung (G = Gutachten, GU = Gutschrift, NU = NU-Vertrag
-  laut Projektregeln). `nextDocumentNumber()` vergibt technisch nur A, AB, R.
+  A = Angebot, AB = Auftragsbestätigung, R = Rechnung, M = Mahnung (G = Gutachten, GU = Gutschrift,
+  NU = NU-Vertrag laut Projektregeln). `nextDocumentNumber()` vergibt technisch A, AB, R, M.
+- Jede Rechnung trägt `invoiceDate`, `paymentDays` und `dueDate` (Zahlungsziel aus Einstellungen,
+  Standard 14 Tage, bei Ausgabe änderbar). Alte Rechnungen ohne Datum: Erstellungsdatum + Zahlungsziel.
 - Zähler je Belegart fortlaufend ab `settings.documentNumberStart`; nie aus sichtbaren Zeilen zählen.
 - Rechnungsarten in `issue('invoices', {orderId, invoiceType, percentage})`:
   `Abschlagsrechnung`, `Teilrechnung`, `Schlussrechnung` (immer 100 %). Schlussrechnung nach Aufmaß
@@ -94,6 +102,21 @@ Jede Buchung hängt an genau einer Ausgangsrechnung (`invoiceId`). Pflicht: `tit
 - Projekt kann trotz offenem Sicherheitseinbehalt abgeschlossen werden; Auszahlung später möglich.
 - Offener Posten = `gross − paid − discount − writeOff − suspense − retained` (siehe `controlling()`).
 
+## Mahnwesen (Modul 29, Bereich „Offene Posten und Mahnwesen“)
+
+- `openItems(asOf)` zeigt alle offenen Ausgangsrechnungen aller sichtbaren Projekte. Sicherheitseinbehalt
+  wird nicht angemahnt, sondern nach Ablauf von `retentionUntil` als `retentionDue` gemeldet.
+- Stufen `DUNNING_LEVELS`: Zahlungserinnerung (immer ohne Kosten) → 1. Mahnung → 2. Mahnung → Letzte Mahnung.
+  Erst nach Fälligkeit, nächste Stufe erst nach Ablauf der Frist (`settings.dunningDays`, Standard 10).
+- Gespeichert als `invoice.dunnings[]` (außerhalb von `data`, die Rechnung bleibt unverändert).
+- Mahngebühr `settings.dunningFee` ab 1. Mahnung; Verzugspauschale 40 EUR nur Gewerbekunden
+  (`customerType==='Gewerbekunde'` oder § 13b) und nur einmal je Rechnung (§ 288 Abs. 5 BGB).
+- Verzugszinsen nur auf Wunsch: Privat Basiszins + 5, Gewerbe + 9 Prozentpunkte, tagesgenau je
+  Basiszins-Halbjahr. Verzugsbeginn: Tag nach der 1. Mahnung; bei Gewerbe spätestens 31 Tage nach
+  Fälligkeit. Fehlt der Basiszins für einen Zeitraum, bricht die Berechnung ab → neuen Wert
+  (Bundesbank, 1.1./1.7.) unter Einstellungen nachtragen bzw. `BASE_RATES` ergänzen.
+- Kein Rechtsrat: bei Verbrauchern, Streit oder Beträgen vor Gericht auf Anwalt verweisen.
+
 ## Eingangsrechnungen (Modul 28)
 
 - Pflicht: `title`, `supplier`, `invoiceNumber`, `date`, `net`, `tax`.
@@ -101,8 +124,10 @@ Jede Buchung hängt an genau einer Ausgangsrechnung (`invoiceId`). Pflicht: `tit
 - `includeInCosts` = zählt als Ist-Kosten im Controlling. Mit `purchaseId` bzw. `subcontractId`
   verknüpfen; bei NU muss `supplier` dem Nachunternehmer entsprechen, der NU-Ansatz wird ersetzt
   (keine Doppelzählung).
-- Kontenvorschlag (SKR03, abstimmen): Material 3400, Fremdleistungen 3100. Eingehende
-  Bauleistungen nach § 13b gesondert mit dem Steuerberater klären.
+- Kontenvorschlag (SKR03, abstimmen): Material 3400/3300 (19/7 %), ohne Vorsteuer bzw. § 19: 3200,
+  Fremdleistungen 3100. Eingehende Bauleistungen nach § 13b gesondert mit dem Steuerberater klären.
+- Zahlungsausgang: `payIncoming(id,{kind,date,amount,account})`, Arten „Zahlungsausgang“ und
+  „Skonto erhalten“, höchstens offener Bruttobetrag; gespeichert als `incoming.payouts[]`.
 
 ## Storno
 
@@ -110,11 +135,20 @@ Jede Buchung hängt an genau einer Ausgangsrechnung (`invoiceId`). Pflicht: `tit
   nur einmal; abgeschlossenes Projekt vorher mit Begründung wieder öffnen (`reopenProject`).
 - Bereits gezahltes Geld über „Rückzahlung“ auf der Stornorechnung erfassen.
 
-## Monatsabschluss / Export (Modul 30)
+## Buchungsjournal und Export (Modul 30)
 
-- Vorhanden: Projektakte JSON, Belegübersicht CSV (Modul, Nummer, Datum, Netto, Brutto, Status).
-- **Nicht freigegeben:** Monatsperioden und DATEV-Paket. Nicht behaupten, DWP exportiere DATEV.
-  Für den Steuerberater bis dahin die CSV plus Kontenvorschläge liefern.
+- `journal({from,to})`: Buchungssätze „Soll an Haben“, brutto, alle sichtbaren Projekte.
+  Rechnung 1400 an Erlös (8400/8300/8195/8337/8200), Storno umgekehrt, Zahlung Bank an 1400,
+  Skonto/Ausbuchung/Zwischenkonto an 1400, Rückzahlung 1400 an Bank, Eingangsrechnung Aufwand an 1600,
+  Zahlungsausgang 1600 an Bank/erhaltene Skonti. Eine Kontonummer im Feld „Konto“ der Zahlung hat Vorrang.
+- Sicherheitseinbehalt bucht nicht (bleibt Forderung bis „Einbehalt ausgezahlt“).
+- Abschlags-/Teil-/Schlussrechnungen buchen je ihren eigenen Betrag als Erlös (vereinfacht; ob
+  Anzahlungskonten nötig sind, klärt der Steuerberater).
+- Konten: `ACCOUNTS` + `settings.accounts` (Einstellungen → Buchhaltung). Erlös-, Skonto- und
+  Wareneingangskonten sind DATEV-Automatikkonten, deshalb brutto ohne BU-Schlüssel.
+- Exporte: Journal-CSV und „DATEV-Buchungen CSV“ mit den DATEV-ASCII-Feldern. Das ist **kein**
+  EXTF-Buchungsstapel; vor dem ersten produktiven Import mit dem Steuerberater testen lassen.
+- Weiterhin vorhanden: Projektakte JSON, Belegübersicht CSV. Monatsperioden/Festschreibung fehlen noch.
 
 ## Typische Aufgaben
 
@@ -126,8 +160,14 @@ prüfen; Abweichungen als Liste melden. Beleg nicht ins Repo legen.
 (z. B. „2 % Skonto innerhalb 10 Tagen“), Konto nennen, Stephan den Link
 https://www.dachwerkpro.de/?start=app&module=payments geben.
 
-**Offene Posten / Kundenübersicht:** `controlling()` bzw. `customerOverview(customerId)` nutzen,
-nichts schätzen.
+**Offene Posten / Kundenübersicht:** `openItems()`, `openPayables()`, `controlling()` bzw.
+`customerOverview(customerId)` nutzen, nichts schätzen. Link Mahnwesen:
+https://www.dachwerkpro.de/?start=app&module=payments
+
+**Mahnung erstellen:** nur über Modul 29 bzw. `dunInvoice()`; Stufe und Kosten nie von Hand
+festlegen, die Prüfregeln entscheiden. Ausdruck über „Drucken / PDF“ (Briefpapier).
+
+**Für den Steuerberater:** Modul 30 → Zeitraum wählen → „DATEV-Buchungen CSV“ und „Journal CSV“.
 
 **Daten vorab prüfen, bevor etwas in DWP eingetragen wird:** mit erfundenem oder lokalem Store
 durchspielen, damit die Prüfregeln greifen:
