@@ -45,7 +45,10 @@ function createHandler(deps={db:authDb,repository,backupStore:()=>backupStore(),
       const tenants=(await db.query('SELECT tenant_id FROM dwp_project_state').catch(()=>[])).map(r=>r.tenant_id);
       for(const tenant of tenants) {
         // Am Monatsersten zusätzlich Buchhaltungsexport des Vormonats nach Dropbox (über Make).
-        if(sync?.enabled && day.endsWith('-01'))note('Buchhaltung',await sync.accountingExported({tenantId:tenant,...makeSync.previousMonth(day)}).catch(e=>({ok:false,error:e.message})));
+        if(sync?.enabled && day.endsWith('-01')) {
+          const settings=(await repo.read(tenant).catch(()=>({state:{}}))).state?.settings || {};
+          note('Buchhaltung',await sync.accountingExported({tenantId:tenant,...makeSync.previousMonth(day),extf:Boolean(settings.datevConsultant && settings.datevClient)}).catch(e=>({ok:false,error:e.message})));
+        }
         if(await store.automaticToday(tenant,now))continue;
         const {state}=await repo.read(tenant);
         const created=await store.create(tenant,null,state,'automatisch');

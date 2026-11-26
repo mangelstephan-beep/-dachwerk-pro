@@ -8,7 +8,7 @@ const {fileRepository}=require('../lib/file-store.cjs');
 const {backupStore}=require('../lib/backup-store.cjs');
 const {repository}=require('../lib/project-repository.cjs');
 const security=require('../lib/access-security.cjs');
-const {Store}=require('../project-core.js');
+const {Store,cp1252}=require('../project-core.js');
 const disposition=name=>`attachment; filename="${String(name).replace(/[^\x20-\x7e]/g,'_').replace(/["\\]/g,'_')}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 function createHandler(deps={env:process.env,fileRepository,backupStore:()=>backupStore(),repository,accessRepository:security.accessRepository,now:()=>Date.now()}) {
   return async(req,res)=>{
@@ -38,6 +38,12 @@ function createHandler(deps={env:process.env,fileRepository,backupStore:()=>back
       if(!/^\d{4}-\d{2}-\d{2}$/.test(data.from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(data.to || ''))throw Object.assign(Error('Link ungültig.'),{status:403});
       const {state}=await deps.repository().read(data.t);
       const raw=JSON.stringify(state),store=new Store({getItem:()=>raw,setItem(){}});
+      if(data.k==='extf') {
+        const file=store.datevExport({from:data.from,to:data.to});
+        await log('DATEV-Buchungsstapel '+data.from+' bis '+data.to);
+        res.setHeader('Content-Type','text/csv; charset=windows-1252');res.setHeader('Content-Disposition',disposition(file.fileName));
+        return res.status(200).send(Buffer.from(cp1252(file.text)));
+      }
       const text=accountingCsv(store,data.k,{from:data.from,to:data.to});
       await log((data.k==='datev'?'DATEV-Export ':'Buchungsjournal ')+data.from+' bis '+data.to);
       res.setHeader('Content-Type','text/csv; charset=utf-8');res.setHeader('Content-Disposition',disposition('DachWerkPro_'+data.k+'_'+data.from+'_'+data.to+'.csv'));

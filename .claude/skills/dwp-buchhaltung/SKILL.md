@@ -52,7 +52,7 @@ Code-Stellen:
   `printDunning()`, Export `closing-csv` / `project-json`.
 - `lib/project-service.cjs` – `dunInvoice` und `payIncoming` sind freigabepflichtig (admin/manager).
 - `lib/project-service.cjs` – `execute()` und `memoryRepository()` für Server-Prüfungen.
-- Tests: `test-accounting-dunning.cjs`, `test-accounting-ui.cjs`, `test-billing.cjs`, `test-payment-settlement.cjs`, `test-small-business.cjs`,
+- Tests: `test-accounting-dunning.cjs`, `test-accounting-ui.cjs`, `test-accounting-close.cjs`, `test-billing.cjs`, `test-payment-settlement.cjs`, `test-small-business.cjs`,
   `test-regie-reverse-charge.cjs`, `test-document-numbers.cjs`, `test-ablauf-termin-abnahme.cjs`.
 
 ## Belege und Nummern
@@ -95,6 +95,8 @@ Jede Buchung hängt an genau einer Ausgangsrechnung (`invoiceId`). Pflicht: `tit
 | Sicherheitseinbehalt | bleibt offen bis Auszahlung | `retentionUntil` (Ende Gewährleistung) | – |
 | Einbehalt ausgezahlt | Geld erhalten, Einbehalt sinkt | höchstens offener Einbehalt | – |
 | Rückzahlung | Geld zurück | nur auf Stornorechnung, höchstens erhaltenes Geld | – |
+| Mahngebühr erhalten | Geld erhalten, gleicht Rechnung nicht aus | höchstens angemahnte Gebühren + Pauschale | 2700 Sonstige Erträge |
+| Verzugszinsen erhalten | Geld erhalten, gleicht Rechnung nicht aus | höchstens höchster angemahnter Zinsbetrag | 2650 Zinserträge |
 
 - Steht in `account` schon eine vierstellige Kontonummer, bleibt sie unverändert.
 - Summe aller Buchungen darf den Rechnungsbetrag brutto nicht übersteigen.
@@ -109,6 +111,8 @@ Jede Buchung hängt an genau einer Ausgangsrechnung (`invoiceId`). Pflicht: `tit
 - Stufen `DUNNING_LEVELS`: Zahlungserinnerung (immer ohne Kosten) → 1. Mahnung → 2. Mahnung → Letzte Mahnung.
   Erst nach Fälligkeit, nächste Stufe erst nach Ablauf der Frist (`settings.dunningDays`, Standard 10).
 - Gespeichert als `invoice.dunnings[]` (außerhalb von `data`, die Rechnung bleibt unverändert).
+- Folgemahnungen fordern offene Kosten früherer Schreiben mit (`previousFees`, `previousInterest`);
+  `dunningCosts(invoiceId)` liefert angemahnte/erhaltene/offene Mahnkosten, `openItems()` zeigt `costsOpen`.
 - Mahngebühr `settings.dunningFee` ab 1. Mahnung; Verzugspauschale 40 EUR nur Gewerbekunden
   (`customerType==='Gewerbekunde'` oder § 13b) und nur einmal je Rechnung (§ 288 Abs. 5 BGB).
 - Verzugszinsen nur auf Wunsch: Privat Basiszins + 5, Gewerbe + 9 Prozentpunkte, tagesgenau je
@@ -146,9 +150,14 @@ Jede Buchung hängt an genau einer Ausgangsrechnung (`invoiceId`). Pflicht: `tit
   Anzahlungskonten nötig sind, klärt der Steuerberater).
 - Konten: `ACCOUNTS` + `settings.accounts` (Einstellungen → Buchhaltung). Erlös-, Skonto- und
   Wareneingangskonten sind DATEV-Automatikkonten, deshalb brutto ohne BU-Schlüssel.
-- Exporte: Journal-CSV und „DATEV-Buchungen CSV“ mit den DATEV-ASCII-Feldern. Das ist **kein**
-  EXTF-Buchungsstapel; vor dem ersten produktiven Import mit dem Steuerberater testen lassen.
-- Weiterhin vorhanden: Projektakte JSON, Belegübersicht CSV. Monatsperioden/Festschreibung fehlen noch.
+- Exporte: Journal-CSV, „DATEV-Buchungen CSV“ (ASCII-Felder) und „DATEV-Buchungsstapel (EXTF)“:
+  `datevExtf()` / `Store.datevExport({from,to})`, EXTF 700 Formatversion 13, Windows-1252 (`cp1252()`),
+  Berater-/Mandantennummer und WJ-Beginn aus `settings.datevConsultant`, `datevClient`, `fiscalYearStart`.
+  Ein Stapel = ein Wirtschaftsjahr, alle Konten gleich lang. Vor erstem Import mit dem Steuerberater testen.
+- Festschreibung: `settings({lockedUntil})` nur vorwärts und nur bis gestern; `assertOpenPeriod()` sperrt
+  Zahlungen, Eingangsrechnungen und Zahlungsausgänge mit Datum bis dahin.
+- Stornorechnungen tragen ihr eigenes Datum (`invoiceDate` = Storno-Tag).
+- Weiterhin vorhanden: Projektakte JSON, Belegübersicht CSV.
 
 ## Typische Aufgaben
 

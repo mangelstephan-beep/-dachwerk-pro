@@ -34,7 +34,26 @@ Link: https://www.dachwerkpro.de/?start=app&module=closing
 - [ ] Zeitraum (z. B. ein Monat) filtern.
 - [ ] „DATEV-Buchungen CSV“ und „Journal CSV“ herunterladen; DATEV-Datei dem Steuerberater zum Testimport geben.
 
+## 6. Ergänzung 26.11.2026 (Abschluss Buchhaltung)
+Lokale Tests: `test-accounting-close.cjs`, erweiterte `test-accounting-dunning.cjs` / `test-accounting-ui.cjs` und alle bestehenden Tests bestanden.
+
+**Einstellungen → Buchhaltung** – https://www.dachwerkpro.de/?start=app&module=settings
+- [ ] Unter „DATEV“ Berater- und Mandantennummer (vom Steuerberater) und ggf. Beginn Wirtschaftsjahr eintragen.
+- [ ] Neue Konten „Sonstige Erträge (Mahngebühren, Verzugspauschale)“ 2700 und „Zinserträge (Verzugszinsen)“ 2650 mit dem Steuerberater abstimmen.
+
+**Modul 27 · Storno** – https://www.dachwerkpro.de/?start=app&module=invoices
+- [ ] Stornorechnung trägt das heutige Datum (vorher: Datum der Ursprungsrechnung) und erscheint im Journal im Storno-Monat.
+
+**Modul 29 · Mahnkosten** – https://www.dachwerkpro.de/?start=app&module=payments
+- [ ] 2. Mahnung zeigt „Offene Mahnkosten aus früheren Schreiben“ und rechnet sie in den Gesamtbetrag ein.
+- [ ] Nach Zahlung der Hauptforderung bleibt die Rechnung mit „Mahnkosten offen“ in der Liste.
+- [ ] Zahlung mit Buchungsart „Mahngebühr erhalten“ bzw. „Verzugszinsen erhalten“ buchen; mehr als angemahnt wird abgelehnt.
+
+**Modul 30 · DATEV und Festschreibung** – https://www.dachwerkpro.de/?start=app&module=closing
+- [ ] Zeitraum (ein Monat) wählen → „DATEV-Buchungsstapel (EXTF)“ → Datei dem Steuerberater zum Testimport geben.
+- [ ] „Zeitraum festschreiben“ erst nach Abstimmung mit dem Steuerberater (nicht rücknehmbar). Danach wird eine Zahlung mit Datum im gesperrten Zeitraum abgelehnt.
+- [ ] Am Monatsersten liegt der EXTF-Stapel des Vormonats zusätzlich in Dropbox: https://www.dropbox.com/home/DWP/03_Buchhaltung/DATEV-Export
+
 ## Bewusst noch offen
-- Echter DATEV-EXTF-Buchungsstapel mit Beraternummer/Mandant, Festschreibung und Monatsperioden.
-- Zahlungseingang von Mahngebühren/Zinsen (derzeit darf eine Zahlung den Rechnungsbetrag nicht übersteigen).
+- EXTF enthält die 14 Standardfelder (Umsatz bis Buchungstext); Kostenstelle, Leistungsdatum, Belegverknüpfung fehlen. Vor produktivem Import vom Steuerberater prüfen lassen.
 - Bankabgleich (Kontoauszug-Import) und Mahnversand per E-Mail.
