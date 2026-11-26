@@ -3,7 +3,8 @@ const {repository}=require('../lib/project-repository.cjs');
 const {execute,projectAccess}=require('../lib/project-service.cjs');
 const security=require('../lib/access-security.cjs');
 const {fileRepository,failure}=require('../lib/file-store.cjs');
-function createHandler(deps={sessionFromRequest,repository,fileRepository,accessRepository:security.accessRepository}) {
+const {createSync}=require('../lib/make-sync.cjs');
+function createHandler(deps={sessionFromRequest,repository,fileRepository,accessRepository:security.accessRepository,makeSync:()=>createSync()}) {
  return async(req,res)=>{
   res.setHeader('Cache-Control','private, no-store');res.setHeader('Vary','Cookie');
   try {
@@ -35,6 +36,8 @@ function createHandler(deps={sessionFromRequest,repository,fileRepository,access
     await files.ready(actor,file.id);
     if(!record.attachments?.some(a=>a.storageId===file.id))await execute(db,actor,{method:'attach',args:[record.id,{id:file.id,storageId:file.id,name:file.name,mime:file.mime,size:file.size,sha256:file.sha256}],projectId:record.projectId,revision:body.revision},{allowStoredFile:true});
     await access.event(actor,'file_uploaded',{projectId:record.projectId,userAgent:req.headers['user-agent']});
+    // Geprüftes Original zusätzlich in den Dropbox-Projektordner (über Make, falls eingerichtet).
+    if(deps.makeSync)await deps.makeSync().fileStored({tenantId:actor.tenantId,project:current.state.records.find(r=>r.id===record.projectId),record,file:{id:file.id,name:file.name,mime:file.mime}}).catch(()=>{});
     return res.status(200).json({ok:true,fileId:file.id});
    }
    if(body.action==='download') {

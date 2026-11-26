@@ -8,6 +8,7 @@ const {repository}=require('../lib/project-repository.cjs');
 const {backupStore}=require('../lib/backup-store.cjs');
 const admin=require('../lib/user-admin.cjs');
 const {sendMail}=require('../lib/mailer.cjs');
+const makeSync=require('../lib/make-sync.cjs');
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function authorized(req,env=process.env) {
   const h=req.headers || {};
@@ -32,18 +33,24 @@ async function recipient(db,tenantId,env=process.env) {
   for(const r of rows){const mail=r.contact_email || (admin.usernameOf(r.email)?'':r.email);if(mail)return mail;}
   return env.DWP_SMTP_USER || '';
 }
-function createHandler(deps={db:authDb,repository,backupStore:()=>backupStore(),sendMail,now:()=>new Date(),env:process.env}) {
+function createHandler(deps={db:authDb,repository,backupStore:()=>backupStore(),sendMail,now:()=>new Date(),env:process.env,makeSync:env=>makeSync.createSync({env})}) {
   return async(req,res)=>{
     res.setHeader('Cache-Control','no-store');
     if(!authorized(req,deps.env))return res.status(401).json({error:'Nicht berechtigt.'});
-    const report={backups:[],reminders:0,mailErrors:[]};
+    const report={backups:[],reminders:0,mailErrors:[],dropbox:[]};
     try {
       const db=await deps.db(),store=deps.backupStore(),repo=deps.repository(),now=deps.now();
+      const sync=deps.makeSync?deps.makeSync(deps.env):null,day=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(now);
+      const note=(label,r)=>{if(r && !r.skipped)report.dropbox.push(label+(r.ok?': übertragen':': '+(r.error || 'Fehler')));};
       const tenants=(await db.query('SELECT tenant_id FROM dwp_project_state').catch(()=>[])).map(r=>r.tenant_id);
       for(const tenant of tenants) {
+        // Am Monatsersten zusätzlich Buchhaltungsexport des Vormonats nach Dropbox (über Make).
+        if(sync?.enabled && day.endsWith('-01'))note('Buchhaltung',await sync.accountingExported({tenantId:tenant,...makeSync.previousMonth(day)}).catch(e=>({ok:false,error:e.message})));
         if(await store.automaticToday(tenant,now))continue;
         const {state}=await repo.read(tenant);
-        report.backups.push((await store.create(tenant,null,state,'automatisch')).fileName);
+        const created=await store.create(tenant,null,state,'automatisch');
+        report.backups.push(created.fileName);
+        if(sync?.enabled)note('Sicherung',await sync.backupCreated({tenantId:tenant,backup:created}).catch(e=>({ok:false,error:e.message})));
       }
       const due=await admin.dueReminders(db,now),byTenant=new Map();
       for(const r of due)byTenant.set(r.tenantId,[...(byTenant.get(r.tenantId) || []),r]);

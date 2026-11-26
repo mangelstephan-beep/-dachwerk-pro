@@ -1,7 +1,8 @@
 const {sessionFromRequest}=require('../lib/auth.cjs');
 const {repository}=require('../lib/project-repository.cjs');
 const {execute,visibleState}=require('../lib/project-service.cjs');
-function createHandler(deps={sessionFromRequest,repository}) {
+const {createSync}=require('../lib/make-sync.cjs');
+function createHandler(deps={sessionFromRequest,repository,makeSync:()=>createSync()}) {
   return async function(req,res) {
     res.setHeader('Cache-Control','private, no-store');res.setHeader('Vary','Cookie');
     try {
@@ -18,7 +19,13 @@ function createHandler(deps={sessionFromRequest,repository}) {
       if(!String(req.headers['content-type'] || '').startsWith('application/json'))throw Object.assign(Error('JSON-Anfrage erforderlich.'),{status:415});
       const body=typeof req.body==='string'?JSON.parse(req.body):req.body;
       if(!body || JSON.stringify(body).length>3_500_000)throw Object.assign(Error('Vorgang zu groß oder ungültig.'),{status:413});
-      return res.status(200).json(await execute(db,actor,body));
+      const result=await execute(db,actor,body);
+      // Neues Projekt: Ordner aus der Projektvorlage in Dropbox anlegen (über Make, falls eingerichtet).
+      if(body.method==='save' && body.args?.[0]==='projects' && !body.args?.[2]?.id && result.recordId && deps.makeSync) {
+        const project=result.state?.records?.find(r=>r.id===result.recordId && r.module==='projects');
+        if(project)await deps.makeSync().projectCreated(project).catch(()=>{});
+      }
+      return res.status(200).json(result);
     }catch(error) {
       const status=error.status || (error instanceof SyntaxError?400:503);
       return res.status(status).json({error:status>=500?'Zentrale Speicherung ist noch nicht verfügbar.':error.message,code:error.code});
