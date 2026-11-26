@@ -9,6 +9,7 @@ const {repository}=require('../lib/project-repository.cjs');
 const {execute}=require('../lib/project-service.cjs');
 const {backupStore}=require('../lib/backup-store.cjs');
 const {Store,backupFormat}=require('../project-core.js');
+const {createSync}=require('../lib/make-sync.cjs');
 const fail=(status,message)=>Object.assign(Error(message),{status});
 function readUpload(body) {
   let text;
@@ -23,7 +24,7 @@ function readUpload(body) {
   try{new Store({getItem:()=>JSON.stringify(result.state),setItem(){}});}catch(e){throw fail(422,'Sicherung ist unvollständig: '+e.message);}
   return result;
 }
-function createHandler(deps={sessionFromRequest,repository,accessRepository:security.accessRepository,backupStore:()=>backupStore()}) {
+function createHandler(deps={sessionFromRequest,repository,accessRepository:security.accessRepository,backupStore:()=>backupStore(),makeSync:()=>createSync()}) {
   return async(req,res)=>{
     res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Vary','Cookie');
     try {
@@ -48,6 +49,8 @@ function createHandler(deps={sessionFromRequest,repository,accessRepository:secu
       if(body.action==='create') {
         const {state}=await repo.read(tenant),created=await store.create(tenant,actor,state,'manuell');
         await log('backup_created',created.fileName);
+        // Datierte Kopie nach Dropbox /DWP/04_Sicherungen (über Make, falls eingerichtet).
+        if(deps.makeSync)await deps.makeSync().backupCreated({tenantId:tenant,backup:created}).catch(()=>{});
         return res.status(200).json({created,backups:await store.list(tenant)});
       }
       if(body.action==='download') {
