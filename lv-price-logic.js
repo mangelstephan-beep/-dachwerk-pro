@@ -149,14 +149,15 @@
     const win = window.open('', '_blank');
     if (!win) return;
     win.opener = null;
-    win.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${esc(work.name)} · DachWerk Pro</title><style>
-      body{font-family:Arial,sans-serif;margin:28px;color:#111827}h1{margin:0 0 4px}p{color:#667085;margin:0 0 20px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border-bottom:1px solid #d0d5dd;padding:8px;text-align:left;vertical-align:top}th{background:#f2f4f7}.num{text-align:right;white-space:nowrap}.total{font-size:15px;font-weight:700}.note{margin-top:18px;font-size:11px;color:#667085}@media print{button{display:none}body{margin:12mm}}</style></head><body>
+    if(!window.DWPDocument){win.close();throw Error('Original-Briefpapier nicht verfügbar. Bitte Anwendung neu laden.');}
+    win.onload=()=>window.DWPDocument.ready(win.document).then(()=>win.print()).catch(error=>showToast('Druckausgabe',error.message));
+    win.document.write(window.DWPDocument.render({title:work.name,company:window.DWPWorkspace?.store?.data.settings || {},body:`
       <h1>${esc(work.name)}</h1><p>DachWerk Pro · Kalkulations-/LV-Ausgabe</p>
       <table><thead><tr><th>Pos.</th><th>Leistung</th><th class="num">Menge</th><th>Einheit</th><th class="num">EP netto</th><th class="num">GP netto</th></tr></thead><tbody>
       ${rows.map(r => `<tr><td>${esc(r.nr)}</td><td>${esc(r.text)}</td><td class="num">${esc(r.qty)}</td><td>${esc(r.unit)}</td><td class="num">${money(r.target)}</td><td class="num">${money(r.gp)}</td></tr>`).join('')}
       </tbody><tfoot><tr><td colspan="5" class="total">Summe netto</td><td class="num total">${money(total)}</td></tr></tfoot></table>
       <p class="note">Ausgabe verwendet ausschließlich die in DachWerk Pro grün markierten Zielpreise. Historische Vergabewerte dienen nur dem internen Vergleich und werden nicht ausgegeben.</p>
-      <script>window.addEventListener('load',()=>window.print())<\/script></body></html>`);
+    `}));
     win.document.close();
   }
 

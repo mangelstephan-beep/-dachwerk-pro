@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict');
+const {capacity}=require('./project-core.js');
+const {execute,memoryRepository}=require('./lib/project-service.cjs');
+const values={year:2026,headcount:2,weeklyHours:40,leaveDays:30,sickDays:10,trainingDays:5,nonproductivePercent:10,holidayDates:'2026-01-01\n2026-01-01\n2026-01-03'};
+const c=capacity(values);assert.equal(c.weekdays,261);assert.equal(c.holidayDays,1);assert.equal(c.productiveHours,3096);
+assert.equal(capacity({...values,year:2024,holidayDates:''}).weekdays,262);
+for(const invalid of [{holidayDates:'2026-02-30'},{holidayDates:'2025-01-01'},{headcount:0},{weeklyHours:0},{leaveDays:999},{nonproductivePercent:100},{year:1999}])assert.throws(()=>capacity({...values,...invalid}),/ungültig|überschreiten|gültige/);
+(async()=>{
+ const repo=memoryRepository(),actor={id:'admin',name:'Stephan',role:'admin',tenantId:'capacity-test'};
+ const run=async(method,args,projectId)=>execute(repo,actor,{method,args,projectId,revision:(await repo.read(actor.tenantId)).state.revision});
+ const customer=await run('save',['customers',{name:'AG'}]);const project=await run('save',['projects',{name:'Dach',customerId:customer.recordId,phase:'Erfassung'}]);
+ await run('settings',[{capacity:values,profit:10}]);
+ await run('save',['operating',{title:'Personal und Lohnnebenkosten',annualCost:150000,productiveHours:1},{status:'Freigegeben'}],project.recordId);
+ await run('save',['operating',{title:'Fahrzeuge, Geräte, Verwaltung, Raum und Versicherungen',annualCost:159600,productiveHours:1},{status:'Freigegeben'}],project.recordId);
+ const rate=await run('applyOperatingCosts',[],project.recordId);assert.equal(rate.state.settings.wage,100);assert.equal(rate.state.settings.agk,0);assert.equal(rate.state.settings.capacity.productiveHours,3096);
+ await run('save',['lv',{number:'01',text:'Abdichtung',qty:10,unit:'m²',material:15,minutes:6},{status:'Freigegeben'}],project.recordId);
+ const quote=await run('issue',['offers'],project.recordId);const doc=quote.state.records.find(r=>r.id===quote.recordId);assert.equal(doc.data.net,275);
+ await run('settings',[{capacity:{...values,headcount:4}}]);await run('applyOperatingCosts',[],project.recordId);
+ const stored=(await repo.read(actor.tenantId)).state;assert.equal(stored.settings.wage,50);assert.equal(stored.records.find(r=>r.id===doc.id).data.net,275);
+ console.log('Operating cost integration: annual/weekend/duplicate holiday counts, leap year, FTE/leave/sickness/training losses, validated hours, approved cost aggregation, no double AGK, LV/offer linkage and immutable quote after basis change passed.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

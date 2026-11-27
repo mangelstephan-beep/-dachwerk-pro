@@ -1,0 +1,68 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {JSDOM}=require('jsdom');
+const pdfImporter=require('./pdf-import.js');
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
+(async()=>{
+  const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{url:'https://dachwerk.test',runScripts:'outside-only'}),w=dom.window;
+  w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
+  for(const file of ['app.js','module-fixes.js','project-core.js','module-verification.js','project-workflows.js'])vm.runInContext(fs.readFileSync(file,'utf8'),dom.getInternalVMContext(),{filename:file});
+  const db=w.DWPWorkspace.store,c=db.save('customers',{name:'Import lifecycle test'});
+  db.save('projects',{name:'Test A',customerId:c.id,phase:'Erfassung'});
+  const projectA=db.data.selectedProject;
+  const second=db.save('projects',{name:'Test B',customerId:c.id,phase:'Erfassung'});db.select(projectA);
+  const q=s=>w.document.querySelector(s),open=()=>w.DWPWorkspace.open('imports');open();
+  const choose=async file=>{
+    const input=q('#dwp-import-file');Object.defineProperty(input,'files',{value:[file],configurable:true});
+    input.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
+  };
+  const busy=()=>q('#dwp-import').getAttribute('aria-busy')==='true';
+  const csv={name:'latest.csv',size:75,text:async()=> 'number;text;qty;unit\n9801;Latest import;12,5;m²'};
+  let jobs=[];
+  w.DWPPdfImport={extract:(_file,progress,_parser,options)=>{const job={...deferred(),progress,signal:options.signal};jobs.push(job);return job.promise;},report:pdfImporter.report};
+  await choose({name:'slow.pdf',size:100});assert(busy());
+  assert(q('#dwp-import [type=submit]').disabled);assert(q('[data-dwp="preview-import"]').disabled);
+  assert(!q('#dwp-import-file').disabled,'Replacing a pending file must remain possible');
+  jobs[0].progress(1,7);assert.match(q('#dwp-import-progress').textContent,/Seite 1 von 7/);
+  // A CSV selected second wins even if the abandoned PDF completes afterward.
+  await choose(csv);assert(jobs[0].signal.aborted);assert(!busy());
+  jobs[0].resolve([{page:1,text:'obsolete',needsOcr:false}]);await tick();
+  assert.equal(q('#dwp-import-source').value,'latest.csv');assert.match(q('#dwp-csv').value,/Latest import/);
+  assert(!q('#dwp-import [type=submit]').disabled);
+  q('[data-dwp="preview-import"]').click();assert.match(q('#dwp-import-preview').textContent,/9801/);
+  // An invalid replacement erases a valid preview, including the parsed source.
+  await choose({name:'empty.csv',size:0});assert.match(q('#dwp-error').textContent,/leer/);
+  assert.equal(q('#dwp-csv').value,'');assert.equal(q('#dwp-import-preview').textContent,'');
+  q('#dwp-import').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+  assert.equal(db.list('imports').length,0,'No old source can be imported after failed replacement');
+  await choose({name:'cancelled.pdf',size:100});const cancelled=jobs[1];
+  q('[data-dwp="cancel-import-read"]').click();assert(cancelled.signal.aborted);assert(!busy());
+  assert.match(q('#dwp-import-progress').textContent,/abgebrochen/);
+  cancelled.progress(2,7);cancelled.reject(Error('late cancellation failure'));await tick();
+  assert.match(q('#dwp-import-progress').textContent,/abgebrochen/);
+  assert(!q('#dwp-error').textContent.includes('late cancellation failure'));
+  await choose({name:'leaving.pdf',size:100});const leaving=jobs[2];
+  w.DWPWorkspace.open('lv');assert(leaving.signal.aborted);open();
+  leaving.reject(Error('previous page failure'));await tick();assert.equal(q('#dwp-error').textContent,'');
+  await choose({name:'switch-project.pdf',size:100});const switching=jobs[3];
+  q('#dwp-project').value=second.id;q('#dwp-project').dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
+  assert(switching.signal.aborted);assert.equal(db.data.selectedProject,second.id);
+  switching.resolve([{page:1,text:'wrong project',needsOcr:false}]);await tick();
+  assert.equal(q('#dwp-csv').value,'');assert.equal(db.list('imports').length,0);
+  await choose({name:'failed.pdf',size:100});jobs[4].reject(Error('invalid PDF'));await tick();
+  assert(!busy());assert(!q('#dwp-import [type=submit]').disabled);assert.match(q('#dwp-error').textContent,/invalid PDF/);
+  await choose({name:'retry.pdf',size:100});jobs[5].resolve([{page:1,text:'Synthetic test source with more than thirty-five characters',needsOcr:false}]);await tick();
+  assert.equal(q('#dwp-import-source').value,'retry.pdf');assert(!busy());
+  q('[data-dwp="preview-import"]').click();assert.match(q('#dwp-import-preview').textContent,/1 gesperrte Prüfvorgänge/);
+  q('#dwp-import').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+  assert.equal(db.list('imports').length,1);assert.equal(db.list('contract').length,1);
+  dom.window.close();
+  // PDF cancellation releases the real task interface exactly once and rejects with AbortError.
+  const bytes=new TextEncoder().encode('%PDF-test'),file={size:bytes.length,arrayBuffer:async()=>bytes.buffer};
+  const controller=new AbortController(),taskGate=deferred();let destroyed=0;
+  const task={promise:taskGate.promise,destroy:async()=>{destroyed++;taskGate.reject(Error('Worker stopped'));}};
+  const pending=pdfImporter.extract(file,undefined,{getDocument:()=>task},{signal:controller.signal});
+  await tick();controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(destroyed,1);
+  let read=false;await assert.rejects(pdfImporter.extract({...file,arrayBuffer:async()=>{read=true;return bytes.buffer;}},undefined,undefined,{signal:controller.signal}),{name:'AbortError'});assert(!read);
+  console.log('Import lifecycle: pending controls, progress, cancellation, out-of-order completion, invalid replacement, navigation/project isolation, retry and PDF worker cleanup passed.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

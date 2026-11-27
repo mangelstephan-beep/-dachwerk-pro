@@ -1,0 +1,36 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),{createHash}=require('node:crypto');
+const {PGlite}=require('@electric-sql/pglite');
+const {fileRepository,CHUNK}=require('./lib/file-store.cjs');
+const {createHandler}=require('./api/files.js');
+const {repository}=require('./lib/project-repository.cjs');
+const {execute}=require('./lib/project-service.cjs');
+const actor={id:'owner',name:'Stephan Test',role:'admin',tenantId:'files-test'};
+const response=()=>({code:200,headers:{},setHeader(k,v){this.headers[k]=v;return this;},status(n){this.code=n;return this;},json(v){this.body=v;return this;}});
+(async()=>{
+ const pg=new PGlite();for(const file of ['001-project-store.sql','002-access-security.sql','003-file-store.sql'])await pg.exec(fs.readFileSync('migrations/'+file,'utf8'));
+ const query=async(s,p)=>(await pg.query(s,p)).rows,repo=repository({query}),files=fileRepository({query});
+ let revision=0;const cmd=async(method,args,projectId)=>{const r=await execute(repo,actor,{method,args,projectId,revision});revision=r.state.revision;return r;};
+ const c=(await cmd('save',['customers',{name:'Kunde'}])).recordId;
+ const project=(await cmd('save',['projects',{name:'Dach',customerId:c,phase:'Erfassung'}])).recordId;
+ const record=(await cmd('save',['documents',{title:'Original',category:'Nachweis'}],project)).recordId;
+ let trusted=true,active=actor;
+ process.env.DWP_OWNER_USER_ID=actor.id;
+ const handler=createHandler({sessionFromRequest:async()=>active,repository:()=>repo,fileRepository:()=>files,accessRepository:()=>({trusted:async()=>trusted,event:async()=>{}})});
+ const call=async(body)=>{const r=response();await handler({method:'POST',headers:{host:'dachwerk.test',origin:'https://dachwerk.test','content-type':'application/json',cookie:'__Host-dwp-device='+ 'a'.repeat(64)},body:{recordId:record,projectId:project,...body}},r);return r;};
+ const bytes=Buffer.alloc(CHUNK*6+13,72);Buffer.from('%PDF-1.7\n').copy(bytes);const sha256=createHash('sha256').update(bytes).digest('hex');
+ const started=await call({action:'start',file:{name:'Original.pdf',mime:'application/pdf',size:bytes.length,sha256}});assert.equal(started.code,200);const id=started.body.fileId;
+ assert.equal((await call({action:'finish',fileId:id,revision})).code,422);
+ for(let part=0;part<started.body.parts;part++){const b=bytes.subarray(part*CHUNK,(part+1)*CHUNK).toString('base64');assert.equal((await call({action:'chunk',fileId:id,part,data:b})).code,200);assert.equal((await call({action:'chunk',fileId:id,part,data:b})).code,200);}
+ assert.equal((await call({action:'chunk',fileId:id,part:0,data:Buffer.alloc(CHUNK).toString('base64')})).code,409);
+ const finished=await call({action:'finish',fileId:id,revision});assert.equal(finished.code,200);revision++;
+ const persisted=await repo.read(actor.tenantId);const attachment=persisted.state.records.find(r=>r.id===record).attachments[0];assert.equal(attachment.sha256,sha256);assert(!attachment.dataUrl);
+ const chunks=[];for(let part=0;part<started.body.parts;part++){const r=await call({action:'download',fileId:id,part});assert.equal(r.code,200);chunks.push(Buffer.from(r.body.data,'base64'));}assert.deepEqual(Buffer.concat(chunks),bytes);
+ trusted=false;assert.equal((await call({action:'download',fileId:id,part:0})).code,403);trusted=true;
+ active={...actor,id:'other-admin'};assert.equal((await call({action:'download',fileId:id,part:0})).code,403);assert.equal((await call({action:'chunk',fileId:id,part:0,data:bytes.subarray(0,CHUNK).toString('base64')})).code,403);
+ active={...actor,tenantId:'other'};assert.equal((await call({action:'download',fileId:id,part:0})).code,403);active=actor;
+ await assert.rejects(cmd('attach',[record,{storageId:id}],project),/ausschließlich/);
+ const invalid=await call({action:'start',file:{name:'../bad.pdf',mime:'application/pdf',size:20,sha256}});assert.equal(invalid.code,422);
+ const huge=await call({action:'start',file:{name:'too-large.pdf',mime:'application/pdf',size:67108865,sha256}});assert.equal(huge.code,422);
+ const malformed=await call({action:'start',file:{name:'bad.pdf',mime:'application/pdf',size:13,sha256:createHash('sha256').update(Buffer.alloc(13)).digest('hex')}});await call({action:'chunk',fileId:malformed.body.fileId,part:0,data:Buffer.alloc(13).toString('base64')});assert.equal((await call({action:'finish',fileId:malformed.body.fileId,revision})).code,422);
+ await pg.close();console.log('Original file SQL/API: >3 MB chunk persistence, byte-exact download, hash/format verification, idempotent retries, incomplete upload, actor/tenant/device denial, forged reference and size limits passed.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

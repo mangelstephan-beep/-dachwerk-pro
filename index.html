@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="DachWerk Pro by Stephan Mangel – digitale Projekt-, Kalkulations- und Dokumentationsplattform für das Dachhandwerk." />
     <meta name="theme-color" content="#cf202a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="DachWerk Pro" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta property="og:title" content="DachWerk Pro by Stephan Mangel" />
     <meta property="og:description" content="Projekte, Kalkulation, Dokumentation und technische Qualitätssicherung in DachWerk Pro." />
     <meta property="og:type" content="website" />
@@ -14,9 +17,141 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/dwp-verification-status.css" />
   </head>
   <body>
-    <section class="login-screen" id="login-screen" aria-label="Anmeldung">
+    <section class="public-home" id="public-home">
+      <header class="public-header">
+        <a class="public-brand" href="#start" aria-label="DachWerk Pro Startseite">
+          <img src="/assets/dachwerk-pro-logo.svg" alt="DachWerk Pro by Stephan Mangel" />
+        </a>
+        <nav class="public-nav" aria-label="Seitennavigation">
+          <a href="#einsatz">Einsatz</a>
+          <a href="#promo">Promovideo</a>
+          <a href="https://www.instagram.com/dachwerkpro/" target="_blank" rel="noopener noreferrer" aria-label="DachWerk Pro auf Instagram besuchen">Instagram</a>
+          <a href="#vorteile">Vorteile</a>
+          <a href="#kontakt">Kontakt</a>
+          <button class="button button-secondary" type="button" data-open-login>Anmelden</button>
+        </nav>
+      </header>
+
+      <main>
+        <section class="public-hero" id="start">
+          <div class="hero-copy">
+            <span class="eyebrow">Branchenlösung für Dach · Wand · Abdichtung</span>
+            <h1>Baustelle und Büro in einem durchgängigen System.</h1>
+            <p class="hero-lead">DachWerk Pro verbindet Kalkulation, Leistungsverzeichnisse, Aufmaß, Bauleitung, Dokumentation und Abrechnung – praxisnah entwickelt vom Dachhandwerker für Dachhandwerker.</p>
+            <div class="hero-actions">
+              <button class="button button-primary button-large" type="button" data-open-request>Testzugang anfragen</button>
+              <button class="button button-secondary button-large" type="button" data-open-login>Zum geschützten Bereich</button>
+            </div>
+            <p class="hero-note"><span class="status-dot"></span>Aktuell im betreuten Praxistest</p>
+          </div>
+          <div class="hero-card" aria-label="Leistungsübersicht">
+            <div class="hero-card-head"><span>Projektablauf</span><strong>Alles im Blick</strong></div>
+            <ol class="workflow-list">
+              <li><span>01</span><div><strong>LV prüfen und kalkulieren</strong><small>PDF, GAEB, Zielpreise und Materialdaten</small></div></li>
+              <li><span>02</span><div><strong>Ausführung steuern</strong><small>Aufmaß, Bautenstand, Termine und Nachweise</small></div></li>
+              <li><span>03</span><div><strong>Sauber dokumentieren</strong><small>Fotos, Mängel, Schriftverkehr und Abrechnung</small></div></li>
+            </ol>
+          </div>
+        </section>
+
+
+        <section class="public-section promo-section" id="promo" aria-labelledby="promo-title">
+          <div class="promo-info">
+            <span class="eyebrow">DachWerk Pro in 16 Sekunden</span>
+            <h2 id="promo-title">Sieh dir DachWerk Pro an.</h2>
+            <p>Vom Leistungsverzeichnis über die Kalkulation bis zur Projektübersicht – ein kompakter Einblick in die Branchenlösung für das Dachhandwerk.</p>
+            <div class="promo-actions">
+              <button class="button button-primary button-large" type="button" data-promo-open>▶ Promovideo ansehen</button>
+              <a class="button button-secondary button-large" href="https://www.instagram.com/dachwerkpro/" target="_blank" rel="noopener noreferrer">Instagram · @dachwerkpro</a>
+            </div>
+          </div>
+          <button class="promo-thumbnail" type="button" data-promo-open aria-label="Promovideo von DachWerk Pro öffnen">
+            <span class="promo-thumbnail-label">DACHWERKPRO / DIGITALER WORKFLOW</span>
+            <span class="promo-thumbnail-title">DachWerk <strong>PRO</strong></span>
+            <span class="promo-thumbnail-subtitle">Die digitale Lösung für das Dachhandwerk</span>
+            <span class="promo-play-mark" aria-hidden="true">▶</span>
+            <span class="promo-thumbnail-foot">Jetzt ansehen · Hochkant 9:16</span>
+          </button>
+        </section>
+
+        <section class="public-section" id="einsatz">
+          <div class="section-heading">
+            <span class="eyebrow">Wofür DachWerk Pro eingesetzt wird</span>
+            <h2>Ein Arbeitsmittel für den gesamten Projektverlauf.</h2>
+            <p>Vom ersten Leistungsverzeichnis bis zur prüfbaren Schlussrechnung bleiben technische, kaufmännische und organisatorische Informationen am selben Projekt.</p>
+          </div>
+          <div class="feature-grid">
+            <article><span>LV</span><h3>Ausschreibung und Kalkulation</h3><p>Leistungsverzeichnisse importieren, Positionen prüfen, Leistungen zuordnen und belastbare Zielpreise bilden.</p></article>
+            <article><span>BL</span><h3>Bauleitung und Ausführung</h3><p>Aufmaß, Bautenstand, Tagesdokumentation, Regiearbeiten und offene Aufgaben direkt von der Baustelle erfassen.</p></article>
+            <article><span>QS</span><h3>Qualität und Nachweise</h3><p>Mängel, Abweichungen, Fotos, Fristen und technische Bewertungen nachvollziehbar am Vorgang dokumentieren.</p></article>
+            <article><span>RE</span><h3>Abrechnung und Projektabschluss</h3><p>Mengen, Leistungen und Nachweise zusammenführen und für Abschlags-, Teil- und Schlussrechnungen vorbereiten.</p></article>
+          </div>
+        </section>
+
+        <section class="benefit-band" id="vorteile">
+          <div>
+            <span class="eyebrow eyebrow-light">Aus der Praxis entwickelt</span>
+            <h2>Weniger doppelte Eingaben. Weniger Informationsverluste. Mehr Zeit für die Baustelle.</h2>
+          </div>
+          <ul>
+            <li>Einheitlicher Projektstand für Büro und Baustelle</li>
+            <li>Schnellere Prüfung von LV, Mengen und Preisen</li>
+            <li>Nachvollziehbare Foto- und Mängeldokumentation</li>
+            <li>Klare nächste Schritte und offene Aufgaben</li>
+            <li>KI-Unterstützung für Prüfungen und Routinearbeiten</li>
+          </ul>
+        </section>
+
+        <section class="public-section contact-section" id="kontakt">
+          <div class="section-heading">
+            <span class="eyebrow">Kontakt und Testzugang</span>
+            <h2>DachWerk Pro im eigenen Arbeitsablauf testen.</h2>
+            <p>Testzugänge werden persönlich vergeben. So kann der Praxistest begleitet und Rückmeldung direkt in die Weiterentwicklung aufgenommen werden.</p>
+          </div>
+          <div class="contact-card">
+            <div>
+              <strong>Stephan Mangel</strong>
+              <p>Dachdeckermeister<br />Sachverständiger (DGUSV) für Dach-, Wand- und Abdichtungstechnik<br />Gebäudeenergieberater (EEE) · Technischer Fachwirt</p>
+            </div>
+            <div class="contact-links">
+              <a href="tel:+4915121471973">0151 21471973</a>
+              <a href="mailto:kontakt@dachwerkpro.de">kontakt@dachwerkpro.de</a>
+              <button class="contact-request-link" type="button" data-open-request>testzugang@dachwerkpro.de</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="public-footer">
+        <div><strong>DachWerk Pro by Stephan Mangel</strong><span>Das Tool vom Dachhandwerker für Dachhandwerker.</span></div>
+        <address>Upsalastraße 48 · 28719 Bremen</address>
+        <a class="footer-instagram" href="https://www.instagram.com/dachwerkpro/" target="_blank" rel="noopener noreferrer">Instagram: @dachwerkpro</a>
+        <span>© 2026 DachWerk Pro</span>
+      </footer>
+    </section>
+
+
+    <div class="promo-modal is-hidden" id="promo-modal">
+      <section class="promo-dialog" role="dialog" aria-modal="true" aria-labelledby="promo-modal-title">
+        <div class="promo-dialog-header">
+          <h2 id="promo-modal-title">DachWerk Pro · Promovideo</h2>
+          <button type="button" class="promo-close" data-promo-close aria-label="Promovideo schließen">×</button>
+        </div>
+        <video id="promo-video" class="promo-video is-hidden" controls playsinline preload="none" poster="/assets/dachwerk-pro-logo.svg" aria-label="DachWerk Pro Promovideo"></video>
+        <div class="promo-fallback" id="promo-fallback">
+          <div class="promo-scene promo-scene-one"><span>DACHWERKPRO · DIGITALER WORKFLOW</span><strong>DachWerk <em>PRO</em></strong><p>Die digitale Lösung für das Dachhandwerk</p></div>
+          <div class="promo-scene promo-scene-two"><span>ARBEITEN MIT DACHWERK PRO</span><strong>LV &amp; <em>KALKULATION</em></strong><p>Positionen. Mengen. Preise.</p></div>
+          <div class="promo-scene promo-scene-three"><span>ALLE PROJEKTE IM BLICK</span><strong>DachWerk <em>PRO</em></strong><p>Vorversion · Januar 2027</p></div>
+        </div>
+        <p class="promo-fallback-note" id="promo-fallback-note">Animierte Kurzvorschau. Weitere Einblicke findest du auf unserem Instagram-Kanal.</p>
+        <a class="promo-instagram-link" href="https://www.instagram.com/dachwerkpro/" target="_blank" rel="noopener noreferrer">DachWerk Pro auf Instagram</a>
+      </section>
+    </div>
+
+    <section class="login-screen is-hidden" id="login-screen" aria-label="Anmeldung">
       <div class="login-visual" aria-hidden="true">
         <div class="login-grid"></div>
         <div class="visual-copy">
@@ -25,7 +160,7 @@
           <p>Die digitale Plattform für Kalkulation, Projektsteuerung, Dokumentation und technische Qualitätssicherung.</p>
           <div class="visual-metrics">
             <div><strong>1</strong><span>System</span></div>
-            <div><strong>21</strong><span>Module</span></div>
+            <div><strong>36</strong><span>Arbeitsbereiche im Ausbau</span></div>
             <div><strong>360°</strong><span>Projektblick</span></div>
           </div>
         </div>
@@ -41,16 +176,17 @@
           </div>
 
           <div class="login-heading">
-            <span class="eyebrow">Willkommen</span>
+            <button class="back-to-home" type="button" data-back-home>← Zur Startseite</button>
+            <span class="eyebrow">Geschützter Bereich</span>
             <h2>DachWerk Pro öffnen</h2>
-            <p>Persönlicher Zugang für Stephan Mangel.</p>
+            <p>Zugang für freigeschaltete Anwender und betreute Praxistests.</p>
           </div>
 
           <form id="login-form" novalidate>
-            <label for="username">E-Mail</label>
+            <label for="username">Benutzername</label>
             <div class="input-wrap">
               <span aria-hidden="true">@</span>
-              <input id="username" name="username" type="email" autocomplete="username" value="mangel.stephan@icloud.com" placeholder="E-Mail-Adresse" />
+              <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Benutzername, z. B. meier" />
             </div>
 
             <label for="password">Passwort</label>
@@ -60,16 +196,67 @@
               <button class="input-action" id="toggle-password" type="button">Anzeigen</button>
             </div>
 
+            <button class="test-access-link" id="forgot-password-button" type="button" style="margin:8px 0 12px">Passwort vergessen?</button>
             <p class="form-error" id="login-error" role="alert"></p>
             <button class="button button-primary button-block" type="submit">DachWerk Pro starten</button>
             <button class="button button-secondary button-block" id="demo-login" type="button" style="display:none" aria-hidden="true" tabindex="-1">Demo starten</button>
           </form>
 
-          <div class="login-note"><span class="status-dot"></span>DachWerk Pro · persönlicher Arbeitsbereich</div>
+          <form id="password-change-form" class="is-hidden" novalidate>
+            <p class="login-change-intro"><strong>Eigenes Passwort festlegen.</strong> Du hast dich mit einem Startpasswort angemeldet. Lege jetzt dein eigenes Passwort fest, danach gilt das Startpasswort nicht mehr.</p>
+            <label for="change-current">Startpasswort</label>
+            <div class="input-wrap"><span aria-hidden="true">••</span><input id="change-current" type="password" autocomplete="current-password" placeholder="Startpasswort" /></div>
+            <label for="change-new">Neues Passwort (mindestens 12 Zeichen)</label>
+            <div class="input-wrap"><span aria-hidden="true">••</span><input id="change-new" type="password" autocomplete="new-password" minlength="12" placeholder="Neues Passwort" /></div>
+            <label for="change-repeat">Neues Passwort wiederholen</label>
+            <div class="input-wrap"><span aria-hidden="true">••</span><input id="change-repeat" type="password" autocomplete="new-password" minlength="12" placeholder="Wiederholen" /></div>
+            <p class="form-error" id="change-error" role="alert"></p>
+            <button class="button button-primary button-block" type="submit">Passwort speichern und starten</button>
+          </form>
+
+          <div class="login-note"><span class="status-dot"></span>DachWerk Pro · geschützter Arbeitsbereich</div>
+          <button class="test-access-link" type="button" data-open-request>Noch keinen Zugang? Testzugang anfragen</button>
           <p class="brand-claim">Das Tool vom Dachhandwerker für Dachhandwerker.</p>
         </div>
       </div>
     </section>
+
+    <div class="request-backdrop is-hidden" id="password-reset-backdrop">
+      <section class="request-dialog" role="dialog" aria-modal="true" aria-labelledby="password-reset-title">
+        <div class="request-head"><div><span class="eyebrow">Kontowiederherstellung</span><h2 id="password-reset-title">Passwort zurücksetzen</h2></div><button class="icon-button" id="password-reset-close" type="button" aria-label="Schließen">×</button></div>
+        <form id="password-reset-request-form" class="request-form">
+          <div class="field-span"><label for="password-reset-email">Benutzername</label><input id="password-reset-email" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="z. B. meier" required /><small>Der Link kommt an die E-Mail-Adresse, die der Administrator bei dir hinterlegt hat.</small></div>
+          <p id="password-reset-status" class="request-status field-span" role="status" aria-live="polite"></p>
+          <div class="request-actions field-span"><button class="button button-secondary" id="password-reset-cancel" type="button">Abbrechen</button><button class="button button-primary" type="submit">Reset-Link anfordern</button></div>
+        </form>
+        <form id="password-reset-complete-form" class="request-form is-hidden">
+          <div class="field-span"><label for="password-reset-new">Neues Passwort (mindestens 12 Zeichen)</label><input id="password-reset-new" type="password" minlength="12" autocomplete="new-password" required /></div>
+          <p id="password-reset-complete-status" class="request-status field-span" role="status" aria-live="polite"></p>
+          <div class="request-actions field-span"><button class="button button-primary" type="submit">Neues Passwort speichern</button></div>
+        </form>
+      </section>
+    </div>
+    <div class="request-backdrop is-hidden" id="request-backdrop">
+      <section class="request-dialog" role="dialog" aria-modal="true" aria-labelledby="request-title">
+        <div class="request-head">
+          <div><span class="eyebrow">Betreuter Praxistest</span><h2 id="request-title">Testzugang anfragen</h2></div>
+          <button class="icon-button" id="request-close" type="button" aria-label="Anfrage schließen">×</button>
+        </div>
+        <p class="request-intro">Nach deiner Anfrage prüft Stephan Mangel die Angaben persönlich. Erst nach Genehmigung erhältst du eine Bestätigungsmail und kannst dein eigenes Passwort festlegen. Der Zugang gilt fünf Kalendertage ab Freischaltung.</p>
+        <form id="test-request-form" class="request-form">
+          <div><label for="request-name">Vor- und Nachname *</label><input id="request-name" required autocomplete="name" /></div>
+          <div><label for="request-company">Firmenname *</label><input id="request-company" required autocomplete="organization" /></div>
+          <div><label for="request-email">E-Mail-Adresse *</label><input id="request-email" required type="email" autocomplete="email" /></div>
+          <div><label for="request-phone">Telefonnummer *</label><input id="request-phone" required type="tel" autocomplete="tel" /></div>
+          <div class="field-span"><label for="request-address">Anschrift / Ort *</label><input id="request-address" required autocomplete="street-address" /></div>
+          <div><label for="request-role">Funktion im Betrieb</label><input id="request-role" placeholder="z. B. Bauleitung" /></div>
+          <div><label for="request-start">Gewünschter Testbeginn</label><input id="request-start" type="date" /></div>
+          <label class="request-consent field-span"><input id="request-consent" type="checkbox" required /><span>Ich bestätige, dass meine Angaben für die Bearbeitung der Testzugangsanfrage verwendet werden dürfen. *</span></label>
+          <p class="request-status field-span" id="request-status" role="status"></p>
+          <div class="request-actions field-span"><button class="button button-secondary" id="request-cancel" type="button">Abbrechen</button><button class="button button-primary" type="submit">Anfrage per E-Mail senden</button></div>
+        </form>
+      </section>
+    </div>
 
     <div class="app-shell is-hidden" id="app-shell">
       <aside class="sidebar" id="sidebar">
@@ -109,6 +296,7 @@
 
         <div class="sidebar-footer">
           <button class="nav-item" data-view="users"><span class="nav-symbol">N</span><span>Anwenderverwaltung</span></button>
+          <button class="nav-item" data-view="backup"><span class="nav-symbol">S</span><span>Sicherung</span></button>
           <button class="nav-item" data-view="settings"><span class="nav-symbol">⚙</span><span>Einstellungen</span></button>
           <button class="nav-item" id="logout-button"><span class="nav-symbol">↪</span><span>Abmelden</span></button>
           <div class="release-badge"><span class="status-dot"></span><div><strong>DachWerk Pro</strong><small>Online</small></div></div>
@@ -145,8 +333,26 @@
     </div>
 
     <div class="toast-region" id="toast-region" aria-live="polite"></div>
+    <script src="/promo-video.js"></script>
     <script src="/app.js"></script>
+    <script src="/password-reset.js"></script>
     <script src="/module-fixes.js"></script>
+    <script src="/ocr-import.js"></script>
+    <script src="/pdf-import.js"></script>
     <script src="/garnmagazin-lv.js"></script>
+    <link rel="stylesheet" href="/project-workflows.css">
+    <script src="/project-core.js"></script>
+    <script src="/offer-edit.js"></script>
+    <script src="/module-verification.js"></script>
+    <script src="/vendor/fflate-0.8.2.js"></script>
+    <script src="/spreadsheet-import.js"></script>
+    <script src="/xls-import.js"></script>
+    <script src="/gaeb-import.js"></script>
+    <script src="/document-layout.js"></script>
+    <script src="/material-price-import.js"></script>
+    <script src="/datanorm-import.js"></script>
+    <script src="/document-register.js"></script>
+    <script src="/project-workflows.js"></script>
+    <script src="/central-entry.js"></script>
   </body>
 </html>

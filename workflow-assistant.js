@@ -110,9 +110,11 @@
 
   function installVoice(){
     if(document.querySelector('[data-dwp-voice]')) return;
-    const wrap=document.createElement('div'); wrap.dataset.dwpVoice='true'; wrap.style.cssText='position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:8px;align-items:center';
-    wrap.innerHTML='<button type="button" class="button button-primary" data-voice-btn title="Sprachhilfe">🎤 Sprachhilfe</button>';
-    document.body.appendChild(wrap);
+    const actions=document.querySelector('.topbar-actions');
+    if(!actions)return;
+    const wrap=document.createElement('div'); wrap.dataset.dwpVoice='true'; wrap.className='dwp-voice-control';
+    wrap.innerHTML='<button type="button" class="button button-primary" data-voice-btn title="Sprachhilfe" aria-label="Sprachhilfe öffnen"><span aria-hidden="true">🎤</span><span class="dwp-voice-label">Sprachhilfe</span></button>';
+    actions.prepend(wrap);
     const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
     wrap.querySelector('[data-voice-btn]').addEventListener('click',()=>{
       if(!SpeechRecognition){const cmd=prompt('Befehl eingeben, z. B. „Personal anlegen“ oder „Preisliste einpflegen“'); if(cmd) runCommand(cmd); return;}

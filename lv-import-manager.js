@@ -38,23 +38,11 @@
   function supported(file){ return ['pdf','png','jpg','jpeg','webp','txt','csv','xml','x83','x84','d83','d84','xlsx','xls'].includes(extension(file.name)); }
 
   async function extractPdf(file, onProgress){
-    if(!window.pdfjsLib) throw new Error('PDF-Modul konnte nicht geladen werden.');
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs';
-    const data=await file.arrayBuffer();
-    const pdf=await window.pdfjsLib.getDocument({data}).promise;
-    const pages=[];
-    for(let i=1;i<=pdf.numPages;i++){
-      const page=await pdf.getPage(i);
-      const tc=await page.getTextContent();
-      const text=tc.items.map(x=>x.str).join(' ').replace(/\s+/g,' ').trim();
-      pages.push({page:i,text,needsOcr:text.length<35,selected:true});
-      onProgress?.(i,pdf.numPages);
-    }
-    return pages;
+    return window.DWPPdfImport.extract(file, onProgress);
   }
 
   async function ocrPdfPages(file, pageNumbers, onProgress){
-    if(!window.pdfjsLib || !window.Tesseract) throw new Error('OCR-Modul konnte nicht geladen werden.');
+    if(!window.pdfjsLib || !window.Tesseract) throw new Error('Texterkennung für Scans ist noch nicht eingerichtet. Bitte ein PDF mit Textschicht oder CSV/XLSX im zentralen Import verwenden.');
     const data=await file.arrayBuffer();
     const pdf=await window.pdfjsLib.getDocument({data}).promise;
     const out={}; let done=0;
@@ -72,13 +60,13 @@
   }
 
   async function extractImage(file){
-    if(!window.Tesseract) throw new Error('OCR-Modul konnte nicht geladen werden.');
+    if(!window.Tesseract) throw new Error('Texterkennung für Scans ist noch nicht eingerichtet. Bitte ein PDF mit Textschicht oder CSV/XLSX im zentralen Import verwenden.');
     const res=await window.Tesseract.recognize(file,'deu+eng');
     return [{page:1,text:(res.data?.text||'').replace(/\s+/g,' ').trim(),needsOcr:false,selected:true}];
   }
 
   async function extractSpreadsheet(file){
-    if(!window.XLSX) throw new Error('Excel-Modul konnte nicht geladen werden.');
+    if(!window.XLSX) throw new Error('Bitte XLSX im zentralen Importmanager mit Blatt- und Spaltenzuordnung einlesen. Ältere XLS-Dateien vorher als XLSX speichern.');
     const wb=window.XLSX.read(await file.arrayBuffer(),{type:'array'});
     const chunks=[];
     wb.SheetNames.forEach((name,idx)=>{
@@ -230,5 +218,10 @@
     ['dragover','drop'].forEach(ev=>drop.addEventListener(ev,e=>e.preventDefault())); drop.addEventListener('drop',e=>{try{const dt=new DataTransfer();[...e.dataTransfer.files].forEach(f=>dt.items.add(f));input.files=dt.files;drop.firstChild.textContent=`${dt.files.length} Datei(en) ausgewählt `;}catch{}});
   }
 
-  const observer=new MutationObserver(()=>{render();extendQuickModal();}); observer.observe(document.body,{childList:true,subtree:true}); render();extendQuickModal();
+  const observer=new MutationObserver(()=>{
+    const page=main.querySelector('.page[data-page="calculation"]');
+    // Ignore our own updates: re-rendering on each mutation causes an endless loop.
+    if(page && !page.querySelector('[data-lv-import-manager]'))render();
+    extendQuickModal();
+  }); observer.observe(document.body,{childList:true,subtree:true}); render();extendQuickModal();
 })();

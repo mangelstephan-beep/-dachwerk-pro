@@ -1,18 +1,20 @@
 const state = {
   currentView: localStorage.getItem("dwp-current-view") || "dashboard",
-  currentUser: "Stephan Mangel",
+  currentUser: "Nicht angemeldet",
   viewHistory: [],
   historyIndex: -1,
   unsavedChanges: false,
 };
 
 const loginScreen = document.querySelector("#login-screen");
+const publicHome = document.querySelector("#public-home");
 const appShell = document.querySelector("#app-shell");
 const mainContent = document.querySelector("#main-content");
 const sidebar = document.querySelector("#sidebar");
 const sidebarBackdrop = document.querySelector("#sidebar-backdrop");
 const modalBackdrop = document.querySelector("#modal-backdrop");
 const toastRegion = document.querySelector("#toast-region");
+const requestBackdrop = document.querySelector("#request-backdrop");
 
 const euro = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -558,13 +560,45 @@ const views = {
 };
 
 function startApp() {
+  publicHome.classList.add("is-hidden");
   loginScreen.classList.add("is-hidden");
   appShell.classList.remove("is-hidden");
   const initialView = views[state.currentView] ? state.currentView : "dashboard";
   state.viewHistory = [initialView];
   state.historyIndex = 0;
-  renderView(initialView);
+  if (window.DWPWorkspace?.start) window.DWPWorkspace.start();
+  else renderView(initialView);
   requestAnimationFrame(() => document.querySelector(".page-header h1")?.focus?.());
+}
+
+function showPublicHome() {
+  appShell.classList.add("is-hidden");
+  loginScreen.classList.add("is-hidden");
+  publicHome.classList.remove("is-hidden");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showLogin() {
+  publicHome.classList.add("is-hidden");
+  loginScreen.classList.remove("is-hidden");
+  setTimeout(() => document.querySelector("#username")?.focus(), 40);
+}
+
+function openRequestDialog() {
+  requestBackdrop.classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => document.querySelector("#request-name")?.focus(), 40);
+}
+
+function closeRequestDialog() {
+  requestBackdrop.classList.add("is-hidden");
+  document.body.style.overflow = "";
+}
+
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function saveCurrentDraft() {
@@ -664,14 +698,62 @@ function bindDynamicInteractions() {
   const tableFilter = mainContent.querySelector(".table-filter");
   if (tableFilter) tableFilter.addEventListener("input", () => filterRows(tableFilter));
   const projectFilter = mainContent.querySelector(".project-filter");
-  if (projectFilter) projectFilter.addEventListener("input", () => filterCards(projectFilter, ".project-card"));
+  if (projectFilter) projectFilter.addEventListener("input", () => filterCards(projectFilter, ".project-card, [data-project-list] tbody tr"));
   const folderFilter = mainContent.querySelector(".folder-filter");
   if (folderFilter) folderFilter.addEventListener("input", () => filterCards(folderFilter, ".searchable-folder"));
   if (state.currentView === "calculation") bindCalculation();
   if (state.currentView === "gaeb") bindGaebDropzone();
+  if (state.currentView === "projects") applyProjectLayout();
+}
+
+function applyProjectLayout() {
+  const board = mainContent.querySelector(".project-board");
+  const toggle = mainContent.querySelector('[data-action="list-view"]');
+  if (!board || !toggle) return;
+  const listMode = localStorage.getItem("dwp-project-layout") === "list";
+  mainContent.querySelector("[data-project-list]")?.remove();
+  board.style.display = listMode ? "none" : "";
+  toggle.textContent = listMode ? "Kartenansicht" : "Listenansicht";
+  toggle.setAttribute("aria-label", listMode ? "Zur Kartenansicht wechseln" : "Zur Listenansicht wechseln");
+  if (!listMode) return;
+  const wrapper = document.createElement("section");
+  wrapper.className = "panel data-table-wrap";
+  wrapper.dataset.projectList = "true";
+  const table = document.createElement("table");
+  table.className = "data-table";
+  const caption = table.createCaption();
+  caption.textContent = "Projektübersicht – Listenansicht";
+  const heading = table.createTHead().insertRow();
+  ["Projektnummer", "Projekt", "Ort", "Phase", "Hinweis", "Aktion"].forEach(label => {
+    const th = document.createElement("th"); th.scope = "col"; th.textContent = label; heading.append(th);
+  });
+  const body = table.createTBody();
+  board.querySelectorAll(".project-card").forEach(card => {
+    const row = body.insertRow();
+    const phase = card.closest(".board-column")?.querySelector(".board-head")?.childNodes[0]?.textContent?.trim() || "";
+    [card.querySelector(".project-no")?.textContent, card.querySelector("h3")?.textContent, card.querySelector("p")?.textContent, phase, card.querySelector(".project-card-footer span")?.textContent].forEach(value => {
+      row.insertCell().textContent = value || "";
+    });
+    const open = document.createElement("button");
+    open.type = "button"; open.className = "text-button"; open.textContent = "Öffnen →";
+    open.addEventListener("click", () => card.querySelector('[data-action="open-project"]')?.click());
+    row.insertCell().append(open);
+  });
+  wrapper.append(table); board.after(wrapper);
+  const filter = mainContent.querySelector(".project-filter");
+  if (filter) filterCards(filter, ".project-card, [data-project-list] tbody tr");
 }
 
 function handleAction(action) {
+  if (action === "list-view") {
+    try {
+      localStorage.setItem("dwp-project-layout", localStorage.getItem("dwp-project-layout") === "list" ? "cards" : "list");
+      applyProjectLayout();
+    } catch {
+      showToast("Ansicht konnte nicht gespeichert werden", "Bitte den lokalen Browserspeicher freigeben.");
+    }
+    return;
+  }
   if (["save-calc", "save-settings"].includes(action)) saveCurrentDraft();
   if (["new-customer", "new-project", "new-record"].includes(action)) {
     openQuickModal(action === "new-project" ? "Projekt" : action === "new-customer" ? "Kunde" : undefined);
@@ -700,7 +782,7 @@ function handleAction(action) {
     "run-analysis": ["Analyse gestartet", "184 Positionen werden technisch und kaufmännisch geprüft."],
     "review-issue": ["Prüfvorgang geöffnet", "Der Hinweis ist zur fachlichen Bewertung vorgemerkt."],
     "save-settings": ["Einstellungen gespeichert", "Die Testwerte wurden in diesem Browser lokal übernommen."],
-    calendar: ["Kalender", "Die Outlook-Kalenderanbindung folgt mit Microsoft Graph."],
+    calendar: ["Kalender", "Wochenansicht, Feiertage und Outlook-Abo stehen in Modul 18 „Personal und Termine“."],
     activity: ["Aktivitätsprotokoll", "Das vollständige Änderungsjournal ist für Release 0.2 vorgesehen."],
     "open-project": ["Projektakte geöffnet", "Detailansicht, Dokumente und Kalkulation werden zusammengeführt."],
     "list-view": ["Listenansicht", "Die Tabellenansicht wird für die Projektübersicht ergänzt."],
@@ -712,6 +794,10 @@ function handleAction(action) {
   };
   if (action.startsWith("connect-")) {
     showToast("Verbindung vorbereitet", "Die Anmeldung wird erst nach Einrichtung der jeweiligen API freigeschaltet.");
+    return;
+  }
+  if (action === "calendar" && window.DWPWorkspace) {
+    window.DWPWorkspace.open("personnel");
     return;
   }
   const [title, copy] = messages[action] || ["Funktion vorbereitet", "Dieser Baustein wird in einem der nächsten Releases aktiviert."];
@@ -850,24 +936,10 @@ function closeSidebar() {
 
 document.querySelector("#login-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const username = document.querySelector("#username").value.trim();
-  const password = document.querySelector("#password").value;
-  const error = document.querySelector("#login-error");
-  if (!username || !password) {
-    error.textContent = "Bitte Benutzername und Passwort eingeben.";
-    return;
-  }
-  error.textContent = "";
-  sessionStorage.setItem("dwp-test-session", "active");
-  startApp();
-});
-
-document.querySelector("#demo-login").addEventListener("click", () => {
-  document.querySelector("#username").value = "Stephan";
-  document.querySelector("#password").value = "Demo123!";
-  document.querySelector("#login-error").textContent = "";
-  sessionStorage.setItem("dwp-test-session", "demo");
-  startApp();
+  // The public landing page must never pretend to authenticate credentials.
+  // The server owns password validation and session cookie handling.
+  document.querySelector("#password").value = "";
+  window.location.assign("/workspace");
 });
 
 document.querySelector("#toggle-password").addEventListener("click", (event) => {
@@ -886,9 +958,48 @@ document.querySelector("#logout-button").addEventListener("click", () => {
   if (!confirmPageChange()) return;
   sessionStorage.removeItem("dwp-test-session");
   appShell.classList.add("is-hidden");
-  loginScreen.classList.remove("is-hidden");
   document.querySelector("#password").value = "";
-  document.querySelector("#username").focus();
+  showPublicHome();
+});
+
+document.querySelectorAll("[data-open-login]").forEach((button) => button.addEventListener("click", showLogin));
+document.querySelectorAll("[data-back-home]").forEach((button) => button.addEventListener("click", showPublicHome));
+document.querySelectorAll("[data-open-request]").forEach((button) => button.addEventListener("click", openRequestDialog));
+document.querySelector("#request-close").addEventListener("click", closeRequestDialog);
+document.querySelector("#request-cancel").addEventListener("click", closeRequestDialog);
+requestBackdrop.addEventListener("click", (event) => {
+  if (event.target === requestBackdrop) closeRequestDialog();
+});
+
+document.querySelector("#test-request-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  if (!form.reportValidity()) return;
+  const requestId = `DWP-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  const name = document.querySelector("#request-name").value.trim();
+  const company = document.querySelector("#request-company").value.trim();
+  const email = document.querySelector("#request-email").value.trim();
+  const phone = document.querySelector("#request-phone").value.trim();
+  const address = document.querySelector("#request-address").value.trim();
+  const role = document.querySelector("#request-role").value.trim() || "nicht angegeben";
+  const start = document.querySelector("#request-start").value || "nach Genehmigung";
+  const subject = `Testzugang DachWerk Pro – ${company} – ${requestId}`;
+  const body = [
+    "Anfrage für einen fünftägigen DachWerk-Pro-Testzugang",
+    "",
+    `Anfrage-ID: ${requestId}`,
+    `Name: ${name}`,
+    `Firma: ${company}`,
+    `E-Mail: ${email}`,
+    `Telefon: ${phone}`,
+    `Anschrift / Ort: ${address}`,
+    `Funktion: ${role}`,
+    `Gewünschter Testbeginn: ${start}`,
+    "",
+    "Der Zugang soll erst nach persönlicher Genehmigung durch Stephan Mangel freigeschaltet werden. Das Passwort wird anschließend vom Antragsteller selbst festgelegt.",
+  ].join("\n");
+  document.querySelector("#request-status").textContent = "Die E-Mail-Anfrage wird jetzt vorbereitet. Bitte im Mailprogramm noch absenden.";
+  window.location.href = `mailto:testzugang@dachwerkpro.de?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 });
 document.querySelector("#modal-close").addEventListener("click", closeQuickModal);
 document.querySelector("#modal-cancel").addEventListener("click", closeQuickModal);
@@ -919,7 +1030,7 @@ document.querySelector("#notification-button").addEventListener("click", () => {
 });
 
 document.querySelector("#profile-button").addEventListener("click", () => {
-  showToast("Stephan Mangel", "Administrator · DachWerk Pro Testbetrieb");
+  showToast(state.currentUser, state.currentRole || "Lokaler Testbetrieb");
 });
 
 document.addEventListener("click", (event) => {
@@ -942,6 +1053,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeQuickModal();
     closeSidebar();
+    closeRequestDialog();
   }
 });
 
@@ -950,3 +1062,5 @@ window.addEventListener("beforeunload", (event) => {
   event.preventDefault();
   event.returnValue = "";
 });
+
+// A local sessionStorage flag is not an authentication signal.

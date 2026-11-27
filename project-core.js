@@ -1,0 +1,1291 @@
+/* Shared, browser-local project model. This is not a production authorization layer. */
+(function (root) {
+  'use strict';
+  const statuses = ['Neu', 'Zugewiesen', 'In Bearbeitung', 'Rückmeldung ausstehend', 'Prüfung', 'Freigegeben', 'Erledigt'];
+  const f = (key, label, type = 'text', required = false, options) => ({key, label, type, required, options});
+  const title = f('title', 'Bezeichnung', 'text', true);
+  const note = f('notes', 'Bemerkung / Ergebnis', 'textarea');
+  const date = f('date', 'Datum', 'date', true);
+  const cost = f('cost', 'Kosten netto', 'number');
+  const blocking = f('blocking','Sperrt nächsten Arbeitsschritt bis Erledigung','checkbox');
+  // Modul 29: Buchungsarten. Skonto/Abzug und Sicherheitseinbehalt gleichen die Rechnung aus, ohne Geldeingang.
+  // Ein Einbehalt bleibt bis zur Auszahlung offen und blockiert den Projektabschluss nicht.
+  const PAYMENT_KINDS=['Zahlungseingang','Skonto / Abzug','Restbetrag ausgebucht','Restbetrag auf Zwischenkonto','Sicherheitseinbehalt','Einbehalt ausgezahlt','Rückzahlung'];
+  // Vorschlag Gegenkonto SKR03 (änderbar, mit dem Steuerberater abstimmen). Steht kein Konto im Buchungshinweis, wird es eingetragen.
+  const SKR03={'Skonto / Abzug':tax=>tax===19?'SKR03 8736 Gewährte Skonti 19 % USt':tax===7?'SKR03 8731 Gewährte Skonti 7 % USt':'SKR03 8730 Gewährte Skonti','Restbetrag ausgebucht':()=>'SKR03 8700 Erlösschmälerungen','Restbetrag auf Zwischenkonto':()=>'SKR03 1590 Durchlaufende Posten'};
+  const SETTLING=['Skonto / Abzug','Restbetrag ausgebucht','Restbetrag auf Zwischenkonto'];
+  const paymentEffect=r=>{const a=r.data.amount,k=r.data.direction || 'Zahlungseingang';
+    return {cash:k==='Zahlungseingang' || k==='Einbehalt ausgezahlt'?a:k==='Rückzahlung'?-a:0,discount:k==='Skonto / Abzug'?a:0,writeOff:k==='Restbetrag ausgebucht'?a:0,suspense:k==='Restbetrag auf Zwischenkonto'?a:0,retained:k==='Sicherheitseinbehalt'?a:k==='Einbehalt ausgezahlt'?-a:0};};
+  const paymentTotals=rows=>rows.reduce((s,r)=>{const e=paymentEffect(r);for(const k in e)s[k==='cash'?'paid':k]+=e[k];return s;},{paid:0,discount:0,writeOff:0,suspense:0,retained:0});
+  const modules = [
+    ['customers', 'Kunden und Kontakte', 'customers', [f('customerNumber','Kundennummer (leer = automatisch, danach unveränderlich)'),f('name','Firma / Name','text',true),Object.assign(f('customerType','Kundenart','select',false,['Gewerbekunde','Privatkunde']),{blank:true}),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Straße und Hausnummer'),f('postalCode','PLZ'),f('location','Ort'),f('country','Land (ISO-Code, z. B. DE)'),f('vatId','USt-IdNr.'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
+    ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('memberIds','Freigegebene Benutzer-IDs (kommagetrennt; Administratoren haben Zugriff)','textarea'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
+    ['operating','Betriebs- und Lohnkosten','prices',[title,f('annualCost','Jahreskosten netto','number',true),f('productiveHours','Produktive Stunden','number',true),note]],
+    ['lv','Leistungsverzeichnisse','calculation',[f('number','Positionsnummer','text',true),f('section','LV-Titel / Los'),f('subsection','Untertitel / Abschnitt'),f('text','Leistungsbeschreibung','textarea',true),f('groupPath','Gliederung: Gewerk / Titel / Abschnitt'),f('kind','Leistungsart','select',false,['Hauptleistung','Nachtrag','Bedarfsposition','Grundposition','Alternativposition']),f('choiceGroup','Wahlgruppe (Grund-/Alternativposition)'),f('changeNumber','Nachtragsnummer'),f('qty','LV-Menge','number',true),f('unit','Einheit','text',true),f('material','Material je Einheit','number'),f('minutes','Minuten je Einheit','number'),f('equipment','Geräte je Einheit','number'),f('subcontract','NU je Einheit','number'),f('materialId','Freigegebener Materialartikel','material'),f('consumption','Materialverbrauch je Einheit','number'),f('useTargetPrice','Zielpreis verwenden','checkbox'),f('targetEp','Zielpreis netto je Einheit vor Rabatt','number'),f('discountPercent','Positionsrabatt %','number')]],
+    ['imports','Importmanager','gaeb',[title,f('source','Quelle / Dateiname'),f('format','Format','select',false,['CSV','GAEB XML','PDF Prüfquelle','Excel Prüfquelle','Sonstige']),note]],
+    ['contract','LV- und Vertragsprüfung','rules',[title,f('positionId','LV-Position','position'),f('finding','Feststellung','textarea',true),f('question','Rückfrage','textarea'),f('source','Vertrag / Quelle / Fassung'),blocking,note]],
+    ['calculation','Kalkulation und Zielpreis','calculation',[]],
+    ['efb','EFB und Kalkulationsblätter','calculation',[]],
+    ['services','Leistungskatalog und Zeitwerte','services',[title,f('text','Leistungstext','textarea',true),f('unit','Einheit','text',true),f('minutes','Zeitwert Minuten','number'),f('material','Materialansatz','number'),f('source','Quelle / Fassung'),note],'global'],
+    ['materials','Material und Systeme','prices',[f('name','Artikel / System','text',true),f('article','Artikelnummer'),f('manufacturer','Hersteller'),f('supplier','Lieferant'),f('unit','Einheit','text',true),f('price','Einkaufspreis netto','number',true),f('priceDate','Preisstand','date',true),f('source','Preisquelle','text',true),note],'global'],
+    ['suppliers','Lieferanten und Preisvergleich','prices',[f('name','Lieferant','text',true),f('contact','Ansprechpartner'),f('email','E-Mail','email'),f('phone','Telefon'),f('address','Anschrift'),note],'global'],
+    ['pricelists','DATANORM und Preislisten','prices',[title,f('supplier','Lieferant'),f('source','Dateiname / Quelle','text',true),f('priceDate','Preisstand','date',true),note],'global'],
+    ['offers','Angebote','calculation',[]],
+    ['orders','Auftrag und Bestätigung','projects',[title,f('offerId','Angebot','offer',true),f('orderNumber','AG-Auftragsnummer'),date,note]],
+    ['correspondence','Schriftverkehr und E-Mail','communication',[title,f('recipient','Empfänger','email'),f('body','Nachricht','textarea',true),f('direction','Richtung','select',false,['Ausgehend – Entwurf','Eingehend']),note]],
+    ['purchase','Einkauf und Bestellung','prices',[title,f('materialId','Material','material',true),f('quantity','Bestellmenge','number',true),f('supplier','Lieferant'),f('unitPrice','Preis netto je Einheit','number',true),f('deliveryDate','Wunschliefertermin','date'),note]],
+    ['logistics','Liefertermine und Logistik','projects',[title,f('purchaseId','Bestellung','purchase'),f('deliveryDate','Lieferdatum','date',true),f('quantity','Gelieferte Menge','number',true),f('location','Lieferort'),f('receipt','Lieferscheinnummer'),note]],
+    ['personnel','Personal und Termine','users',[f('name','Mitarbeiter','text',true),f('number','Personalnummer','text',true),f('employment','Beschäftigungsart','select',true,['Arbeiter','Angestellte','Auszubildende','Teilzeit','Aushilfe']),f('role','Tätigkeit'),f('wage','Stundenkostensatz','number'),f('start','Eintritt','date'),f('qualification','Qualifikationen'),f('mobile','Mobilnummer für WhatsApp','tel'),f('userId','DWP-Benutzer-ID (Kalenderzugang)'),note],'global'],
+    ['technical','Technische Prüfung','ai-check',[title,f('positionId','LV-Position','position'),f('finding','Prüfpunkt / Feststellung','textarea',true),f('source','Regel / Hersteller / Fassung'),f('decision','Fachliche Entscheidung','textarea'),blocking,note]],
+    ['safety','Arbeitsschutz und Unterweisung','safety',[title,f('hazard','Gefährdung','textarea',true),f('measure','Schutzmaßnahme','textarea',true),f('participants','Unterwiesene Personen'),blocking,date,note]],
+    ['diary','Mobile Bauleitung','site-docs',[title,date,f('weather','Wetter'),f('team','Personal / Geräte'),f('work','Ausgeführte Leistungen','textarea',true),f('obstruction','Behinderungen','textarea'),f('progress','Bautenstand %','number'),note]],
+    ['defects','Fotos und Mängel','defects',[title,f('component','Bauteil'),f('positionId','LV-Position','position'),f('finding','Feststellung','textarea',true),f('remedy','Beseitigung / Erledigungsnachweis','textarea'),note]],
+    ['times','Zeiten und Regie','site-docs',[title,date,f('employeeId','Mitarbeiter','employee',true),f('hours','Stunden','number',true),f('rate','Kostensatz je Stunde','number',true),f('work','Leistungsbeschreibung','textarea',true),f('customerConfirmation','Kundenbestätigung'),f('billable','Als Stundenlohnarbeit (Regie) abrechnen','checkbox'),f('billingRate','Verrechnungssatz je Stunde netto (Regie)','number'),note]],
+    ['subcontracts','Fremdleistungen','services',[title,f('contractor','Nachunternehmer','text',true),cost,f('scope','Leistungsumfang','textarea',true),date,note]],
+    ['measurements','Aufmaß und Plan','measurements',[title,f('positionId','LV-Position','position',true),f('length','Länge / Anzahl','number',true),f('width','Breite / Faktor','number',true),f('factor','Wiederholungen','number',true),f('deduction','Abzug','number'),f('plan','Plan / Bauteil / Messnachweis'),date,note]],
+    ['acceptance','Abnahme und Unterschrift','site-docs',[title,date,f('participants','Teilnehmer','text',true),f('result','Ergebnis','select',true,['Abgenommen','Mit Restpunkten','Abnahme verweigert']),f('remaining','Restleistungen / Vorbehalte','textarea'),f('signer','Unterzeichner'),note]],
+    ['invoices','Ausgangsrechnungen','invoices',[]],
+    ['incoming','Eingangsrechnungen','invoices',[title,f('supplier','Rechnungssteller','text',true),f('invoiceNumber','Belegnummer','text',true),date,f('net','Nettobetrag','number',true),f('tax','USt %','number',true),f('purchaseId','Bestellung','purchase'),f('subcontractId','NU-Kostenvorgang (ersetzt dessen Kostenansatz)','subcontract'),f('receipt','Lieferscheinnummer'),f('includeInCosts','Als Ist-Kosten erfassen','checkbox'),note]],
+    ['payments','Zahlung und Kontierung','invoices',[title,f('invoiceId','Ausgangsrechnung','invoice',true),f('direction','Buchungsart','select',false,PAYMENT_KINDS),date,f('amount','Zahlungsbetrag brutto','number',true),f('retentionUntil','Einbehalt bis (Ende Gewährleistung)','date'),f('account','Konto / Buchungshinweis'),note]],
+    ['closing','Monatsabschluss und Export','invoices',[]],
+    ['controlling','Nachkalkulation und Controlling','calculation',[]],
+    ['documents','DMS, Scanner, OCR und Barcode','documents',[title,f('category','Kategorie','select',true,['Bestellung','Angebot','Brief','Rechnung','Gutachten','Plan','Foto','Nachweis','Vertrag','Sonstige']),f('barcode','Barcode / Referenz'),f('description','Beschreibung','textarea'),f('number','Dokumentnummer'),f('date','Dokumentdatum','date'),f('commission','Kommission'),f('recipient','Empfänger'),f('editor','Bearbeiter'),f('versionOf','Vorgängerversion','record'),note]],
+    ['knowledge','Technik und Wissensregister','rules',[title,f('source','Quelle / Fundstelle','text',true),f('edition','Fassung / Stand','text',true),f('scope','Geltungsbereich'),f('conclusion','Projektbezogener Hinweis','textarea'),note]],
+    ['tenders','Ausschreibungsmonitor','projects',[title,f('client','Auftraggeber'),f('location','Ort'),f('deadline','Angebotsfrist','date',true),f('url','Fundstelle','url'),f('decision','Teilnahmeentscheidung','select',false,['Offen','Teilnehmen','Nicht teilnehmen']),note]],
+    ['expert','Sachverständigenwesen','expert',[title,f('reportNumber','Gutachtennummer','text',true),date,f('assignment','Prüfauftrag','textarea',true),f('finding','Feststellungen','textarea'),f('assessment','Bewertung / Vorbehalt','textarea'),note]],
+    ['energy','Energieberatung','energy',[title,f('component','Bauteil / Anlage'),f('area','Fläche m²','number'),f('uBefore','U-Wert Bestand','number'),f('uAfter','U-Wert Variante','number'),f('measure','Maßnahme','textarea',true),f('funding','Fördervorgang / Quelle'),note]]
+  ].map(([id, name, view, fields, scope]) => ({id,name,view,fields,scope:scope || 'project'}));
+  for(const m of modules) if(m.scope==='project' && m.fields.length && !['projects','lv'].includes(m.id)) m.fields.push(f('relatedRecordId','Zugehöriger Fachvorgang / Nachweis','record'));
+  const stages=[
+    {id:'intake',name:'Kunde und Projekt',modules:['customers','projects','tenders']},
+    {id:'pricing',name:'LV und Kalkulation',modules:['operating','lv','imports','contract','calculation','efb','services','materials','suppliers','pricelists','knowledge']},
+    {id:'contracting',name:'Angebot und Auftrag',modules:['offers','orders','correspondence']},
+    {id:'execution',name:'Beschaffung und Ausführung',modules:['purchase','logistics','personnel','technical','safety','diary','times','subcontracts','documents']},
+    {id:'handover',name:'Aufmaß und Abnahme',modules:['measurements','defects','acceptance','expert','energy']},
+    {id:'billing',name:'Rechnung und Zahlung',modules:['invoices','incoming','payments']},
+    {id:'closing',name:'Abschluss und Nachkalkulation',modules:['closing','controlling']}
+  ];
+  const definitions = Object.fromEntries(modules.map(m=>[m.id,m]));
+  definitions.projects.fields.push(f('plannedOverhead','Zusätzliche geplante Gemeinkosten netto','number'),f('actualOverhead','Zusätzlich erfasste Ist-Gemeinkosten netto','number'),f('overheadBasis','Gemeinkosten: Abgrenzung und Nachweis','textarea'));
+  definitions.purchase.fields.push(f('overDeliveryPercent','Zulässige Mehrlieferung %','number'),f('underDeliveryPercent','Zulässige Minderlieferung %','number'),f('toleranceReason','Vereinbarung zur Mengentoleranz','textarea'));
+  definitions.contract.fields.push(f('decision','Prüfentscheidung / Begründung','textarea'));
+  // Modul 27: Kunde ist selbst Bauleister → Steuerschuld geht nach § 13b UStG auf ihn über (Rechnung ohne USt).
+  // Pauschalpreis (15.11.2026): Hauptauftrag wird in % der Pauschalsumme abgerechnet, ohne Aufmaß. Einheitspreis bleibt beim Aufmaß.
+  definitions.orders.fields.splice(2,0,f('lumpSum','Pauschalpreis vereinbart (Abrechnung in % der Pauschalsumme, ohne Aufmaß)','checkbox'),f('lumpSumNet','Pauschalsumme netto € (leer = Angebotssumme)','number'));
+  definitions.customers.fields.push(f('reverseCharge','Bauleistender Unternehmer: Rechnung ohne USt nach § 13b UStG','checkbox'));
+  definitions.lv.fields.push(f('epPrecision','EP-Nachkommastellen (0 / 2 = Standard, 3 = LV-Original)','number'));
+  definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('useNuMarkup','Eigenen NU-Zuschlag statt globaler AGK/W&G verwenden','checkbox'),f('subcontractMarkup','NU-Zuschlag %','number'));
+  // Optional detailed cost structure modelled on the March 2025 blank calculation workbook.
+  // Legacy position prices remain untouched until the user explicitly activates this mode.
+  definitions.lv.fields.push(
+    f('useDetailedMaterials','Vier Materialansätze (Blankokalkulation) verwenden','checkbox'),
+    ...[1,2,3,4].flatMap(i=>[
+      f('materialName'+i,'Material '+i+' – Bezeichnung'),
+      f('materialPrice'+i,'Material '+i+' – EK je Bezugseinheit','number'),
+      f('materialCut'+i,'Material '+i+' – Zuschnitt / Menge je LE (0 = 1)','number'),
+      f('materialWaste'+i,'Material '+i+' – Verschnitt %','number'),
+      f('materialMinutes'+i,'Material '+i+' – Minuten je LE','number')
+    ]),
+    f('fasteners','Befestigungsmittel EK je LE','number'),
+    f('disposal','Entsorgung EK je LE','number'),
+    f('miscellaneous','Sonstige Kosten EK je LE','number'),
+    f('otherMarkup','Zuschlag auf sonstige Kosten % (EFB)','number'),
+    f('subcontractMaterialShare','Materialanteil Fremdarbeiten % (Nachweis)','number')
+  );
+  definitions.materials.fields.push(f('validUntil','Preisbindung bis einschließlich','date'),f('system','Dach- / Abdichtungssystem'),f('documentUrl','Herstellerunterlage (https://)','url'),f('documentEdition','Unterlagenstand / Fassung'),f('compatibility','Systemverträglichkeit','select',false,['','Ungeprüft','Geeignet laut Nachweis','Nicht geeignet']),f('compatibilityEvidence','Eignungsnachweis / geprüfter Aufbau','textarea'));
+  definitions.materials.fields.push(f('priceBasis','Preisberechnung / Bezugsmenge','textarea'));
+  const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
+  // Belegnummern (festgelegt 14.11.2026): DWP-<Art>-JJJJMM-NNNN/Version, z. B. DWP-A-202611-0100/1.
+  // A = Angebot, AB = Auftragsbestätigung, R = Rechnung. Jede Art hat einen eigenen,
+  // über Monate und Jahre fortlaufenden Zähler; JJJJMM ist der Belegmonat. Die Version
+  // hinter dem Schrägstrich zählt Überarbeitungen derselben Nummer (/1, /2, …).
+  const DOC_NUMBER=/^DWP-([A-Z]{1,3})-(\d{6})-(\d{4,})(?:\/(\d+))?$/;
+  const DOC_NUMBER_START=100;
+  const SMALL_BUSINESS_NOTE='Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.';
+  const REVERSE_CHARGE_NOTE='Steuerschuldnerschaft des Leistungsempfängers (§ 13b Abs. 2 Nr. 4, Abs. 5 UStG). Die Umsatzsteuer ist vom Leistungsempfänger anzumelden und abzuführen.';
+  // Datierte Sicherungsdatei: DWP_Sicherung_JJJJ-MM-TT_HH-MM.json mit Kopfangaben,
+  // damit beim Einspielen aus Dropbox, Drive oder eigener Cloud sofort erkennbar ist,
+  // von wann und von wem die Sicherung stammt. Uhrzeit immer deutsche Ortszeit.
+  const backupFormat={
+    FORMAT:'DachWerkPro-Sicherung',
+    stamp(date=new Date()){
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(date)).map(p=>[p.type,p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}_${parts.hour}-${parts.minute}`;
+    },
+    fileName(date=new Date()){return `DWP_Sicherung_${backupFormat.stamp(date)}.json`;},
+    label(date){return new Date(date).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+' Uhr';},
+    summary(state){const records=Array.isArray(state?.records)?state.records:[];return {projects:records.filter(r=>r.module==='projects').length,customers:records.filter(r=>r.module==='customers').length,records:records.length};},
+    wrap(state,{createdAt=new Date().toISOString(),createdBy='',kind='manuell'}={}){
+      return {format:backupFormat.FORMAT,version:1,createdAt:new Date(createdAt).toISOString(),createdBy:String(createdBy || ''),kind,revision:state.revision,summary:backupFormat.summary(state),state};
+    },
+    unwrap(parsed){
+      if(parsed && parsed.format===backupFormat.FORMAT){
+        if(parsed.version!==1 || !parsed.state)throw Error('Sicherungsdatei: Format wird nicht unterstützt.');
+        return {state:parsed.state,meta:{createdAt:parsed.createdAt || null,createdBy:parsed.createdBy || '',kind:parsed.kind || '',summary:backupFormat.summary(parsed.state)}};
+      }
+      if(parsed && parsed.schema===1 && Array.isArray(parsed.records))return {state:parsed,meta:{createdAt:null,createdBy:'',kind:'ältere Sicherung',summary:backupFormat.summary(parsed)}};
+      throw Error('Diese Datei ist keine DachWerkPro-Sicherung.');
+    }
+  };
+  const berlinDay=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(new Date());
+  function validatePricing(module,data) {
+    if(module==='projects' && (data.plannedOverhead || data.actualOverhead) && !data.overheadBasis?.trim())throw Error('Zusätzliche Gemeinkosten benötigen Abgrenzung und Nachweis.');
+    if(module==='offers' && data.validUntil && !validDate(data.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
+    if(module==='purchase' && ((data.overDeliveryPercent || 0)>100 || (data.underDeliveryPercent || 0)>=100))throw Error('Mehrlieferung höchstens 100 %, Minderlieferung kleiner als 100 %.');
+    if(module==='purchase' && (data.overDeliveryPercent || data.underDeliveryPercent) && !data.toleranceReason?.trim())throw Error('Mengentoleranz benötigt eine dokumentierte Vereinbarung.');
+    if(module==='lv' && data.epPrecision!==undefined && ![0,2,3].includes(data.epPrecision))throw Error('EP-Nachkommastellen: nur Standard (0 / 2) oder 3 zulässig.');
+    if(module==='lv' && data.useEfbRates && !(data.efbWage>0))throw Error('Kalkulationslohn für Kostenartenzuschläge muss größer als null sein.');
+    if(module==='lv' && data.useDetailedMaterials) {
+      if(data.materialId || data.material)throw Error('Vier Materialansätze nicht mit pauschalem Material oder Materialartikel kombinieren. Die Ansätze ersetzen diese Eingabe.');
+      for(const i of [1,2,3,4])if(data['materialWaste'+i]>100)throw Error('Verschnitt für Material '+i+' darf 100 % nicht überschreiten.');
+      if(data.subcontractMaterialShare>100)throw Error('Materialanteil Fremdarbeiten darf 100 % nicht überschreiten.');
+    }
+
+    if(module!=='materials')return;
+    if(data.validUntil && (!validDate(data.validUntil) || data.validUntil<data.priceDate))throw Error('Preisbindung muss ein gültiges Datum ab Preisstand sein.');
+    if(data.documentUrl) {
+      let url;try{url=new URL(data.documentUrl);}catch{throw Error('Herstellerunterlage benötigt eine gültige HTTPS-Adresse.');}
+      if(url.protocol!=='https:' || !url.hostname || url.username || url.password)throw Error('Herstellerunterlage benötigt eine gültige HTTPS-Adresse.');
+    }
+    if(data.compatibility && !definitions.materials.fields.find(f=>f.key==='compatibility').options.includes(data.compatibility))throw Error('Systemverträglichkeit ist ungültig.');
+    if(data.compatibility==='Geeignet laut Nachweis' && (!data.system || !data.documentUrl || !data.documentEdition || !data.compatibilityEvidence))throw Error('System, Herstellerunterlage, Fassung und Eignungsnachweis erforderlich.');
+  }
+  const parseContacts=value=>{
+    const rows=Array.isArray(value)?value:String(value || '').split('\n').filter(s=>s.trim()).map(s=>{const [name,role,email,phone,...extra]=s.split('|').map(x=>x.trim());if(extra.length)throw Error('Kontaktzeile enthält mehr als vier Felder.');return {name,role,email,phone};});
+    if(rows.length>50)throw Error('Maximal 50 zusätzliche Kontakte.');
+    return rows.map(c=>{const clean=Object.fromEntries(['name','role','email','phone'].map(k=>[k,String(c[k] || '').trim()]));if(!clean.name || Object.values(clean).some(v=>v.length>300)||clean.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean.email))throw Error('Kontaktname oder E-Mail ungültig.');return clean;});
+  };
+  // Module 01: customer master data is the basis for documents, payments and later exports.
+  // Customer numbers are allocated from the highest numeric number (debtor range from 10001),
+  // never from the number of visible rows, and stay unchanged once assigned.
+  const normalizeCustomer=data=>{
+    data.customerNumber=String(data.customerNumber || '').trim();
+    if(data.customerNumber && !/^[A-Za-z0-9][A-Za-z0-9-]{0,19}$/.test(data.customerNumber))throw Error('Kundennummer: nur Buchstaben, Ziffern und Bindestrich, höchstens 20 Zeichen.');
+    data.country=String(data.country || 'DE').trim().toUpperCase();
+    if(!/^[A-Z]{2}$/.test(data.country))throw Error('Land bitte als zweistelligen ISO-Code angeben, z. B. DE.');
+    data.postalCode=String(data.postalCode || '').trim();
+    if(data.postalCode && (data.country==='DE' ? !/^\d{5}$/.test(data.postalCode) : !/^[A-Za-z0-9 -]{3,10}$/.test(data.postalCode)))throw Error(data.country==='DE'?'PLZ in Deutschland muss fünfstellig sein.':'PLZ ist ungültig.');
+    data.vatId=String(data.vatId || '').replace(/[\s.]/g,'').toUpperCase();
+    if(data.vatId && (!/^[A-Z]{2}[0-9A-Z+*]{2,12}$/.test(data.vatId) || data.vatId.startsWith('DE') && !/^DE\d{9}$/.test(data.vatId)))throw Error('USt-IdNr. ist ungültig (Ländercode und Nummer, z. B. DE123456789).');
+    return data;
+  };
+  const nextCustomerNumber=records=>String(records.filter(r=>r.module==='customers').reduce((n,r)=>/^\d{1,9}$/.test(r.data.customerNumber || '')?Math.max(n,Number(r.data.customerNumber)):n,10000)+1);
+  // One address format for print, PDF and later e-invoices. Older snapshots may only contain address/city.
+  const customerAddressLines=customer=>{
+    const c=customer || {},city=[c.postalCode,c.location || c.city].map(s=>String(s || '').trim()).filter(Boolean).join(' ');
+    return [c.address,city,c.country && c.country!=='DE'?c.country:''].map(s=>String(s || '').trim()).filter(Boolean);
+  };
+  // Module 02: what a new project may take over from its customer. The form only fills empty fields.
+  const projectDefaultsFromCustomer=customer=>{
+    const c=customer || {};
+    return {address:customerAddressLines(c).join(', '),buyerReference:String(c.buyerReference || '').trim()};
+  };
+  // Stable list order for customers and projects; all other modules keep their recorded order.
+  const compareText=(a,b)=>String(a ?? '').localeCompare(String(b ?? ''),'de',{numeric:true,sensitivity:'base'});
+  const sortRecords=(module,records)=>[...records].sort((a,b)=>
+    module==='customers'?(!a.data.customerNumber)-(!b.data.customerNumber) || compareText(a.data.customerNumber,b.data.customerNumber) || compareText(a.data.name,b.data.name)
+    : module==='projects'?(a.data.phase==='Abgeschlossen')-(b.data.phase==='Abgeschlossen') || compareText(a.data.name,b.data.name) || compareText(a.data.costCenter,b.data.costCenter)
+    : 0);
+  const num = value => {
+    if (typeof value === 'number') { if (!Number.isFinite(value)) throw Error('Ungültige Zahl.'); return value; }
+    let s=String(value ?? '').trim().replace(/\s/g,'');
+    if (!s) return 0;
+    if (s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+    if (!/^-?\d+(\.\d+)?$/.test(s)) throw Error(`Ungültige Zahl: ${value}`);
+    const n=Number(s);if(!Number.isFinite(n))throw Error('Ungültige Zahl.');return n;
+  };
+  const round = n => {if(!Number.isFinite(n) || Math.abs(n)>Number.MAX_SAFE_INTEGER/100)throw Error('Betrag oder Menge außerhalb des sicheren Zahlenbereichs.');return Math.round((n + Math.sign(n)*Number.EPSILON)*100)/100;};
+  const supplierQuotePrice=values=>{
+    const price=num(values.price),discount=num(values.discount),freight=num(values.freight),baseQuantity=values.baseQuantity===undefined?1:num(values.baseQuantity);
+    if(price<0 || discount<0 || discount>100 || freight<0)throw Error('Preis, Rabatt oder Fracht sind ungültig.');
+    if(baseQuantity<=0 || baseQuantity>Number.MAX_SAFE_INTEGER/100)throw Error('Gebindeinhalt in Artikeleinheiten muss größer als null sein.');
+    return round((price*(1-discount/100)+freight)/baseQuantity);
+  };
+  const capacity=values=>{
+    const v=Object.fromEntries(['year','headcount','weeklyHours','leaveDays','sickDays','trainingDays','nonproductivePercent'].map(k=>[k,num(values[k])]));
+    if(!Number.isInteger(v.year)||v.year<2000||v.year>2100||v.headcount<=0||v.headcount>10000||v.weeklyHours<=0||v.weeklyHours>120||['leaveDays','sickDays','trainingDays'].some(k=>v[k]<0)||v.nonproductivePercent<0||v.nonproductivePercent>=100)throw Error('Produktivstundenmodell enthält ungültige Werte.');
+    const holidays=[...new Set(String(values.holidayDates || '').split(/[\s,;]+/).filter(Boolean))];
+    for(const date of holidays)if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date.slice(0,4)!==String(v.year)||Number.isNaN(Date.parse(date))||new Date(date).toISOString().slice(0,10)!==date)throw Error('Feiertage müssen gültige Daten des gewählten Jahres sein.');
+    let weekdays=0;for(let day=new Date(Date.UTC(v.year,0,1));day.getUTCFullYear()===v.year;day.setUTCDate(day.getUTCDate()+1))if(day.getUTCDay()!==0&&day.getUTCDay()!==6)weekdays++;
+    const holidayDays=holidays.filter(d=>![0,6].includes(new Date(d).getUTCDay())).length;
+    const availableDays=weekdays-holidayDays-v.leaveDays-v.sickDays-v.trainingDays;
+    if(availableDays<=0)throw Error('Ausfalltage überschreiten die verfügbaren Arbeitstage.');
+    return {...v,holidayDates:holidays.sort().join('\n'),weekdays,holidayDays,availableDays,productiveHours:round(availableDays*(v.weeklyHours/5)*v.headcount*(1-v.nonproductivePercent/100))};
+  };
+  const empty = () => ({schema:1, revision:0, selectedProject:null, settings:{wage:55,agk:0,profit:10,tax:19,company:'DachWerk Pro',address:''}, records:[], audit:[]});
+  const uid = () => root.crypto?.randomUUID?.() || `dwp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  class Store {
+    constructor(storage, key='dwp-project-core-v1') {
+      this.storage=storage; this.key=key;
+      const raw=storage.getItem(key);
+      this.data=raw ? JSON.parse(raw) : empty();
+      this.validate(this.data);
+    }
+    validate(data) {
+      if(data.schema!==1 || !Number.isInteger(data.revision) || !Array.isArray(data.records) || !Array.isArray(data.audit) || !data.settings) throw Error('Projektbestand ist beschädigt. Vor Wiederherstellung bitte sichern.');
+      const ids=new Set();
+      for(const r of data.records) {
+        if(!definitions[r.module] || typeof r.id!=='string' || ids.has(r.id) || !r.data || typeof r.data!=='object') throw Error('Ungültiger oder doppelter Datensatz.');
+        ids.add(r.id);
+      }
+      for(const r of data.records) {
+        validatePricing(r.module,r.data);
+        if(definitions[r.module].scope==='project' && !data.records.some(p=>p.module==='projects' && p.id===r.projectId)) throw Error('Projektbezug fehlt.');
+        if(r.module==='projects' && !data.records.some(c=>c.module==='customers' && c.id===r.data.customerId)) throw Error('Kundenzuordnung fehlt.');
+        for(const field of definitions[r.module].fields) {
+          const value=r.data[field.key];
+          if(field.type==='contacts' && value!==undefined)parseContacts(value);
+          if(field.required && (value===undefined || value===null || value==='')) throw Error(`Sicherung: ${field.label} fehlt.`);
+          if(field.type==='number' && value!==undefined && (typeof value!=='number' || !Number.isFinite(value) || value<0 || value>Number.MAX_SAFE_INTEGER/100)) throw Error(`Sicherung: ${field.label} ist ungültig.`);
+          const target={customer:'customers',position:'lv',material:'materials',employee:'personnel',offer:'offers',purchase:'purchase',invoice:'invoices',subcontract:'subcontracts'}[field.type];
+          if((target || field.type==='record') && value) {
+            const ref=data.records.find(x=>x.id===value && (!target || x.module===target));
+            if(!ref || (ref.projectId && ref.projectId!==r.projectId) || ref?.id===r.id) throw Error('Sicherung: ungültiger Querverweis.');
+          }
+        }
+        if(r.module==='lv' && r.data.kind && !definitions.lv.fields.find(f=>f.key==='kind').options.includes(r.data.kind))throw Error('Sicherung: Leistungsart unbekannt.');
+        if(r.module==='lv' && (['Grundposition','Alternativposition'].includes(r.data.kind) ? !r.data.choiceGroup : r.data.choiceGroup))throw Error('Sicherung: Wahlgruppe und Leistungsart passen nicht zusammen.');
+        if(r.module==='lv' && (r.data.discountPercent || 0)>100)throw Error('Sicherung: Positionsrabatt höchstens 100 %.');
+        if(['offers','invoices'].includes(r.module) && (!Array.isArray(r.data.positions) || ['net','gross','tax','taxAmount'].some(k=>typeof r.data[k]!=='number' || !Number.isFinite(r.data[k])))) throw Error('Sicherung: Dokumentfassung ungültig.');
+        for(const q of r.quotes || []) {
+          if(r.module!=='suppliers' || !data.records.some(m=>m.module==='materials' && m.id===q.materialId) || ['price','discount','freight'].some(k=>typeof q[k]!=='number' || !Number.isFinite(q[k]) || q[k]<0) || q.discount>100) throw Error('Sicherung: Lieferantenpreis ungültig.');
+          if(q.baseQuantity!==undefined && (typeof q.baseQuantity!=='number' || !Number.isFinite(q.baseQuantity) || q.baseQuantity<=0) || q.validUntil && (!validDate(q.validUntil) || q.validUntil<q.date))throw Error('Sicherung: Gebinde oder Preisbindung ungültig.');
+          if(!validDate(q.date) || typeof q.source!=='string' || !q.source.trim())throw Error('Sicherung: Lieferantenpreis benötigt Quelle und Preisstand.');
+          if(q.withdrawnAt!==undefined && (!validDate(q.withdrawnAt) || typeof q.withdrawnReason!=='string' || !q.withdrawnReason.trim()))throw Error('Sicherung: zurückgezogener Lieferantenpreis ohne Datum oder Grund.');
+          round((q.price*(1-q.discount/100)+q.freight)/(q.baseQuantity ?? 1));
+        }
+        for(const a of r.assignments || [])if(r.module!=='personnel' || !data.records.some(p=>p.module==='projects' && p.id===a.projectId) || !a.start || !a.end || a.start>a.end)throw Error('Sicherung: Einsatzplanung ungültig.');
+        for(const a of r.assignments || [])if(a.response!==undefined && !['Zugesagt','Abgesagt'].includes(a.response))throw Error('Sicherung: Rückmeldung zum Einsatz ungültig.');
+        for(const s of r.signatures || []) {
+          if(!['acceptance','times'].includes(r.module) || !s.signer || !Array.isArray(s.strokes) || !s.strokes.some(a=>Array.isArray(a) && a.length>=2) || JSON.stringify(s.snapshot?.data)!==JSON.stringify(r.data))throw Error('Sicherung: unterschriebener Dokumentstand ungültig.');
+          for(const stroke of s.strokes)for(const p of stroke)if(!Array.isArray(p) || p.length!==2 || p.some(n=>typeof n!=='number' || !Number.isFinite(n) || n<0 || n>1))throw Error('Sicherung: Unterschrift ungültig.');
+        }
+      }
+      const customerNumbers=new Set();
+      for(const r of data.records)if(r.module==='customers' && r.data.customerNumber) {
+        const key=String(r.data.customerNumber).toLowerCase();
+        if(customerNumbers.has(key))throw Error('Sicherung: Kundennummer doppelt vergeben.');
+        customerNumbers.add(key);
+      }
+      if(data.selectedProject && !data.records.some(p=>p.module==='projects' && p.id===data.selectedProject)) throw Error('Ausgewähltes Projekt fehlt.');
+      for(const k of ['wage','agk','profit','tax'])if(typeof data.settings[k]!=='number' || !Number.isFinite(data.settings[k]) || data.settings[k]<0)throw Error('Kalkulationsbasis ungültig.');
+      if(data.settings.capacity)capacity(data.settings.capacity);
+    }
+    transaction(action, module, recordId, change) {
+      const raw=this.storage.getItem(this.key);
+      if(raw && JSON.parse(raw).revision!==this.data.revision) throw Error('Der Bestand wurde in einem anderen Fenster geändert. Bitte neu laden.');
+      const next=JSON.parse(JSON.stringify(this.data));
+      const result=change(next);
+      next.revision++;
+      next.audit.push({id:uid(),at:new Date().toISOString(),actor:'Lokaler Testanwender',action,module,recordId,projectId:next.selectedProject});
+      this.validate(next);
+      // Update in-memory state only when the durable browser write succeeds.
+      this.storage.setItem(this.key,JSON.stringify(next));
+      this.data=next;
+      return result;
+    }
+    list(module, projectId=this.data.selectedProject) {
+      return this.data.records.filter(r=>r.module===module && (definitions[module].scope==='global' || r.projectId===projectId));
+    }
+    get(id) { return this.data.records.find(r=>r.id===id); }
+    project() { return this.get(this.data.selectedProject); }
+    // Allocates against every record of the tenant (the server runs this on the full
+    // state, so hidden projects are counted too) and never against visible row counts.
+    nextDocumentNumber(type, date) {
+      if(!['A','AB','R'].includes(type))throw Error('Belegart für Nummernvergabe ungültig.');
+      const day=validDate(date)?date:berlinDay();
+      const start=Number.isInteger(this.data.settings.documentNumberStart)?this.data.settings.documentNumberStart:DOC_NUMBER_START;
+      let max=start-1;
+      for(const r of this.data.records)for(const value of [r.data?.number,r.confirmation?.number]) {
+        const match=DOC_NUMBER.exec(String(value || ''));
+        if(match && match[1]===type)max=Math.max(max,Number(match[3]));
+      }
+      if(max>=9999)throw Error('Nummernkreis '+type+' ist ausgeschöpft.');
+      return 'DWP-'+type+'-'+day.slice(0,4)+day.slice(5,7)+'-'+String(max+1).padStart(4,'0')+'/1';
+    }
+    select(id) {
+      if(!this.get(id) || this.get(id).module!=='projects') throw Error('Projekt nicht gefunden.');
+      return this.transaction('Projekt ausgewählt','projects',id,d=>{d.selectedProject=id;});
+    }
+    deleteProject(id, expectedName, confirmations) {
+      if(!Array.isArray(confirmations) || confirmations.length!==3 || confirmations.some(v=>v!=='ja'))throw Error('Löschen erfordert dreimal Ja.');
+      const project=this.get(id);
+      if(!project || project.module!=='projects')throw Error('Projekt nicht gefunden.');
+      if(project.data.name!==expectedName)throw Error('Projektbezeichnung stimmt nicht mehr. Bitte Liste neu laden.');
+      return this.transaction('Projekt mit allen Fachvorgängen gelöscht','projects',id,d=>{
+        const removed=d.records.filter(r=>r.id===id || r.projectId===id);
+        d.records=d.records.filter(r=>r.id!==id && r.projectId!==id);
+        // Personnel is global, but its dated project assignments are not.
+        for(const record of d.records)if(record.module==='personnel' && Array.isArray(record.assignments))record.assignments=record.assignments.filter(a=>a.projectId!==id);
+        if(d.selectedProject===id)d.selectedProject=null;
+        return {id,removedRecords:removed.length};
+      });
+    }
+    save(module, values, options={}) {
+      const def=definitions[module];
+      if(!def || !def.fields.length) throw Error('Dieser Bereich wird aus dem Projektbestand abgeleitet.');
+      const projectId=def.scope==='project' ? this.data.selectedProject : null;
+      if(def.scope==='project' && this.project()?.data.phase==='Abgeschlossen' && !(module==='payments' && values?.direction==='Einbehalt ausgezahlt' && !options.id))throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
+      if(def.scope==='project' && !this.project()) throw Error('Bitte zuerst ein Projekt anlegen und auswählen.');
+      const before=options.id ? this.get(options.id) : null;
+      if(before?.module==='projects' && before.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
+      if(options.id && (!before || before.module!==module || before.projectId!==projectId)) throw Error('Datensatz gehört nicht zum aktuellen Bereich.');
+      if(before?.signatures?.length || (before?.status==='Freigegeben' && ['lv','measurements','orders','times','incoming','subcontracts','payments','purchase','logistics','acceptance'].includes(module))) throw Error('Freigegebene oder unterschriebene Daten bleiben unverändert. Bitte einen Korrekturvorgang erfassen.');
+      const data={};
+      for(const field of def.fields) {
+        const value=module==='lv' && field.key==='subcontractMarkup' && values.useNuMarkup===true && values[field.key]===undefined?15:values[field.key];
+        if(field.required && (value===undefined || value===null || String(value).trim()==='')) throw Error(`${field.label} fehlt.`);
+        data[field.key]=field.type==='contacts' ? parseContacts(value) : field.type==='number' ? num(value) : field.type==='checkbox' ? (field.key==='useTargetPrice' && typeof value==='string' ? /^(true|1|ja)$/i.test(value.trim()) : Boolean(value)) : String(value ?? '').trim();
+        if(field.type==='email' && data[field.key] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[field.key]))throw Error(`${field.label} ist ungültig.`);
+        if(field.type==='tel' && data[field.key] && (!/^\+?[0-9 ()/-]+$/.test(data[field.key]) || !/^\d{6,15}$/.test(data[field.key].replace(/\D/g,''))))throw Error(`${field.label} ist ungültig.`);
+        if(field.type==='number' && data[field.key]>Number.MAX_SAFE_INTEGER/100)throw Error(`${field.label} außerhalb des sicheren Zahlenbereichs.`);
+        if(field.type==='number' && data[field.key]<0) throw Error(`${field.label} darf nicht negativ sein.`);
+        if(field.type==='select' && data[field.key] && !field.options.includes(data[field.key])) throw Error(`${field.label} ist ungültig.`);
+        if(field.type==='date' && data[field.key] && (!/^\d{4}-\d{2}-\d{2}$/.test(data[field.key]) || Number.isNaN(Date.parse(data[field.key])) || new Date(data[field.key]).toISOString().slice(0,10)!==data[field.key])) throw Error(`${field.label} ist ungültig.`);
+        const refModule={customer:'customers',position:'lv',material:'materials',employee:'personnel',offer:'offers',purchase:'purchase',invoice:'invoices',subcontract:'subcontracts'}[field.type];
+        if((refModule || field.type==='record') && data[field.key]) {
+          const ref=this.get(data[field.key]);
+          if(!ref || (refModule && ref.module!==refModule) || (ref.projectId && ref.projectId!==projectId) || ref?.id===options.id) throw Error(`${field.label}: Zuordnung ungültig.`);
+          if(['material','offer'].includes(field.type) && ref.status!=='Freigegeben') throw Error(`${field.label} muss freigegeben sein.`);
+        }
+      }
+      validatePricing(module,data);
+      if(module==='customers') {
+        normalizeCustomer(data);
+        const assigned=before?.data.customerNumber || '';
+        if(assigned && data.customerNumber && data.customerNumber!==assigned)throw Error('Die Kundennummer bleibt unverändert, weil Belege und Exporte darauf verweisen.');
+        data.customerNumber=data.customerNumber || assigned || nextCustomerNumber(this.data.records);
+        if(this.data.records.some(r=>r.module==='customers' && r.id!==before?.id && String(r.data.customerNumber || '').toLowerCase()===data.customerNumber.toLowerCase()))throw Error(`Kundennummer ${data.customerNumber} ist bereits vergeben.`);
+      }
+      if(module==='projects') {
+        const center=data.costCenter.toLocaleLowerCase('de');
+        if(center && center!==String(before?.data.costCenter || '').trim().toLocaleLowerCase('de') && this.data.records.some(r=>r.module==='projects' && r.id!==before?.id && String(r.data.costCenter || '').trim().toLocaleLowerCase('de')===center))throw Error(`Kostenstelle ${data.costCenter} ist bereits einem anderen Projekt zugeordnet.`);
+        if(before && data.customerId!==before.data.customerId && this.data.records.some(r=>r.projectId===before.id && ['offers','orders','invoices','payments'].includes(r.module)))throw Error('Der Kunde kann nach ausgestellten Angeboten, Aufträgen oder Rechnungen nicht mehr gewechselt werden. Bitte ein neues Projekt anlegen.');
+      }
+      if(module==='projects' && !before && data.phase!=='Erfassung')throw Error('Neue Projekte beginnen in der Erfassung.');
+      if(module==='projects' && before && data.phase!==before.data.phase) {
+        const selected=this.data.selectedProject;this.data.selectedProject=before.id;
+        try{this.assertPhase(data.phase);}finally{this.data.selectedProject=selected;}
+      }
+      if(module==='lv' && values.useTargetPrice!==undefined && typeof values.useTargetPrice==='string' && !/^(true|false|1|0|ja|nein|)$/i.test(values.useTargetPrice.trim()))throw Error('Zielpreis verwenden: true/false, 1/0 oder ja/nein angeben.');
+      if(module==='lv' && data.discountPercent>100)throw Error('Positionsrabatt höchstens 100 %.');
+      if(module==='lv' && ['Grundposition','Alternativposition'].includes(data.kind) && !data.choiceGroup)throw Error('Grund- und Alternativposition benötigen eine gemeinsame Wahlgruppe.');
+      if(module==='lv' && data.choiceGroup && !['Grundposition','Alternativposition'].includes(data.kind))throw Error('Wahlgruppe nur für Grund- und Alternativposition verwenden.');
+      if(module==='lv' && data.groupPath) {
+        const parts=data.groupPath.split('/').map(x=>x.trim());
+        if(parts.length>5 || parts.some(x=>!x || x.length>120))throw Error('LV-Gliederung: 1 bis 5 nicht leere Ebenen, höchstens 120 Zeichen je Ebene.');
+        data.groupPath=parts.join(' / ');
+      }
+      if(module==='lv' && this.list('lv').some(r=>r.id!==options.id && r.data.number===data.number)) throw Error('Positionsnummer bereits vorhanden.');
+      if(module==='documents' && data.number && this.list('documents').some(r=>r.id!==options.id && r.data.number===data.number))throw Error('Dokumentnummer im Projekt bereits vergeben.');
+      if(module==='measurements' && data.deduction>data.length*data.width*data.factor) throw Error('Der Abzug überschreitet die gemessene Menge.');
+      if(module==='operating' && data.productiveHours<=0) throw Error('Produktive Stunden müssen größer als null sein.');
+      if(module==='diary' && data.progress>100) throw Error('Bautenstand höchstens 100 %.');
+      if(['incoming'].includes(module) && data.tax>100) throw Error('Ungültiger Umsatzsteuersatz.');
+      const status=options.status || before?.status || 'Neu';
+      if(!statuses.includes(status)) throw Error('Ungültiger Status.');
+      if((status==='Freigegeben' || status==='Erledigt' && data.blocking) && !options.owner?.trim()) throw Error('Zur Freigabe muss ein Verantwortlicher genannt werden.');
+      if(['contract','technical','safety'].includes(module) && status==='Erledigt' && (data.blocking || before?.data.blocking) && !(data.decision || data.measure || data.notes)?.trim())throw Error('Fachliche Erledigung mit Entscheidung oder Nachweis dokumentieren.');
+      if(module==='defects' && status==='Erledigt' && !data.remedy?.trim())throw Error('Mängelbeseitigung dokumentieren.');
+      if(['times','incoming','subcontracts','payments','orders','measurements','purchase','logistics'].includes(module) && status==='Erledigt')throw Error('Kaufmännische und mengenbezogene Vorgänge ausdrücklich freigeben.');
+      if(module==='orders' && status==='Freigegeben' && this.list('orders').some(r=>r.id!==options.id && r.status==='Freigegeben' && r.data.offerId===data.offerId))throw Error('Dieses Angebot ist bereits beauftragt.');
+      if(module==='orders' && status==='Freigegeben') {
+        this.assertClear(['contract','technical']);
+        const offer=this.get(data.offerId);
+        if(this.list('offers').some(r=>r.data.supersedesOfferId===offer.id))throw Error('Diese Angebotsfassung wurde durch eine neue Version ersetzt.');
+        const assigned=new Set(this.list('orders').filter(r=>r.id!==options.id && r.status==='Freigegeben').flatMap(r=>this.get(r.data.offerId).data.positions.map(p=>p.id)));
+        if(offer.data.positions.some(p=>assigned.has(p.id)))throw Error('Mindestens eine Angebotsposition ist bereits in einem anderen Auftrag beauftragt.');
+        const assignedGroups=new Set(this.list('orders').filter(r=>r.id!==options.id && r.status==='Freigegeben').flatMap(r=>this.get(r.data.offerId).data.positions.map(p=>p.choiceGroup).filter(Boolean)));
+        if(offer.data.positions.some(p=>p.choiceGroup && assignedGroups.has(p.choiceGroup)))throw Error('Diese Wahlgruppe ist bereits in einem anderen Auftrag beauftragt.');
+        if(offer.data.baseOfferId && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===offer.data.baseOfferId))throw Error('Hauptangebot vor dem Nachtrag beauftragen.');
+      }
+      if(module==='incoming' && data.subcontractId && this.get(data.subcontractId).data.contractor.trim().toLocaleLowerCase('de')!==data.supplier.trim().toLocaleLowerCase('de'))throw Error('Rechnungssteller stimmt nicht mit dem NU-Kostenvorgang überein.');
+      if(module==='suppliers' && this.list('suppliers').some(r=>r.id!==options.id && String(r.data.name).trim().toLocaleLowerCase('de')===String(data.name).trim().toLocaleLowerCase('de')))throw Error('Lieferant mit diesem Namen ist bereits vorhanden.');
+      if(module==='incoming' && this.list('incoming').some(r=>r.id!==options.id && r.data.supplier===data.supplier && r.data.invoiceNumber===data.invoiceNumber)) throw Error('Eingangsbeleg bereits vorhanden.');
+      if(module==='logistics' && status==='Freigegeben' && data.purchaseId) {
+        const order=this.get(data.purchaseId);
+        if(order.status!=='Freigegeben') throw Error('Bestellung vor Lieferung freigeben.');
+        const delivered=this.list('logistics').filter(r=>r.id!==options.id && r.status==='Freigegeben' && r.data.purchaseId===order.id).reduce((n,r)=>n+r.data.quantity,0);
+        const maximum=round(order.data.quantity*(1+(order.data.overDeliveryPercent || 0)/100));
+        if(data.quantity<=0 || round(delivered+data.quantity)>maximum) throw Error('Liefermenge muss positiv sein und darf die offene Bestellmenge einschließlich vereinbarter Toleranz nicht überschreiten.');
+      }
+      if(module==='times' && data.billable) {
+        if(!(data.billingRate>0))throw Error('Stundenlohnarbeit: Verrechnungssatz je Stunde netto angeben.');
+        if(status==='Freigegeben' && !String(data.customerConfirmation || '').trim())throw Error('Stundenlohnarbeit erst mit Kundenbestätigung (unterschriebener Stundenzettel) freigeben.');
+      }
+      if(module==='payments' && status==='Freigegeben') {
+        const invoice=this.get(data.invoiceId);
+        if(invoice?.module!=='invoices' || invoice.projectId!==projectId)throw Error('Ausgangsrechnung aus diesem Projekt auswählen.');
+        const kind=data.direction || 'Zahlungseingang';
+        if(!PAYMENT_KINDS.includes(kind))throw Error('Buchungsart ungültig.');
+        if(!(data.amount>0))throw Error('Betrag muss positiv sein.');
+        const others=this.list('payments').filter(r=>r.id!==options.id && r.status==='Freigegeben' && r.data.invoiceId===invoice.id);
+        const t=paymentTotals(others),settled=round(t.paid+t.discount+t.writeOff+t.suspense+t.retained);
+        if(kind==='Rückzahlung') {
+          if(!invoice.data.stornoOf)throw Error('Rückzahlungen müssen einer Stornorechnung zugeordnet werden.');
+          const received=paymentTotals(this.list('payments').filter(r=>r.status==='Freigegeben' && r.data.invoiceId===invoice.data.stornoOf)).paid;
+          const refunded=others.filter(r=>r.data.direction==='Rückzahlung').reduce((n,r)=>n+r.data.amount,0);
+          if(round(refunded+data.amount)>Math.min(Math.abs(invoice.data.gross),received))throw Error('Rückzahlung überschreitet das tatsächliche Guthaben.');
+        } else {
+          if(invoice.data.stornoOf || this.list('invoices').some(r=>r.data.stornoOf===invoice.id))throw Error('Auf stornierte Rechnungen können keine neuen Zahlungseingänge gebucht werden.');
+          if(kind==='Einbehalt ausgezahlt') {
+            if(round(data.amount)>round(t.retained))throw Error('Auszahlung übersteigt den offenen Sicherheitseinbehalt dieser Rechnung.');
+          } else if(round(settled+data.amount)>invoice.data.gross) throw Error('Betrag darf den offenen Rechnungsbetrag nicht überschreiten.');
+          if(kind==='Sicherheitseinbehalt' && !validDate(data.retentionUntil))throw Error('Sicherheitseinbehalt: Datum „Einbehalt bis (Ende Gewährleistung)“ angeben.');
+          if(SETTLING.includes(kind) && !String(data.notes || data.account || '').trim())throw Error(kind+': Grund in „Bemerkung“ angeben, z. B. „2 % Skonto“ oder „Kunde zahlt Rest nicht, Kulanz“.');
+          if(SKR03[kind] && !/\b\d{4}\b/.test(data.account || ''))data.account=[SKR03[kind](invoice.data.tax),String(data.account || '').trim()].filter(Boolean).join(' · ');
+        }
+      }
+      if(options.due && (!/^\d{4}-\d{2}-\d{2}$/.test(options.due) || Number.isNaN(Date.parse(options.due)) || new Date(options.due).toISOString().slice(0,10)!==options.due))throw Error('Rückmeldefrist ungültig.');
+      const record={...(before || {}),id:before?.id || uid(),module,projectId,data,status,owner:options.owner || '',due:options.due || '',createdAt:before?.createdAt || new Date().toISOString(),updatedAt:new Date().toISOString()};
+      if(module==='contract' && values.checkCode) {
+        const finding=this.contractChecks().find(f=>f.positionId===data.positionId && f.code===values.checkCode);
+        if(!finding)throw Error('Automatischer Befund nicht mehr vorhanden. Bitte neu prüfen.');
+        record.autoCheck={positionId:finding.positionId,code:finding.code,basis:finding.basis};
+      }
+      if(module==='materials')delete record.pendingPrice;
+      if(module==='orders') {
+        if(data.lumpSumNet>0 && !data.lumpSum)throw Error('Pauschalsumme nur eintragen, wenn „Pauschalpreis vereinbart“ angehakt ist.');
+        if(data.lumpSum && this.get(data.offerId)?.data.baseOfferId)throw Error('Pauschalpreis nur beim Hauptauftrag. Nachträge werden nach Aufmaß abgerechnet.');
+      }
+      if(module==='orders' && status==='Freigegeben') {
+        const offer=this.get(data.offerId);
+        const lumpNote=data.lumpSum?'Pauschalpreis: '+round(data.lumpSumNet || offer.data.net).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' € netto. Abrechnung nach Leistungsstand in % der Pauschalsumme, ohne Aufmaß.':'';
+        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',number:before?.confirmation?.number || this.nextDocumentNumber('AB',data.date),documentFamily:undefined,documentRevision:1,offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:[lumpNote,data.notes].filter(Boolean).join('\n'),...(data.lumpSum?{lumpSum:true,lumpSumNet:round(data.lumpSumNet || offer.data.net)}:{})}));
+      }
+      return this.transaction(before?'Geändert':'Angelegt',module,record.id,d=>{
+        if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,validUntil:before.data.validUntil || '',priceBasis:before.data.priceBasis || '',supplier:before.data.supplier,source:before.data.source}] : [])].slice(-3);
+        const i=d.records.findIndex(r=>r.id===record.id);
+        if(i<0) d.records.push(record); else d.records[i]=record;
+        if(module==='projects') d.selectedProject=record.id;
+        d.audit.push({id:uid(),at:record.updatedAt,action:'Werte',module,recordId:record.id,projectId, before:before || null,after:record});
+        return record;
+      });
+    }
+    settings(values) {
+      const clean={...this.data.settings, ...values};
+      if(values.capacity)clean.capacity=capacity(values.capacity);
+      for(const k of ['wage','agk','profit','tax']) { clean[k]=num(clean[k]); if(clean[k]<0 || (k==='tax' && clean[k]>100)) throw Error('Ungültige Kalkulationswerte.'); }
+      if(values.smallBusiness!==undefined)clean.smallBusiness=[true,'true','ja','on'].includes(values.smallBusiness);
+      if(clean.smallBusiness===true)clean.tax=0;
+      else if(this.data.settings.smallBusiness===true && clean.tax===0 && values.tax===undefined)clean.tax=19;
+      if(values.holidayState!==undefined && !Object.hasOwn(holidayStates,values.holidayState))throw Error('Bundesland für Feiertage ungültig.');
+      if(values.documentNumberStart!==undefined) {
+        if(String(values.documentNumberStart).trim()==='')delete clean.documentNumberStart;
+        else {
+          clean.documentNumberStart=Number(values.documentNumberStart);
+          if(!Number.isInteger(clean.documentNumberStart) || clean.documentNumberStart<1 || clean.documentNumberStart>9999)throw Error('Belegnummern-Start: ganze Zahl von 1 bis 9999.');
+        }
+      }
+      return this.transaction('Einstellungen gespeichert','operating',null,d=>{d.settings=clean;});
+    }
+    blockers(moduleIds) {
+      return moduleIds.flatMap(m=>this.list(m).filter(r=>r.data.blocking && r.status!=='Erledigt'));
+    }
+    assertClear(moduleIds) {
+      const open=this.blockers(moduleIds);
+      if(open.length)throw Error('Offene fachliche Sperren: '+open.map(r=>r.data.title).join(', '));
+    }
+    workflow() {
+      const project=this.project();
+      const moduleStates=modules.map(m=>{
+        const rows=this.list(m.id), approved=rows.filter(r=>r.status==='Freigegeben' || r.status==='Erledigt').length;
+        return {id:m.id,name:m.name,stage:stages.find(s=>s.modules.includes(m.id)).id,count:rows.length,approved,pending:rows.length-approved,derived:!m.fields.length,scope:m.scope};
+      });
+      const issues=[];
+      const add=(module,message,recordId=null)=>issues.push({module,message,recordId});
+      if(!project)return {projectId:null,phase:null,modules:moduleStates,stages,issues:[{module:'projects',message:'Kunde und Projekt anlegen oder auswählen.'}],next:'customers'};
+      for(const r of this.blockers(['contract','technical','safety']))add(r.module,'Fachliche Sperre: '+r.data.title,r.id);
+      const lv=this.list('lv');
+      if(!lv.length)add('lv','Leistungsverzeichnis fehlt.');
+      for(const r of lv.filter(r=>r.status!=='Freigegeben'))add('lv','Position '+r.data.number+' ist noch nicht freigegeben.',r.id);
+      const orders=this.list('orders').filter(r=>r.status==='Freigegeben');
+      if(!orders.length)add('orders','Freigegebene Beauftragung fehlt.');
+      const assigned=new Map();
+      for(const o of orders.filter(o=>o.data.lumpSum!==true))for(const p of this.get(o.data.offerId).data.positions)assigned.set(p.id,p);
+      for(const p of assigned.values())if(this.measured(p.id)<=0)add('measurements','Freigegebenes Aufmaß für Position '+p.number+' fehlt.',p.id);
+      for(const r of this.list('defects').filter(r=>r.status!=='Erledigt'))add('defects','Offener Mangel: '+r.data.title,r.id);
+      if(!this.list('acceptance').some(r=>r.status==='Freigegeben' && r.data.result==='Abgenommen' && r.signatures?.length))add('acceptance','Freigegebene, unterschriebene Abnahme ohne offene Restpunkte fehlt.');
+      for(const delivery of this.deliverySchedule())if(!delivery.complete)add('logistics',(delivery.state==='Überfällig'?'Überfällige Lieferung: ':'Offene Lieferung: ')+delivery.title,delivery.id);
+      for(const m of ['times','incoming','subcontracts','payments','orders','measurements','purchase','logistics'])for(const r of this.list(m).filter(r=>!['Freigegeben','Erledigt'].includes(r.status)))add(m,'Vorgang noch zu prüfen: '+(r.data.title || r.data.number),r.id);
+      const invoices=this.list('invoices'),cancelled=new Set(invoices.map(r=>r.data.stornoOf).filter(Boolean));
+      for(const o of orders.filter(o=>!this.get(o.data.offerId).data.baseOfferId))if(!invoices.some(r=>r.data.sourceOfferId===o.data.offerId && r.data.invoiceType==='Schlussrechnung' && !r.data.stornoOf && !cancelled.has(r.id)))add('invoices','Schlussrechnung für '+o.data.title+' fehlt.',o.id);
+      for(const r of this.openRegie())add('invoices','Stundenlohnarbeit noch nicht abgerechnet: '+r.data.date+' '+r.data.title,r.id);
+      const c=this.controlling();if(c.outstanding!==0)add('payments',c.outstanding>0?'Offene Zahlung: '+c.outstanding.toFixed(2)+' EUR – offen lassen oder als „Restbetrag ausgebucht“ bzw. „Restbetrag auf Zwischenkonto“ buchen':'Guthaben / Rückzahlung offen: '+Math.abs(c.outstanding).toFixed(2)+' EUR');
+      return {projectId:project.id,phase:project.data.phase,modules:moduleStates,stages,issues,next:issues[0]?.module || 'closing'};
+    }
+    assertPhase(phase) {
+      const phases=definitions.projects.fields.find(f=>f.key==='phase').options;
+      if(!phases.includes(phase))throw Error('Projektphase ungültig.');
+      const current=this.project()?.data.phase;
+      if(phase===current)return;
+      if(phases.indexOf(phase)!==phases.indexOf(current)+1)throw Error('Projektphasen nacheinander übergeben.');
+      const report=this.workflow();
+      const requirements={Kalkulation:['customers','projects'],Beauftragt:['lv','contract','technical','orders'],Ausführung:['orders','contract','technical','safety'],Abnahme:['measurements','contract','technical','safety'],Abgeschlossen:modules.map(m=>m.id)}[phase];
+      const blocked=report.issues.filter(i=>requirements.includes(i.module));
+      if(blocked.length)throw Error('Projektübergabe noch nicht möglich: '+blocked.map(i=>i.message).join(' '));
+    }
+    advancePhase(phase) {
+      if(!this.project())throw Error('Projekt auswählen.');
+      this.assertPhase(phase);
+      const project=this.project();
+      return this.transaction('Projektphase übergeben','projects',project.id,d=>{const r=d.records.find(r=>r.id===project.id);r.data.phase=phase;r.updatedAt=new Date().toISOString();return r;});
+    }
+    reopenProject(reason) {
+      const project=this.project();
+      if(project?.data.phase!=='Abgeschlossen' || !String(reason || '').trim())throw Error('Abgeschlossenes Projekt und Begründung erforderlich.');
+      return this.transaction('Projekt wieder geöffnet: '+String(reason).trim(),'projects',project.id,d=>{const p=d.records.find(r=>r.id===project.id);p.data.phase='Ausführung';p.updatedAt=new Date().toISOString();return p;});
+    }
+    position(record) {
+      const p=record.data, s=this.data.settings;
+      const epPrecision=p.epPrecision===3?3:2;
+      const epRound=n=>epPrecision===3?Math.round((n+Math.sign(n)*Number.EPSILON)*1000)/1000:round(n);
+      const componentRound=n=>epPrecision===3?n:round(n);
+      const detailed=Boolean(p.useDetailedMaterials);
+      const materialBreakdown=detailed?[1,2,3,4].map(i=>{
+        const price=p['materialPrice'+i] || 0,cut=p['materialCut'+i] || 1,waste=p['materialWaste'+i] || 0,minutes=p['materialMinutes'+i] || 0;
+        return {number:i,name:p['materialName'+i] || '',price,cut,waste,minutes,cost:round(price*cut*(1+waste/100))};
+      }):[];
+      let material=detailed?round(materialBreakdown.reduce((sum,m)=>sum+m.cost,0)+(p.fasteners || 0)):(p.material || 0);
+      if(!detailed && p.materialId) {
+        const m=this.get(p.materialId);
+        if(m?.status!=='Freigegeben') throw Error(`Material zu Position ${p.number} ist nicht freigegeben.`);
+        material=m.data.price*(p.consumption || 1);
+      }
+      const totalMinutes=(p.minutes || 0)+(detailed?materialBreakdown.reduce((sum,m)=>sum+m.minutes,0):0);
+      const labor=totalMinutes/60*(p.useEfbRates?p.efbWage:s.wage);
+      const other=detailed?round((p.disposal || 0)+(p.miscellaneous || 0)):0;
+      const direct=material+labor+p.equipment+p.subcontract+other;
+      const nuMarkupPercent=p.useEfbRates?(p.subcontractMarkup || 0):p.useNuMarkup?(p.subcontractMarkup ?? 15):null;
+      const nuSalePrice=round(p.subcontract*(nuMarkupPercent===null?(1+s.agk/100)*(1+s.profit/100):(1+nuMarkupPercent/100)));
+      const priceComponents=p.useEfbRates?Object.fromEntries([['labor',labor,'laborMarkup'],['material',material,'materialMarkup'],['equipment',p.equipment,'equipmentMarkup'],['subcontract',p.subcontract,'subcontractMarkup']].map(([key,value,markup])=>[key,componentRound(value*(1+(p[markup] || 0)/100))])):null;
+      if(priceComponents && other)priceComponents.other=componentRound(other*(1+(p.otherMarkup || 0)/100));
+      const calculatedEp=priceComponents?epRound(Object.values(priceComponents).reduce((sum,value)=>sum+value,0)):p.useNuMarkup?epRound((direct-p.subcontract)*(1+s.agk/100)*(1+s.profit/100)+nuSalePrice):epRound(direct*(1+s.agk/100)*(1+s.profit/100));
+      const undiscountedEp=p.useTargetPrice?epRound(p.targetEp || 0):calculatedEp;
+      const discountPercent=num(p.discountPercent || 0);
+      if(discountPercent<0 || discountPercent>100)throw Error('Positionsrabatt zwischen 0 und 100 %.');
+      const ep=epRound(undiscountedEp*(1-discountPercent/100));
+      return {...p,id:record.id,material,materialBreakdown,totalMinutes,labor,other,direct,priceComponents,nuMarkupPercent,nuSalePrice,calculatedEp,undiscountedEp,discountPercent,ep,gp:round(p.qty*ep),contribution:round(p.qty*(ep-direct))};
+    }
+    materialChecks(record,asOf=berlinDay()) {
+      if(record?.module!=='materials' || !validDate(asOf))throw Error('Artikel oder Prüfdatum ungültig.');
+      const d=record.data,issues=[];
+      if(record.status!=='Freigegeben')issues.push('Preis nicht freigegeben');
+      if(d.priceDate>asOf)issues.push('Preisstand liegt in der Zukunft');
+      if(d.validUntil && d.validUntil<asOf)issues.push('Preisbindung abgelaufen');
+      if(d.compatibility==='Nicht geeignet')issues.push('System als nicht geeignet dokumentiert');
+      if(d.system && d.compatibility!=='Geeignet laut Nachweis' && d.compatibility!=='Nicht geeignet')issues.push('Systemverträglichkeit ungeprüft');
+      return issues;
+    }
+    // Modul 10: Prüfliste für Materialien – sperrende Prüfungen (materialChecks) plus nicht sperrende Hinweise.
+    materialOverview(asOf=berlinDay(),soonDays=14,jumpPercent=10) {
+      if(!validDate(asOf))throw Error('Prüfdatum ungültig.');
+      const day=d=>Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))/86400000;
+      const lv=this.data.selectedProject?this.list('lv'):[];
+      const rows=this.list('materials').map(r=>{
+        const d=r.data,blocking=this.materialChecks(r,asOf),hints=[];
+        const daysLeft=d.validUntil && validDate(d.validUntil)?day(d.validUntil)-day(asOf):null;
+        if(daysLeft!==null && daysLeft>=0 && daysLeft<=soonDays)hints.push(daysLeft===0?'Preisbindung endet heute':`Preisbindung endet in ${daysLeft} Tag${daysLeft===1?'':'en'} (${d.validUntil})`);
+        if(!d.validUntil)hints.push('Keine Preisbindung dokumentiert');
+        const previous=(r.history || []).filter(h=>Number.isFinite(h.price) && h.price>0).at(-1);
+        const change=previous && Number.isFinite(d.price)?Math.round((d.price-previous.price)/previous.price*1000)/10:null;
+        if(change!==null && Math.abs(change)>=jumpPercent)hints.push(`Preissprung ${change>0?'+':''}${String(change).replace('.',',')} % gegenüber ${previous.priceDate || 'vorherigem Preisstand'}`);
+        if(d.system && !d.documentUrl)hints.push('Systemzuordnung ohne Herstellerunterlage');
+        const usage=lv.filter(p=>p.data.materialId===r.id).map(p=>({id:p.id,number:p.data.number,text:String(p.data.text || '').split('\n')[0],qty:p.data.qty,unit:p.data.unit,status:p.status}));
+        const rank=blocking.length?0:hints.some(h=>/^Preisbindung endet|^Preissprung/.test(h))?1:2;
+        return {id:r.id,name:d.name,article:d.article || '',manufacturer:d.manufacturer || '',supplier:d.supplier || '',unit:d.unit,price:d.price,priceDate:d.priceDate,validUntil:d.validUntil || '',daysLeft,previousPrice:previous?.price ?? null,change,system:d.system || '',compatibility:d.compatibility || '',status:r.status,blocking,hints,usage,rank};
+      }).sort((a,b)=>a.rank-b.rank || (a.daysLeft ?? 1e9)-(b.daysLeft ?? 1e9) || String(a.name).localeCompare(String(b.name),'de'));
+      // Systemübersicht: alle Artikel eines Systems müssen einzeln nachgewiesen sein.
+      const systems=new Map();
+      for(const m of rows.filter(m=>m.system)) {
+        const key=m.system.trim().toLowerCase(),g=systems.get(key) || {system:m.system.trim(),materials:[],suitable:0,unsuitable:0,open:0};
+        g.materials.push(m.name);
+        if(m.compatibility==='Geeignet laut Nachweis')g.suitable++;else if(m.compatibility==='Nicht geeignet')g.unsuitable++;else g.open++;
+        systems.set(key,g);
+      }
+      const systemRows=[...systems.values()].map(g=>({...g,state:g.unsuitable?'Nicht geeignet':g.open?'Nachweis offen':'Alle Artikel nachgewiesen'})).sort((a,b)=>a.system.localeCompare(b.system,'de'));
+      return {asOf,rows,systems:systemRows,counts:{blocking:rows.filter(r=>r.blocking.length).length,expiring:rows.filter(r=>r.hints.some(h=>/^Preisbindung endet/.test(h))).length,jumps:rows.filter(r=>r.hints.some(h=>/^Preissprung/.test(h))).length}};
+    }
+    calculation() {
+      const positions=this.list('lv').map(r=>this.position(r));
+      const included=positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
+      const sum=k=>round(included.reduce((n,p)=>n+p.qty*p[k],0));
+      return {positions,optionalNet:round(positions.filter(p=>p.kind==='Bedarfsposition').reduce((n,p)=>n+p.gp,0)),net:round(included.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),other:sum('other'),direct:sum('direct')};
+    }
+    // Modul 08: Daten für EFB-Preis 221/222/223 aus der freigegebenen Kalkulationslogik.
+    // Ergebnis ist eine Übertragungshilfe für die Formblätter des Auftraggebers, kein amtliches Formular.
+    efbForms() {
+      const calc=this.calculation(),s=this.data.settings,warnings=[];
+      const keys=['labor','material','equipment','other','subcontract'];
+      const pct=n=>Math.round(n*10000)/100;
+      const rows=calc.positions.map(p=>{
+        const digits=p.epPrecision===3?3:2,r=n=>Math.round((n+Math.sign(n)*Number.EPSILON)*10**digits)/10**digits;
+        const factor=(1+s.agk/100)*(1+s.profit/100);
+        const raw=p.useEfbRates?Object.fromEntries(keys.map(k=>[k,(p[k] || 0)*(1+(p[k+'Markup'] || 0)/100)])):{labor:p.labor*factor,material:p.material*factor,equipment:(p.equipment || 0)*factor,other:(p.other || 0)*factor,subcontract:p.nuMarkupPercent===null?(p.subcontract || 0)*factor:p.nuSalePrice};
+        const notes=[];
+        let parts;
+        if(p.calculatedEp>0) {
+          const scale=p.ep/p.calculatedEp;
+          if(Math.abs(scale-1)>1e-9)notes.push(p.useTargetPrice?'Zielpreis anteilig auf die Kostenarten verteilt':'Rabatt anteilig auf die Kostenarten verteilt');
+          parts=Object.fromEntries(keys.map(k=>[k,r(raw[k]*scale)]));
+        } else {
+          parts=Object.fromEntries(keys.map(k=>[k,0]));
+          if(p.ep>0){parts.other=p.ep;notes.push('Keine Einzelkosten: EP vollständig unter Sonstiges');warnings.push(`Position ${p.number}: EP ${p.ep} ohne Einzelkosten – Aufgliederung nicht aussagekräftig.`);}
+        }
+        const diff=r(p.ep-keys.reduce((n,k)=>n+parts[k],0));
+        if(diff!==0){const k=keys.reduce((a,b)=>Math.abs(parts[b])>Math.abs(parts[a])?b:a);parts[k]=r(parts[k]+diff);notes.push(`Rundungsausgleich ${diff.toFixed(digits).replace('.',',')} € in ${({labor:'Lohn',material:'Stoffe',equipment:'Geräte',other:'Sonstiges',subcontract:'Nachunternehmer'})[k]}`);}
+        return {id:p.id,number:p.number,text:String(p.text || '').split('\n')[0].slice(0,120),qty:p.qty,unit:p.unit,kind:p.kind || 'Hauptleistung',hours:Math.round(p.totalMinutes/60*1000)/1000,...parts,ep:p.ep,gp:p.gp,mode:p.useEfbRates?'Kostenartenzuschläge':'Globale Kalkulationsbasis',notes};
+      });
+      // 221: einheitliche Zuschläge je Kostenart; abweichende Positionen werden gemeldet.
+      const efb=calc.positions.filter(p=>p.useEfbRates),global=calc.positions.filter(p=>!p.useEfbRates);
+      if(efb.length && global.length)warnings.push('Positionen mit Kostenartenzuschlägen und mit globaler Kalkulationsbasis gemischt – EFB 221 ist nicht eindeutig. EFB 222 verwenden oder Kalkulation vereinheitlichen.');
+      const distinct=(list,fn)=>[...new Set(list.map(fn))];
+      const wages=distinct(efb,p=>p.efbWage);
+      if(wages.length>1)warnings.push(`Unterschiedliche Kalkulationslöhne (${wages.join(' / ')} €/h) – EFB 221 nicht eindeutig.`);
+      const total=global.length && !efb.length?pct((1+s.agk/100)*(1+s.profit/100)-1):null;
+      const columns=Object.fromEntries(keys.map(k=>{
+        if(efb.length && !global.length) {
+          const values=distinct(efb,p=>p[k+'Markup'] || 0);
+          if(values.length>1)warnings.push(`Zuschlag ${({labor:'Lohn',material:'Stoffe',equipment:'Geräte',other:'Sonstiges',subcontract:'Nachunternehmer'})[k]} je Position unterschiedlich (${values.join(' / ')} %).`);
+          return [k,{bgk:null,agk:null,wg:null,total:values.length===1?values[0]:null}];
+        }
+        if(k==='subcontract' && global.some(p=>p.nuMarkupPercent!==null)) {
+          const values=distinct(global,p=>p.nuMarkupPercent===null?total:p.nuMarkupPercent);
+          if(values.length>1)warnings.push(`Nachunternehmer-Zuschlag je Position unterschiedlich (${values.join(' / ')} %).`);
+          return [k,{bgk:null,agk:null,wg:null,total:values.length===1?values[0]:null}];
+        }
+        return [k,total===null?{bgk:null,agk:null,wg:null,total:null}:{bgk:0,agk:s.agk,wg:pct(s.profit/100*(1+s.agk/100)),total}];
+      }));
+      const wage=efb.length && !global.length?(wages.length===1?wages[0]:null):global.length && !efb.length?s.wage:null;
+      const laborTotal=columns.labor.total;
+      const f221={wage,laborMarkup:laborTotal,billingWage:wage!==null && laborTotal!==null?round(wage*(1+laborTotal/100)):null,columns};
+      // 222: Einzelkosten der Teilleistungen und Angebotssumme (ohne Bedarfs-/Alternativpositionen).
+      const included=calc.positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
+      const sum=fn=>round(included.reduce((n,p)=>n+p.qty*fn(p),0));
+      const direct={hours:Math.round(included.reduce((n,p)=>n+p.qty*p.totalMinutes/60,0)*100)/100,labor:sum(p=>p.labor),material:sum(p=>p.material),equipment:sum(p=>p.equipment || 0),other:sum(p=>p.other || 0),subcontract:sum(p=>p.subcontract || 0)};
+      direct.total=round(direct.labor+direct.material+direct.equipment+direct.other+direct.subcontract);
+      const markup=round(calc.net-direct.total);
+      const f222={direct,net:calc.net,markup,markupPercent:direct.total>0?pct(markup/direct.total):null,optionalNet:calc.optionalNet,plannedOverhead:this.project()?.data.plannedOverhead || 0};
+      if(f222.plannedOverhead)warnings.push('Zusätzliche geplante Gemeinkosten des Projekts sind nicht im EP enthalten und erscheinen nicht als Baustellengemeinkosten.');
+      return {f221,f222,f223:rows,warnings:[...new Set(warnings)]};
+    }
+    lvGroups() {
+      const groups=new Map();
+      for(const position of this.calculation().positions) {
+        const parts=(position.groupPath || 'Ohne Gliederung').split(' / ');
+        for(let level=1;level<=parts.length;level++) {
+          const path=parts.slice(0,level).join(' / ');
+          if(!groups.has(path))groups.set(path,{path,level,net:0,positions:0});
+          const group=groups.get(path);if(!['Bedarfsposition','Alternativposition'].includes(position.kind))group.net=round(group.net+position.gp);group.positions++;
+        }
+      }
+      return [...groups.values()].sort((a,b)=>a.path.localeCompare(b.path,'de',{numeric:true}));
+    }
+    lvTree() {
+      // A real hierarchy for navigation/export; parent totals are informative, not extra billable lines.
+      const roots=[], nodes=new Map();
+      for(const position of this.calculation().positions) {
+        const parts=(position.groupPath || 'Ohne Gliederung').split(' / ');
+        let parent=null;
+        for(let i=0;i<parts.length;i++) {
+          const path=parts.slice(0,i+1).join(' / ');
+          let node=nodes.get(path);
+          if(!node) {
+            node={label:parts[i],path,level:i+1,children:[],positions:[],net:0};
+            nodes.set(path,node);
+            (parent?parent.children:roots).push(node);
+          }
+          if(!['Bedarfsposition','Alternativposition'].includes(position.kind)) node.net=round(node.net+position.gp);
+          parent=node;
+        }
+        parent.positions.push({...position});
+      }
+      return roots;
+    }
+    contractChecks() {
+      if(!this.project())throw Error('Projekt auswählen.');
+      const findings=[];
+      const add=(r,code,finding,question)=>findings.push({positionId:r.id,number:r.data.number,code,finding,question,basis:JSON.stringify({position:r.data,settings:this.data.settings,material:this.get(r.data.materialId)?.data || null})});
+      for(const r of this.list('lv')) {
+        const p=r.data;
+        if(p.materialId)for(const finding of this.materialChecks(this.get(p.materialId)))add(r,'material-review',finding,'Preisbindung und Systemnachweise des Artikels prüfen.');
+        if(p.qty===0)add(r,'quantity','LV-Menge ist null.','Ist diese Leistung erforderlich oder nur optional?');
+        if(p.kind==='Nachtrag' && !p.changeNumber)add(r,'change-number','Nachtragsnummer fehlt.','Welchem Nachtrag ist die Leistung zugeordnet?');
+        if(!p.groupPath)add(r,'group','Gliederung fehlt.','Welchem Gewerk und Titel gehört die Position an?');
+        try {
+          const priced=this.position(r);
+          if(priced.direct===0)add(r,'costs','Keine Einzelkosten angesetzt.','Material, Zeit, Gerät oder Fremdleistung prüfen.');
+          if(priced.ep<priced.direct)add(r,'margin','Angebots-EP liegt unter den Einzelkosten.','Zielpreis und Rabatt fachlich prüfen und begründen.');
+        } catch(e) { add(r,'material',e.message,'Materialquelle und Preisfreigabe prüfen.'); }
+        // LV-Datenprüfung v3 (Modul 06, 14.11.2026): Hinweise zur Rückfrage, keine rechtliche Bewertung.
+        const text=String(p.text || ''),unit=String(p.unit || '').trim().toLowerCase();
+        if(text.replace(/\s+/g,'').length<10)add(r,'text-short','Leistungsbeschreibung sehr kurz oder unvollständig.','Vollständigen Leistungstext (Langtext) beim Auftraggeber anfordern bzw. aus dem Original-LV ergänzen.');
+        if(/^(psch|pauschal|pschl)\.?$/.test(unit) && p.qty!==1 && p.qty!==0)add(r,'lump-sum-qty',`Pauschalposition mit Menge ${p.qty}.`,'Pauschale ist üblicherweise 1 psch – Mengenangabe oder Einheit beim Auftraggeber klären.');
+        if(/^(st|stk|stck|stück)\.?$/.test(unit) && Number.isFinite(p.qty) && !Number.isInteger(p.qty))add(r,'piece-qty',`Stückzahl ${p.qty} ist nicht ganzzahlig.`,'Menge oder Einheit prüfen (z. B. m statt St).');
+        if(/\bbauseit/i.test(text))add(r,'text-bauseits','Leistungstext nennt bauseitige Leistungen.','Leistungsgrenze und Schnittstelle zum Auftraggeber bzw. Vorgewerk klären und im Angebot ausdrücklich benennen.');
+        if(/gleichwertig|leitfabrikat|fabrikat\s*:|erzeugnis\s*:|bieterangabe|vom bieter (einzutragen|anzugeben)/i.test(text))add(r,'text-product','Leitfabrikat, Gleichwertigkeit oder Bieterangabe gefordert.','Angebotenes Fabrikat und Typ eintragen; bei Abweichung Gleichwertigkeit mit Nachweis (z. B. technisches Datenblatt, Systemzulassung) belegen.');
+        if(/nach aufwand|stundenlohn|auf nachweis|nach nachweis/i.test(text))add(r,'text-effort','Abrechnung nach Aufwand bzw. Stundenlohn.','Verrechnungssatz, Nachweisform (Stundenzettel, Regiebericht) und Anerkennung durch den Auftraggeber vor Ausführung klären.');
+        if(/(einschl(\.|ießlich)|inkl(\.|usive))\s+(aller|sämtlicher|aller erforderlichen|sämtlicher erforderlichen)\b/i.test(text))add(r,'text-inclusive','Pauschale Einschlussformulierung („einschließlich aller …“).','Prüfen, ob damit Besondere Leistungen nach VOB/C ohne gesonderte Vergütung einbezogen werden; Umfang im Angebot abgrenzen oder Rückfrage stellen.');
+        if(p.kind==='Bedarfsposition')add(r,'optional','Bedarfsposition (Eventualposition).','Klären, ob und mit welcher Menge die Leistung beauftragt wird und ob sie in die Wertung bzw. Angebotssumme eingeht.');
+      }
+      // Positionsübergreifende Prüfungen: doppelte Leistungstexte und Wahlgruppen.
+      const lv=this.list('lv'),norm=value=>String(value || '').toLowerCase().replace(/\s+/g,' ').trim();
+      const seen=new Map();
+      for(const r of lv) {
+        const key=norm(r.data.text)+'|'+norm(r.data.unit);
+        if(norm(r.data.text).replace(/\s/g,'').length<10 || r.data.choiceGroup)continue;
+        if(seen.has(key))add(r,'duplicate-text',`Gleicher Leistungstext wie Position ${seen.get(key).data.number}.`,'Doppelte Leistung oder Abgrenzung (Bauabschnitt, Dachfläche, Gebäudeteil) mit dem Auftraggeber klären.');
+        else seen.set(key,r);
+      }
+      const groups=new Map();
+      for(const r of lv)if(r.data.choiceGroup)groups.set(r.data.choiceGroup,[...(groups.get(r.data.choiceGroup) || []),r]);
+      for(const [group,members] of groups) {
+        if(members.length<2)add(members[0],'choice-single',`Wahlgruppe ${group} enthält nur eine Position.`,'Fehlende Grund- oder Alternativposition ergänzen oder Wahlgruppe entfernen.');
+        else if(!members.some(r=>r.data.kind==='Grundposition'))add(members[0],'choice-base',`Wahlgruppe ${group} ohne Grundposition.`,'Grundposition bestimmen; Alternativen werden nur auf Anordnung des Auftraggebers ausgeführt.');
+      }
+      return findings;
+    }
+    contractReview() {
+      return this.contractChecks().map(finding=>{
+        const reviews=this.list('contract').filter(r=>r.autoCheck?.positionId===finding.positionId && r.autoCheck.code===finding.code);
+        const current=reviews.filter(r=>r.autoCheck.basis===finding.basis).at(-1);
+        return {...finding,reviewId:current?.id || null,reviewState:current?(current.status==='Erledigt'?'Entscheidung dokumentiert':current.status):reviews.length?'Prüfung erneuern':'Ungeprüft'};
+      });
+    }
+    openRegie() {
+      const billed=new Map();
+      for(const r of this.list('invoices').filter(r=>r.status==='Freigegeben'))for(const p of r.data.positions || [])if(p.kind==='Stundenlohnarbeit')billed.set(p.id,round((billed.get(p.id) || 0)+p.qty));
+      return this.list('times').filter(r=>r.status==='Freigegeben' && r.data.billable).map(r=>({...r,open:round(r.data.hours-(billed.get(r.id) || 0))})).filter(r=>r.open>0);
+    }
+    measured(positionId) {
+      return round(this.list('measurements').filter(r=>r.status==='Freigegeben' && r.data.positionId===positionId).reduce((sum,r)=>sum+r.data.length*r.data.width*r.data.factor-r.data.deduction,0));
+    }
+    issue(kind, options={}) {
+      if(this.project()?.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
+      if(!['offers','invoices'].includes(kind)) throw Error('Ausgabeart ungültig.');
+      const project=this.project(); if(!project) throw Error('Projekt auswählen.');
+      const customer=this.get(project.data.customerId);
+      const terms=kind==='offers'?Object.fromEntries(['validUntil','paymentTerms','executionTerms','offerNotes'].map(key=>[key,String(options[key] ?? '').trim()])):{};
+      if(terms.validUntil && !validDate(terms.validUntil))throw Error('Angebotsgültigkeit benötigt ein gültiges Datum.');
+      if(Object.values(terms).some(value=>value.length>10000))throw Error('Angebotsbedingungen: höchstens 10000 Zeichen je Feld.');
+      let reverseCharge=false;
+      let positions=[],optionalPositions=[],alternativePositions=[],sourceOfferId=null,invoiceType=null,baseOfferId=null,percentage=100,previous=[],smallBusiness=this.data.settings.smallBusiness===true,tax=smallBusiness?0:this.data.settings.tax,changeNumber='',version=1,supersedesOfferId=null;
+      this.assertClear(['contract','technical']);
+      if(kind==='offers') {
+        const assigned=new Set(this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions.map(p=>p.id)));
+        let candidates=this.list('lv').filter(r=>options.offerType==='Nachtragsangebot'?r.data.kind==='Nachtrag':r.data.kind!=='Nachtrag');
+        if(options.offerType!=='Nachtragsangebot') {
+          const groups=new Map();
+          for(const r of candidates.filter(r=>['Grundposition','Alternativposition'].includes(r.data.kind))) {
+            if(!r.data.choiceGroup)throw Error('Wahlgruppe fehlt.');
+            if(!groups.has(r.data.choiceGroup))groups.set(r.data.choiceGroup,[]);
+            groups.get(r.data.choiceGroup).push(r);
+          }
+          const selections=options.selectedPositionIds;
+          if(selections!==undefined && (!Array.isArray(selections) || new Set(selections).size!==selections.length || selections.some(id=>!candidates.some(r=>r.id===id && ['Grundposition','Alternativposition','Bedarfsposition'].includes(r.data.kind)))))throw Error('Sonderpositionsauswahl ungültig.');
+          const selected=new Set(selections || candidates.filter(r=>r.data.kind==='Grundposition').map(r=>r.id));
+          const assignedGroups=new Set(this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions.map(p=>p.choiceGroup).filter(Boolean)));
+          for(const [group,rows] of groups) {
+            if(rows.filter(r=>r.data.kind==='Grundposition').length!==1)throw Error('Jede Wahlgruppe benötigt genau eine Grundposition.');
+            if(!assignedGroups.has(group) && rows.filter(r=>selected.has(r.id)).length!==1)throw Error('Je Wahlgruppe genau eine Position auswählen.');
+          }
+          const available=candidates.filter(r=>!assigned.has(r.id) && !assignedGroups.has(r.data.choiceGroup));
+          optionalPositions=available.filter(r=>r.data.kind==='Bedarfsposition' && !selected.has(r.id)).map(r=>this.position(r));
+          alternativePositions=available.filter(r=>r.data.choiceGroup && !selected.has(r.id)).map(r=>this.position(r));
+          if(available.filter(r=>['Bedarfsposition','Grundposition','Alternativposition'].includes(r.data.kind)).some(r=>r.status!=='Freigegeben'))throw Error('Sonderpositionen vor der Angebotsausgabe freigeben.');
+          candidates=available.filter(r=>!['Bedarfsposition','Grundposition','Alternativposition'].includes(r.data.kind) || selected.has(r.id));
+        }
+        if(options.offerType==='Nachtragsangebot') {
+          const numbers=[...new Set(candidates.map(r=>r.data.changeNumber || ''))];
+          if(options.changeNumber===undefined && numbers.length>1)throw Error('Mehrere Nachträge vorhanden. Bitte eine Nachtragsnummer auswählen.');
+          changeNumber=String(options.changeNumber ?? numbers[0] ?? '').trim();
+          candidates=candidates.filter(r=>(r.data.changeNumber || '')===changeNumber);
+          const prior=this.list('offers').filter(r=>r.data.baseOfferId===options.baseOfferId && (r.data.changeNumber || '')===changeNumber).at(-1);
+          version=(prior?.data.version || (prior?1:0))+1;
+          if(prior && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===prior.id))supersedesOfferId=prior.id;
+        } else {
+          const prior=this.list('offers').filter(r=>!r.data.baseOfferId).at(-1);
+          version=(prior?.data.version || (prior?1:0))+1;
+          if(prior && !this.list('orders').some(o=>o.status==='Freigegeben' && o.data.offerId===prior.id))supersedesOfferId=prior.id;
+        }
+        candidates=candidates.filter(r=>!assigned.has(r.id));
+        if(!candidates.length && assigned.size)throw Error('Diese LV-Positionen sind bereits beauftragt.');
+        if(!candidates.length)throw Error('Mindestens eine passende LV-Position erforderlich.');
+        if(candidates.some(r=>r.status!=='Freigegeben'))throw Error('Alle LV-Positionen dieser Angebotsfassung müssen zuerst freigegeben werden.');
+        for(const p of [...candidates,...optionalPositions,...alternativePositions]) {
+          const data=p.data || p;
+          if(data.materialId) {
+            const issues=this.materialChecks(this.get(data.materialId));
+            if(issues.length)throw Error(`Material zu Position ${data.number}: ${issues.join('; ')}.`);
+          }
+        }
+        if(options.offerType==='Nachtragsangebot') {
+          const base=this.get(options.baseOfferId);
+          if(base?.module!=='offers' || base.projectId!==project.id || base.data.baseOfferId)throw Error('Hauptangebot für den Nachtrag auswählen.');
+          baseOfferId=base.id;
+          tax=base.data.tax;smallBusiness=base.data.smallBusiness===true;
+          positions=candidates.filter(r=>!assigned.has(r.id)).map(r=>this.position(r));
+        } else positions=candidates.map(r=>this.position(r));
+        if(!positions.length)throw Error('Diese Nachtragspositionen sind bereits beauftragt.');
+      }
+      if(kind==='invoices') {
+        const roots=this.list('orders').filter(r=>r.status==='Freigegeben' && !this.get(r.data.offerId)?.data.baseOfferId);
+        if(!options.orderId && roots.length>1)throw Error('Mehrere Hauptaufträge vorhanden. Bitte den abzurechnenden Auftrag auswählen.');
+        const order=options.orderId?roots.find(r=>r.id===options.orderId):roots.at(-1);
+        const offer=this.get(order?.data.offerId);
+        if(!offer || offer.status!=='Freigegeben') throw Error('Eine freigegebene Beauftragung mit Angebotsbezug fehlt.');
+        sourceOfferId=offer.id;tax=offer.data.tax;smallBusiness=offer.data.smallBusiness===true;
+        invoiceType=options.invoiceType || 'Schlussrechnung';
+        if(!['Abschlagsrechnung','Teilrechnung','Schlussrechnung'].includes(invoiceType))throw Error('Rechnungsart ungültig.');
+        percentage=invoiceType==='Schlussrechnung'?100:num(options.percentage ?? 100);
+        if(percentage<=0 || percentage>100)throw Error('Kumulativer Leistungsanteil muss größer als 0 und höchstens 100 % sein.');
+        previous=this.list('invoices').filter(r=>r.status==='Freigegeben' && r.data.sourceOfferId===offer.id);
+        const cancelled=new Set(previous.map(r=>r.data.stornoOf).filter(Boolean));
+        if(previous.some(r=>(r.data.invoiceType || 'Schlussrechnung')==='Schlussrechnung' && !r.data.stornoOf && !cancelled.has(r.id)))throw Error('Dieser Auftrag wurde bereits abgerechnet. Schlussrechnung zuerst stornieren.');
+        const changeOffers=this.list('orders').filter(r=>r.status==='Freigegeben').map(r=>this.get(r.data.offerId)).filter(r=>r?.data.baseOfferId===offer.id);
+        const all=[...offer.data.positions,...changeOffers.flatMap(r=>r.data.positions)];
+        if(new Set(all.map(p=>p.id)).size!==all.length)throw Error('Beauftragte Position mehrfach vorhanden.');
+        const lumpSum=order.data.lumpSum===true,mainIds=new Set(offer.data.positions.map(p=>p.id));
+        positions=all.filter(p=>!lumpSum || !mainIds.has(p.id)).map(p=>{
+          const measured=this.measured(p.id),cumulativeQty=round(measured*percentage/100);
+          if(measured<=0 && invoiceType==='Schlussrechnung')throw Error('Für jede beauftragte Position ist ein freigegebenes Aufmaß erforderlich.');
+          const billedQty=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===p.id).reduce((a,x)=>a+x.qty,0),0));
+          const billedGrossPosition=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===p.id).reduce((a,x)=>a+x.gp,0),0));
+          if(cumulativeQty<billedQty)throw Error('Kumulativer Leistungsstand liegt unter bereits berechneten Mengen.');
+          return {...p,qty:round(cumulativeQty-billedQty),cumulativeQty,previousQty:billedQty,gp:round(round(cumulativeQty*p.ep)-billedGrossPosition)};
+        }).filter(p=>p.qty>0 || p.gp!==0);
+        if(lumpSum) {
+          // Pauschale: Menge = kumulativer Leistungsstand in %, EP = 1 % der Pauschalsumme; Betrag exakt aus der Pauschalsumme.
+          const id='pauschal-'+order.id,lumpNet=round(order.data.lumpSumNet || offer.data.net);
+          const billedPct=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===id).reduce((a,x)=>a+x.qty,0),0));
+          const billedGross=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===id).reduce((a,x)=>a+x.gp,0),0));
+          if(percentage<billedPct)throw Error('Kumulativer Leistungsstand liegt unter bereits berechneten '+billedPct+' %.');
+          const lump={id,number:'P',kind:'Pauschale',text:'Pauschalpreis gemäß Auftragsbestätigung '+(order.confirmation?.number || '')+' – Leistungsstand kumulativ '+percentage+' %',qty:round(percentage-billedPct),cumulativeQty:percentage,previousQty:billedPct,unit:'%',ep:round(lumpNet/100),gp:round(round(lumpNet*percentage/100)-billedGross)};
+          if(lump.qty>0 || lump.gp!==0)positions.unshift(lump);
+        }
+        positions.push(...this.openRegie().map(r=>({id:r.id,number:'Regie',kind:'Stundenlohnarbeit',text:'Stundenlohnarbeit '+r.data.date+': '+r.data.work+' (bestätigt: '+r.data.customerConfirmation+')',qty:r.open,cumulativeQty:r.data.hours,previousQty:round(r.data.hours-r.open),unit:'Std.',ep:round(r.data.billingRate),gp:round(r.open*r.data.billingRate)})));
+        if(!positions.length)throw Error('Keine noch nicht berechnete Leistung vorhanden.');
+        if(customer.data.reverseCharge===true && !smallBusiness) {
+          if(!String(customer.data.vatId || '').trim())throw Error('§ 13b: USt-IdNr. bzw. Steuernummer des Kunden in den Kundendaten eintragen.');
+          if(previous.some(r=>r.data.reverseCharge!==true && !r.data.stornoOf))throw Error('§ 13b: Für diesen Auftrag gibt es schon Rechnungen mit USt. Diese zuerst stornieren.');
+          tax=0;reverseCharge=true;
+        } else if(previous.some(r=>r.data.reverseCharge===true && !r.data.stornoOf))throw Error('§ 13b: Für diesen Auftrag gibt es schon Rechnungen ohne USt. Diese zuerst stornieren.');
+        if(customer.data.publicCustomer && !(project.data.buyerReference || customer.data.buyerReference)) throw Error('Leitweg-ID / Käuferreferenz fehlt.');
+      }
+      const net=round(positions.reduce((n,p)=>n+p.gp,0));
+      const previouslyNet=round(previous.reduce((n,r)=>n+r.data.net,0)),previouslyTax=round(previous.reduce((n,r)=>n+r.data.taxAmount,0));
+      const taxAmount=round(round((previouslyNet+net)*tax/100)-previouslyTax);
+      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:this.nextDocumentNumber(kind==='offers'?'A':'R'),documentRevision:1,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount),...(smallBusiness?{smallBusiness:true,taxNote:SMALL_BUSINESS_NOTE}:{}),...(reverseCharge?{reverseCharge:true,taxNote:REVERSE_CHARGE_NOTE}:{})}};
+      Object.assign(record.data,terms);
+      validatePricing(kind,record.data);
+      return this.transaction('Dokumentfassung freigegeben',kind,record.id,d=>{d.records.push(record);return record;});
+    }
+    reviseOffer(id, options={}) {
+      const source=this.get(id),project=this.project();
+      if(!project || source?.module!=='offers' || source.projectId!==project.id)throw Error('Angebot im aktuellen Projekt auswählen.');
+      if(project.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst wieder öffnen.');
+      if(options.refreshPdf!==true)throw Error('Vor dem Speichern muss die PDF erneuert werden.');
+      if(this.list('offers').some(r=>r.data.supersedesOfferId===id))throw Error('Diese Fassung wurde ersetzt. Bitte die neueste Fassung öffnen.');
+      if(this.list('orders').some(r=>r.status==='Freigegeben' && r.data.offerId===id))throw Error('Beauftragte Angebote bleiben unverändert. Bitte Nachtragsangebot verwenden.');
+      const editor=typeof module!=='undefined'&&module.exports?require('./offer-edit.js'):globalThis.DWPOfferEdit;
+      const groups=['positions','optionalPositions','alternativePositions'];
+      const original=groups.flatMap(k=>source.data[k] || []);
+      if(!Array.isArray(options.positions) || options.positions.length!==original.length || new Set(options.positions.map(p=>p.id)).size!==original.length || options.positions.some(p=>!original.some(o=>o.id===p.id)))throw Error('Positionsauswahl stimmt nicht mit der Angebotsfassung überein.');
+      const inputs=new Map(options.positions.map(p=>[p.id,p]));
+      const data=JSON.parse(JSON.stringify(source.data));
+      let changed=false;
+      for(const key of groups)data[key]=(source.data[key] || []).map(p=>{
+        const input=inputs.get(p.id),prior=editor.defaults(p,data.company);
+        const recalculated=editor.calculate(p,input,data.company);
+        const same=['material','minutes','wage'].every(k=>num(input[k])===num(prior[k])) && String(input.product || '').trim()===prior.product;
+        if(same)return JSON.parse(JSON.stringify(p));
+        changed=true;return recalculated;
+      });
+      if(!changed)throw Error('Keine Änderungen vorhanden. Die bisherige PDF bleibt gültig.');
+      const family=source.data.documentFamily || source.data.number.replace(/\/\d+$/,'');
+      const revision=Math.max(1,...this.list('offers').filter(r=>(r.data.documentFamily || r.data.number.replace(/\/\d+$/,''))===family).map(r=>r.data.documentRevision || 1))+1;
+      Object.assign(data,{number:family+'/'+revision,documentFamily:family,documentRevision:revision,title:'Angebotsentwurf',version:(source.data.version || 1)+1,supersedesOfferId:id});
+      data.net=round(data.positions.reduce((sum,p)=>sum+p.gp,0));data.taxAmount=round(data.net*data.tax/100);data.gross=round(data.net+data.taxAmount);
+      const record={id:uid(),module:'offers',projectId:project.id,status:'Prüfung',owner:options.owner || source.owner,createdAt:new Date().toISOString(),data,pdfPending:true};
+      return this.transaction('Angebotsänderung zur PDF-Erneuerung vorbereitet','offers',record.id,d=>{d.records.push(record);return record;});
+    }
+    stornoInvoice(id, options={}) {
+      if(this.project()?.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
+      const invoice=this.get(id);
+      if(invoice?.module!=='invoices' || invoice.projectId!==this.data.selectedProject || invoice.data.stornoOf)throw Error('Rechnung im aktuellen Projekt auswählen.');
+      if(!options.reason?.trim())throw Error('Stornogrund erforderlich.');
+      if(this.list('invoices').some(r=>r.data.stornoOf===id))throw Error('Rechnung wurde bereits storniert.');
+      const data=JSON.parse(JSON.stringify(invoice.data));
+      data.title='Stornorechnung';data.invoiceType='Stornorechnung';data.stornoOf=id;data.originalNumber=invoice.data.number;data.reason=options.reason.trim();
+      data.number=this.nextDocumentNumber('R');data.documentRevision=1;delete data.documentFamily;
+      data.net=-data.net;data.taxAmount=-data.taxAmount;data.gross=-data.gross;data.positions=data.positions.map(p=>({...p,qty:-p.qty,gp:-p.gp}));
+      const record={id:uid(),module:'invoices',projectId:invoice.projectId,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data};
+      return this.transaction('Rechnung storniert','invoices',record.id,d=>{d.records.push(record);return record;});
+    }
+    costChecks() {
+      if(!this.project())throw Error('Projekt auswählen.');
+      const findings=[];
+      const add=(module,recordId,message)=>findings.push({module,recordId,message});
+      for(const module of ['times','incoming','subcontracts','purchase'])for(const r of this.list(module).filter(r=>!['Freigegeben','Erledigt'].includes(r.status)))add(module,r.id,'Noch nicht freigegeben: '+(r.data.title || r.data.invoiceNumber));
+      const invoices=this.list('incoming').filter(r=>r.status==='Freigegeben' && r.data.includeInCosts);
+      for(const purchase of this.list('purchase').filter(r=>r.status==='Freigegeben'))if(!invoices.some(r=>r.data.purchaseId===purchase.id))add('incoming',purchase.id,'Kostenbeleg zur Bestellung fehlt: '+purchase.data.title);
+      for(const subcontract of this.list('subcontracts').filter(r=>r.status==='Freigegeben'))if(!invoices.some(r=>r.data.subcontractId===subcontract.id))add('incoming',subcontract.id,'NU-Kostenansatz noch nicht durch zugeordneten Kostenbeleg ersetzt: '+subcontract.data.title);
+      const calc=this.calculation();
+      if(calc.labor>0 && !this.list('times').some(r=>r.status==='Freigegeben'))add('times',null,'Lohnkosten kalkuliert, aber noch keine Stunden freigegeben.');
+      if(calc.material>0 && !invoices.length)add('incoming',null,'Materialkosten kalkuliert, aber noch kein kostenrelevanter Eingangsbeleg freigegeben.');
+      return findings;
+    }
+    controlling() {
+      const calc=this.calculation();
+      const times=round(this.list('times').filter(r=>r.status==='Freigegeben').reduce((n,r)=>n+r.data.hours*r.data.rate,0));
+      const incoming=round(this.list('incoming').filter(r=>r.status==='Freigegeben' && r.data.includeInCosts).reduce((n,r)=>n+r.data.net,0));
+      const billedSubcontracts=new Set(this.list('incoming').filter(r=>r.status==='Freigegeben' && r.data.includeInCosts && r.data.subcontractId).map(r=>r.data.subcontractId));
+      const commitments=round(this.list('subcontracts').filter(r=>r.status==='Freigegeben').reduce((n,r)=>n+r.data.cost,0));
+      const subcontracts=round(this.list('subcontracts').filter(r=>r.status==='Freigegeben' && !billedSubcontracts.has(r.id)).reduce((n,r)=>n+r.data.cost,0));
+      const invoices=this.list('invoices').filter(r=>r.status==='Freigegeben');
+      const revenue=round(invoices.reduce((n,r)=>n+r.data.net,0));
+      const gross=round(invoices.reduce((n,r)=>n+r.data.gross,0));
+      const pay=paymentTotals(this.list('payments').filter(r=>r.status==='Freigegeben')),paid=round(pay.paid),discount=round(pay.discount),retained=round(pay.retained),writeOff=round(pay.writeOff),suspense=round(pay.suspense);
+      // Skonto und ausgebuchte Restbeträge mindern den Erlös: Nettoanteil nach dem Steuersatz der jeweiligen Rechnung.
+      const discountNet=round(this.list('payments').filter(r=>r.status==='Freigegeben' && ['Skonto / Abzug','Restbetrag ausgebucht'].includes(r.data.direction)).reduce((n,r)=>n+r.data.amount/(1+(this.get(r.data.invoiceId)?.data.tax || 0)/100),0));
+      const retention=this.list('payments').filter(r=>r.status==='Freigegeben' && r.data.direction==='Sicherheitseinbehalt').map(r=>({invoiceId:r.data.invoiceId,amount:r.data.amount,until:r.data.retentionUntil,open:round(r.data.amount-this.list('payments').filter(x=>x.status==='Freigegeben' && x.data.direction==='Einbehalt ausgezahlt' && x.data.invoiceId===r.data.invoiceId).reduce((n,x)=>n+x.data.amount,0))})).filter(r=>r.open>0);
+      const contracted=this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions);
+      const planned=contracted.length?round(contracted.reduce((n,p)=>n+p.qty*p.direct,0)):calc.direct;
+      const plannedOverhead=this.project()?.data.plannedOverhead || 0,actualOverhead=this.project()?.data.actualOverhead || 0;
+      const directActual=round(times+incoming+subcontracts),actual=round(directActual+actualOverhead);
+      return {planned,plannedOverhead,plannedTotal:round(planned+plannedOverhead),times,incoming,subcontracts,commitments,directActual,actualOverhead,actual,revenue,result:round(revenue-discountNet-actual),gross,paid,discount,discountNet,writeOff,suspense,retained,retention,outstanding:round(gross-paid-discount-writeOff-suspense-retained)+0};
+    }
+    // Module 01 overview across all visible projects of a customer, using the same
+    // released offers, invoices and payments as controlling. Nothing is estimated.
+    customerOverview(customerId) {
+      const customer=this.get(customerId);
+      if(!customer || customer.module!=='customers')throw Error('Kunde nicht gefunden.');
+      const projects=this.data.records.filter(r=>r.module==='projects' && r.data.customerId===customerId);
+      const ids=new Set(projects.map(p=>p.id)),released=module=>this.data.records.filter(r=>r.module===module && ids.has(r.projectId) && r.status==='Freigegeben');
+      const invoices=released('invoices'),offers=released('offers');
+      const gross=round(invoices.reduce((n,r)=>n+r.data.gross,0));
+      const pay=paymentTotals(released('payments')),paid=round(pay.paid),discount=round(pay.discount+pay.writeOff+pay.suspense),retained=round(pay.retained);
+      return {customerId,customerNumber:customer.data.customerNumber || '',name:customer.data.name,address:customerAddressLines(customer.data),
+        projects:projects.map(p=>({id:p.id,name:p.data.name,phase:p.data.phase})),offers:offers.length,invoices:invoices.length,
+        offerNet:round(offers.filter(r=>!this.data.records.some(o=>o.module==='offers' && o.data.supersedesOfferId===r.id)).reduce((n,r)=>n+r.data.net,0)),
+        invoicedNet:round(invoices.reduce((n,r)=>n+r.data.net,0)),gross,paid,discount,retained,outstanding:round(gross-paid-discount-retained)+0};
+    }
+    deliverySchedule(today=berlinDay()) {
+      if(!validDate(today))throw Error('Lieferübersicht benötigt ein gültiges Datum.');
+      return this.list('purchase').filter(r=>r.status==='Freigegeben').map(order=>{
+        const d=order.data,material=this.get(d.materialId);
+        const delivered=round(this.list('logistics').filter(r=>r.status==='Freigegeben' && r.data.purchaseId===order.id).reduce((n,r)=>n+r.data.quantity,0));
+        const minimum=round(d.quantity*(1-(d.underDeliveryPercent || 0)/100)),maximum=round(d.quantity*(1+(d.overDeliveryPercent || 0)/100));
+        const complete=delivered>=minimum;
+        const state=complete?'Geliefert':!d.deliveryDate?'Termin fehlt':d.deliveryDate<today?'Überfällig':d.deliveryDate===today?'Heute fällig':'Ausstehend';
+        return {id:order.id,title:d.title,supplier:d.supplier,unit:material?.data.unit || '',due:d.deliveryDate,ordered:d.quantity,delivered,remaining:round(Math.max(0,d.quantity-delivered)),minimum,maximum,complete,state};
+      }).sort((a,b)=>(a.due || '9999').localeCompare(b.due || '9999'));
+    }
+    materialDemand() {
+      const demand=new Map();
+      const contracted=this.list('orders').filter(r=>r.status==='Freigegeben').flatMap(o=>this.get(o.data.offerId).data.positions);
+      const positions=contracted.length?contracted:this.list('lv').filter(r=>!['Bedarfsposition','Alternativposition'].includes(r.data.kind)).map(r=>r.data);
+      for(const p of positions) {
+        if(!p.materialId)continue;
+        const material=this.get(p.materialId), item=demand.get(material.id) || {materialId:material.id,name:material.data.name,unit:material.data.unit,supplier:material.data.supplier,unitPrice:material.data.price,quantity:0,ordered:0,delivered:0};
+        item.quantity+=p.qty*(p.consumption || 1);demand.set(material.id,item);
+      }
+      for(const order of this.list('purchase').filter(r=>r.status==='Freigegeben')) {
+        const item=demand.get(order.data.materialId);if(!item)continue;
+        item.ordered+=order.data.quantity;
+        item.delivered+=this.list('logistics').filter(r=>r.status==='Freigegeben' && r.data.purchaseId===order.id).reduce((n,r)=>n+r.data.quantity,0);
+      }
+      return [...demand.values()].map(item=>({...item,quantity:round(item.quantity),ordered:round(item.ordered),delivered:round(item.delivered),remaining:round(Math.max(0,item.quantity-item.ordered))}));
+    }
+    applyOperatingCosts() {
+      const costs=this.list('operating').filter(r=>r.status==='Freigegeben');
+      if(!costs.length)throw Error('Kostenansätze zuerst prüfen und freigeben.');
+      const hours=this.data.settings.capacity?capacity(this.data.settings.capacity).productiveHours:null;
+      const rate=round(hours?costs.reduce((n,r)=>n+r.data.annualCost,0)/hours:costs.reduce((n,r)=>n+r.data.annualCost/r.data.productiveHours,0));
+      if(rate<=0)throw Error('Kostenansatz muss größer als null sein.');
+      return this.settings({wage:rate,agk:0});
+    }
+    createPurchase(materialId, options={}) {
+      const demand=this.materialDemand().find(d=>d.materialId===materialId);
+      if(!demand || demand.remaining<=0)throw Error('Kein offener Materialbedarf für diesen Artikel.');
+      if(this.get(materialId).status!=='Freigegeben')throw Error('Materialpreis zuerst freigeben.');
+      const draft=this.list('purchase').find(r=>r.data.materialId===materialId && r.status!=='Freigegeben' && r.status!=='Erledigt');
+      if(draft)throw Error('Für diesen Artikel gibt es bereits eine offene Bestellung. Bitte diese prüfen.');
+      return this.save('purchase',{title:`Bestellung ${demand.name}`,materialId,quantity:demand.remaining,supplier:demand.supplier,unitPrice:demand.unitPrice,deliveryDate:options.deliveryDate || ''},{owner:options.owner || '',status:'Neu'});
+    }
+    quotes(materialId) {
+      const today=berlinDay();
+      // Modul 11: je Lieferant gilt nur der neueste nicht zurückgezogene Preis (Preisstand, bei Gleichstand zuletzt erfasst).
+      const latest=list=>list.reduce((best,q,i)=>!q.withdrawnAt && (!best || q.date>=best.q.date)?{q,i}:best,null)?.q;
+      return this.list('suppliers').flatMap(s=>{const own=(s.quotes || []).filter(q=>q.materialId===materialId),current=latest(own);return own.map(q=>({...q,supplierId:s.id,supplier:s.data.name,effectivePrice:supplierQuotePrice(q),expired:Boolean(q.validUntil && q.validUntil<today),future:q.date>today,unitMismatch:q.unit!==this.get(materialId)?.data.unit,withdrawn:Boolean(q.withdrawnAt),superseded:!q.withdrawnAt && q!==current}));}).sort((a,b)=>a.effectivePrice-b.effectivePrice);
+    }
+    quote(supplierId, values) {
+      const supplier=this.get(supplierId), material=this.get(values.materialId);
+      if(supplier?.module!=='suppliers' || material?.module!=='materials')throw Error('Lieferant oder Artikel fehlt.');
+      const price=num(values.price),discount=num(values.discount),freight=num(values.freight);
+      if(price<0 || discount<0 || discount>100 || freight<0)throw Error('Preis, Rabatt oder Fracht sind ungültig.');
+      if(!values.source?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(values.date || '') || Number.isNaN(Date.parse(values.date)) || new Date(values.date).toISOString().slice(0,10)!==values.date)throw Error('Preisquelle und gültiger Preisstand erforderlich.');
+      const baseQuantity=values.baseQuantity===undefined?1:num(values.baseQuantity),validUntil=String(values.validUntil || '');
+      if(baseQuantity<=0 || baseQuantity>Number.MAX_SAFE_INTEGER/100)throw Error('Gebindeinhalt in Artikeleinheiten muss größer als null sein.');
+      if(validUntil && (!validDate(validUntil) || validUntil<values.date))throw Error('Preisbindung muss ein gültiges Datum ab Preisstand sein.');
+      supplierQuotePrice({price,discount,freight,baseQuantity});
+      const quote={id:uid(),materialId:material.id,unit:material.data.unit,price,discount,freight,baseQuantity,packageUnit:String(values.packageUnit || material.data.unit).trim(),validUntil,date:values.date,source:values.source.trim()};
+      return this.transaction('Lieferantenpreis erfasst','suppliers',supplier.id,d=>{d.records.find(r=>r.id===supplier.id).quotes=[...(supplier.quotes || []),quote];return quote;});
+    }
+    useQuote(supplierId, quoteId, owner) {
+      const supplier=this.get(supplierId),quote=supplier?.quotes?.find(q=>q.id===quoteId),material=this.get(quote?.materialId);
+      if(!quote || !material)throw Error('Preisvergleich nicht gefunden.');
+      if(quote.withdrawnAt)throw Error('Preisvergleich wurde zurückgezogen.');
+      if(quote.unit!==material.data.unit)throw Error('Einheit des Preisvergleichs stimmt nicht mit dem Artikel überein.');
+      const today=berlinDay();
+      if(quote.validUntil && quote.validUntil<today)throw Error('Preisbindung abgelaufen. Neues Lieferantenangebot erforderlich.');
+      if(quote.date>today)throw Error('Preisstand liegt in der Zukunft.');
+      if(this.quotes(material.id).find(q=>q.id===quote.id)?.superseded)throw Error('Es gibt einen neueren Preis desselben Lieferanten. Diesen übernehmen.');
+      return this.save('materials',{...material.data,price:supplierQuotePrice(quote),supplier:supplier.data.name,priceDate:quote.date,validUntil:quote.validUntil || '',source:quote.source,priceBasis:`(${quote.price} EUR × (1 − ${quote.discount} / 100) + ${quote.freight} EUR Fracht) / ${quote.baseQuantity ?? 1} ${quote.unit}; Preisgebinde: ${quote.packageUnit || quote.unit}`},{id:material.id,status:'Freigegeben',owner});
+    }
+    // Modul 11: Preis zurückziehen (Tippfehler, Angebot ungültig). Bleibt mit Grund sichtbar, wird nicht gelöscht.
+    withdrawQuote(supplierId, quoteId, values={}) {
+      const supplier=this.get(supplierId),quote=supplier?.module==='suppliers'?supplier.quotes?.find(q=>q.id===quoteId):null;
+      if(!quote)throw Error('Preisvergleich nicht gefunden.');
+      if(quote.withdrawnAt)throw Error('Preisvergleich ist bereits zurückgezogen.');
+      const reason=String(values.reason || '').trim();
+      if(!reason)throw Error('Grund für das Zurückziehen angeben.');
+      if(reason.length>300)throw Error('Grund höchstens 300 Zeichen.');
+      const withdrawnAt=berlinDay(),withdrawnBy=String(values.owner || '').trim();
+      return this.transaction('Lieferantenpreis zurückgezogen','suppliers',supplier.id,d=>{const q=d.records.find(r=>r.id===supplier.id).quotes.find(x=>x.id===quoteId);Object.assign(q,{withdrawnAt,withdrawnReason:reason,withdrawnBy});return q;});
+    }
+    // Modul 11: Preisvergleich je Artikel und Lieferantenübersicht. Hinweise sperren nichts.
+    supplierOverview(asOf=berlinDay(),soonDays=14,savingPercent=3) {
+      if(!validDate(asOf))throw Error('Prüfdatum ungültig.');
+      const day=d=>Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10))/86400000;
+      const eur=n=>`${n.toFixed(2).replace('.',',')} €`,pct=n=>String(n).replace('.',',');
+      const norm=v=>String(v || '').trim().toLocaleLowerCase('de');
+      const all=new Map(this.list('materials').map(m=>[m.id,this.quotes(m.id)]));
+      const daysLeft=q=>q.validUntil?day(q.validUntil)-day(asOf):null;
+      const isValid=q=>!q.withdrawn && !q.superseded && !q.unitMismatch && q.date<=asOf && !(q.validUntil && q.validUntil<asOf);
+      const articles=this.list('materials').map(m=>{
+        const d=m.data,quotes=all.get(m.id),active=quotes.filter(q=>!q.withdrawn && !q.superseded),valid=active.filter(isValid),best=valid[0] || null,hints=[];
+        let saving=null,savingPct=null;
+        if(best && Number.isFinite(d.price) && d.price>0 && best.effectivePrice<d.price) {
+          saving=round(d.price-best.effectivePrice);savingPct=Math.round(saving/d.price*1000)/10;
+          if(savingPct>=savingPercent)hints.push(`Günstiger bei ${best.supplier}: ${eur(best.effectivePrice)} statt ${eur(d.price)} je ${d.unit} (−${pct(savingPct)} %)`);
+        }
+        if(!active.length)hints.push('Kein Lieferantenpreis erfasst');
+        else if(!valid.length)hints.push(active.some(q=>q.unitMismatch)?'Kein gültiger Preis – Artikeleinheit geändert, neu erfassen':'Kein gültiger Lieferantenpreis (abgelaufen oder künftiger Preisstand)');
+        else if(valid.length===1 && active.length===1)hints.push('Nur ein Lieferant – kein Vergleich');
+        const left=best?daysLeft(best):null;
+        if(left!==null && left>=0 && left<=soonDays)hints.push(left===0?`Bestpreis bei ${best.supplier} gilt nur noch heute`:`Bestpreis bei ${best.supplier} gilt noch ${left} Tag${left===1?'':'e'} (${best.validUntil})`);
+        const rank=savingPct!==null && savingPct>=savingPercent?0:left!==null && left<=soonDays || (active.length && !valid.length)?1:active.length?2:3;
+        return {id:m.id,name:d.name,article:d.article || '',unit:d.unit,currentPrice:d.price,currentSupplier:d.supplier || '',status:m.status,offers:active.length,valid:valid.length,best:best?{supplier:best.supplier,supplierId:best.supplierId,quoteId:best.id,price:best.effectivePrice,validUntil:best.validUntil || '',source:best.source,date:best.date}:null,saving,savingPct,daysLeft:left,hints,rank};
+      }).sort((a,b)=>a.rank-b.rank || (b.savingPct ?? -1)-(a.savingPct ?? -1) || (a.daysLeft ?? 1e9)-(b.daysLeft ?? 1e9) || String(a.name).localeCompare(String(b.name),'de'));
+      const bestBy=new Map();for(const a of articles)if(a.best)bestBy.set(a.best.supplierId,(bestBy.get(a.best.supplierId) || 0)+1);
+      const suppliers=this.list('suppliers').map(s=>{
+        const own=[...all.values()].flat().filter(q=>q.supplierId===s.id && !q.withdrawn && !q.superseded),valid=own.filter(isValid),hints=[];
+        const expired=own.filter(q=>q.validUntil && q.validUntil<asOf).length,expiring=valid.filter(q=>{const l=daysLeft(q);return l!==null && l<=soonDays;}).length;
+        if(!String(s.data.email || '').trim() && !String(s.data.phone || '').trim())hints.push('Keine E-Mail und kein Telefon hinterlegt');
+        if(!own.length)hints.push('Noch kein Preis erfasst');
+        else if(!valid.length)hints.push('Kein gültiger Preis mehr');
+        if(expiring)hints.push(`${expiring} Preisbindung${expiring===1?'':'en'} enden in ${soonDays} Tagen`);
+        const lastDate=own.map(q=>q.date).sort().at(-1) || '';
+        return {id:s.id,name:s.data.name,contact:s.data.contact || '',email:s.data.email || '',phone:s.data.phone || '',articles:new Set(own.map(q=>q.materialId)).size,valid:valid.length,expired,expiring,bestCount:bestBy.get(s.id) || 0,lastDate,withdrawn:[...all.values()].flat().filter(q=>q.supplierId===s.id && q.withdrawn).length,hints};
+      }).sort((a,b)=>b.bestCount-a.bestCount || norm(a.name).localeCompare(norm(b.name),'de'));
+      return {asOf,articles,suppliers,counts:{savings:articles.filter(a=>a.rank===0).length,expiring:articles.filter(a=>a.daysLeft!==null && a.daysLeft<=soonDays).length,noValid:articles.filter(a=>!a.valid).length,potential:round(articles.filter(a=>a.rank===0).reduce((n,a)=>n+a.saving,0))}};
+    }
+    schedule(employeeId, values) {
+      const employee=this.get(employeeId),project=this.get(values.projectId);
+      if(employee?.module!=='personnel' || project?.module!=='projects')throw Error('Mitarbeiter und Projekt auswählen.');
+      const start=values.start,end=values.end;
+      if(![start,end].every(v=>/^\d{4}-\d{2}-\d{2}$/.test(v || '') && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0,10)===v) || start>end)throw Error('Einsatzzeitraum ungültig.');
+      if((employee.assignments || []).some(a=>!a.cancelled && a.start<=end && start<=a.end))throw Error('Mitarbeiter ist in diesem Zeitraum bereits eingeplant.');
+      const assignment={id:uid(),projectId:project.id,start,end,task:String(values.task || '').trim(),createdAt:new Date().toISOString()};
+      return this.transaction('Einsatz geplant','personnel',employee.id,d=>{d.records.find(r=>r.id===employee.id).assignments=[...(employee.assignments || []),assignment];return assignment;});
+    }
+    cancelSchedule(employeeId, assignmentId) {
+      const employee=this.get(employeeId);
+      if(!employee?.assignments?.some(a=>a.id===assignmentId && !a.cancelled))throw Error('Aktiver Einsatz nicht gefunden.');
+      return this.transaction('Einsatz storniert','personnel',employeeId,d=>{const a=d.records.find(r=>r.id===employeeId).assignments.find(a=>a.id===assignmentId);a.cancelled=true;a.cancelledAt=new Date().toISOString();});
+    }
+    // Benutzerrechte (nur Administrator): Projekt-Häkchen, Verknüpfung mit dem Personalsatz und Sonderschalter.
+    setUserAccess(userId, values={}) {
+      userId=String(userId || '').trim();
+      if(!/^[A-Za-z0-9_-]{1,100}$/.test(userId))throw Error('Benutzer fehlt.');
+      const projectIds=new Set(Array.isArray(values.projectIds)?values.projectIds.map(String):[]);
+      for(const id of projectIds)if(this.get(id)?.module!=='projects')throw Error('Projekt nicht gefunden.');
+      const personnelId=values.personnelId?String(values.personnelId):'';
+      if(personnelId && this.get(personnelId)?.module!=='personnel')throw Error('Personalsatz nicht gefunden.');
+      return this.transaction('Benutzerrechte geändert','operating',null,d=>{
+        for(const p of d.records.filter(r=>r.module==='projects')) {
+          const members=String(p.data.memberIds || '').split(',').map(s=>s.trim()).filter(Boolean).filter(id=>id!==userId);
+          if(projectIds.has(p.id))members.push(userId);
+          p.data.memberIds=members.join(',');
+        }
+        for(const e of d.records.filter(r=>r.module==='personnel')) {
+          if(e.id===personnelId)e.data.userId=userId;
+          else if(String(e.data.userId || '').trim()===userId)e.data.userId='';
+        }
+        d.settings.userAccess={...(d.settings.userAccess || {}),[userId]:{allCalendars:values.allCalendars===true,hidePhone:values.hidePhone===true}};
+      });
+    }
+    respondSchedule(employeeId, assignmentId, values={}) {
+      const employee=this.get(employeeId),answer=values.answer,note=String(values.note || '').trim().slice(0,300);
+      if(!['Zugesagt','Abgesagt'].includes(answer))throw Error('Bitte zusagen oder absagen.');
+      if(employee?.module!=='personnel' || !employee.assignments?.some(a=>a.id===assignmentId && !a.cancelled))throw Error('Aktiver Einsatz nicht gefunden.');
+      return this.transaction(answer==='Zugesagt'?'Einsatz zugesagt':'Einsatz abgesagt','personnel',employeeId,d=>{const a=d.records.find(r=>r.id===employeeId).assignments.find(a=>a.id===assignmentId);a.response=answer;a.responseNote=note;a.respondedAt=new Date().toISOString();});
+    }
+    sign(recordId, values) {
+      if(this.project()?.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
+      const record=this.get(recordId);
+      if(!record || !['acceptance','times'].includes(record.module) || record.projectId!==this.data.selectedProject)throw Error('Unterschrift gehört nicht zum aktuellen Projekt.');
+      if(!values.signer?.trim())throw Error('Name des Unterzeichners erforderlich.');
+      if(!Array.isArray(values.strokes) || !values.strokes.length || values.strokes.length>200 || !values.strokes.some(s=>Array.isArray(s) && s.length>=2))throw Error('Bitte zuerst auf der Unterschriftsfläche unterschreiben.');
+      let count=0;
+      for(const stroke of values.strokes) {
+        if(!Array.isArray(stroke))throw Error('Unterschrift ungültig.');
+        for(const point of stroke) {
+          count++;
+          if(count>10000 || !Array.isArray(point) || point.length!==2 || point.some(n=>typeof n!=='number' || !Number.isFinite(n) || n<0 || n>1))throw Error('Unterschrift ungültig.');
+        }
+      }
+      const labels={};
+      for(const field of definitions[record.module].fields) {
+        if(['employee','position','material','customer'].includes(field.type)) {
+          const ref=this.get(record.data[field.key]);
+          if(ref)labels[field.key]=(ref.data.number?`${ref.data.number} · `:'')+(ref.data.name || ref.data.title || ref.data.text || '');
+        }
+      }
+      const snapshot=JSON.parse(JSON.stringify({data:record.data,status:record.status,owner:record.owner,due:record.due,project:this.project().data,customer:this.get(this.project().data.customerId).data,company:this.data.settings,labels}));
+      const signature={id:uid(),signer:values.signer.trim(),role:String(values.role || ''),signedAt:new Date().toISOString(),strokes:JSON.parse(JSON.stringify(values.strokes)),snapshot};
+      return this.transaction('Unterschrift erfasst',record.module,record.id,d=>{d.records.find(r=>r.id===record.id).signatures=[...(record.signatures || []),signature];return signature;});
+    }
+    attach(id, file) {
+      if(this.project()?.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
+      const record=this.get(id);
+      if(!record || record.projectId!==this.data.selectedProject || !['documents','defects','expert','acceptance','diary'].includes(record.module)) throw Error('Dateizuordnung ungültig.');
+      if(file?.storageId) {
+        if(typeof file.name!=='string'||file.name.length>240||!Number.isInteger(file.size)||file.size<1||file.size>67108864||!['application/pdf','image/jpeg','image/png','image/webp'].includes(file.mime)||! /^[a-f0-9]{64}$/.test(file.sha256 || '')||typeof file.storageId!=='string')throw Error('Gespeicherte Dateimetadaten ungültig.');
+        return this.transaction('Originaldatei zentral zugeordnet',record.module,id,d=>{const r=d.records.find(x=>x.id===id);if(!r.attachments?.some(a=>a.storageId===file.storageId))r.attachments=[...(r.attachments || []),{...file,id:file.storageId}];});
+      }
+      if(!file || typeof file.name!=='string' || typeof file.dataUrl!=='string' || !/^data:(image\/(png|jpeg|webp)|application\/pdf);base64,/.test(file.dataUrl)) throw Error('Bitte JPG, PNG, WebP oder PDF wählen.');
+      if(file.dataUrl.length>2_800_000) throw Error('Datei zu groß für den lokalen Testbestand (max. 2 MB).');
+      return this.transaction('Datei zugeordnet',record.module,id,d=>{const r=d.records.find(x=>x.id===id);r.attachments=[...(r.attachments || []),{...file,id:uid()}];});
+    }
+    backup() { return JSON.stringify(this.data,null,2); }
+    importPositions(rows, source) {
+      if(!this.project()) throw Error('Projekt auswählen.');
+      const findings=source?.findings || [];
+      if(!Array.isArray(rows) || !Array.isArray(findings) || rows.length+findings.length<1 || rows.length+findings.length>5000) throw Error('Bitte 1 bis 5000 Positionen oder Prüfvorgänge importieren.');
+      if(source?.originalText && (typeof source.originalText!=='string' || source.originalText.length>1_000_000))throw Error('Import-Originaldaten höchstens 1 MB.');
+      if(source?.originalWorkbook && (typeof source.originalWorkbook!=='string' || source.originalWorkbook.length>1_333_340 || !/^[A-Za-z0-9+/]+={0,2}$/.test(source.originalWorkbook)))throw Error('Excel-Original ungültig oder größer als 1 MB.');
+      // Stage the entire batch to prevent partial imports on validation errors.
+      let staging=this.backup();
+      const staged=new Store({getItem:()=>staging,setItem:(_k,v)=>{staging=v;}});
+      const imported=rows.map(row=>staged.save('lv',row));
+      const provenance=source?staged.save('imports',{title:source.title || 'LV-Import',source:source.source,format:source.format,notes:`${imported.length} LV-Positionen; ${findings.length} Sonder-/Hinweisvorgänge. Fachliche Freigabe ausstehend.`}):null;
+      if(findings.length && !provenance)throw Error('Quelle für Sonderpositionen erforderlich.');
+      if(provenance){provenance.originalText=source.originalText || '';if(source.originalWorkbook){provenance.originalWorkbook=source.originalWorkbook;provenance.hasOriginalWorkbook=true;provenance.workbookName=String(source.workbookName || source.source || 'LV.xlsx');}if(source.mapping)provenance.importMapping=JSON.parse(JSON.stringify(source.mapping));}
+      const reviews=findings.map(f=>{
+        if(!f || typeof f.text!=='string' || typeof f.suggestion!=='string' || typeof f.reason!=='string' || !f.candidate || typeof f.candidate!=='object')throw Error('Sonderpositions-Prüfvorgang ungültig.');
+        const r=staged.save('contract',{title:(source.format==='Excel Prüfquelle'?'Excel-Prüfung ':source.format==='PDF Prüfquelle'?'PDF-Prüfung ':'GAEB-Prüfung ')+String(f.number || f.type),finding:f.reason+'\nOriginalinhalt:\n'+f.text,question:f.suggestion,source:source.source || source.format || 'Import',blocking:true,relatedRecordId:provenance.id},{status:'Prüfung'});
+        r.importFinding=JSON.parse(JSON.stringify(f));return r;
+      });
+      return this.transaction(findings.length?'LV samt Sonderpositionen importiert':'LV importiert','lv',null,d=>{d.records.push(...imported);if(provenance)d.records.push(provenance);d.records.push(...reviews);return imported;});
+    }
+    convertImportFinding(id,values,options={}) {
+      const original=this.get(id);
+      if(!original?.importFinding || original.module!=='contract' || original.projectId!==this.data.selectedProject)throw Error('Sonderposition gehört nicht zum aktuellen Projekt.');
+      if(original.status==='Erledigt' || original.data.positionId)throw Error('Sonderposition bereits bearbeitet oder gewandelt.');
+      if(!options.owner?.trim() || !options.reason?.trim())throw Error('Wandlung mit Verantwortlichem und Begründung dokumentieren.');
+      let raw=this.backup();const staged=new Store({getItem:()=>raw,setItem:(_k,v)=>{raw=v;}});
+      const position=staged.save('lv',values,{status:'Prüfung',owner:options.owner});
+      const review=staged.save('contract',{...original.data,positionId:position.id,notes:options.reason},{id,status:'Erledigt',owner:options.owner});
+      return this.transaction('Sonderposition dokumentiert ins LV gewandelt','contract',id,d=>{d.records.push(position);d.records[d.records.findIndex(r=>r.id===id)]=review;return position;});
+    }
+    importMaterials(rows, source) {
+      if(!Array.isArray(rows) || !rows.length || rows.length>5000)throw Error('Bitte 1 bis 5000 Artikel importieren.');
+      let staging=this.backup();
+      const staged=new Store({getItem:()=>staging,setItem:(_k,v)=>{staging=v;}});
+      const seen=new Set();
+      const clean=value=>String(value ?? '').trim();
+      const articleKey=data=>JSON.stringify([clean(data.manufacturer),clean(data.article) || clean(data.name),clean(data.supplier),clean(data.unit)]);
+      const imported=rows.map(row=>{
+        let values={...row,source:source.source,priceDate:source.priceDate,validUntil:row.validUntil || source.validUntil || '',supplier:clean(row.supplier) || clean(source.supplier)};
+        const key=articleKey(values);
+        if(seen.has(key))throw Error('Doppelter Artikel innerhalb der Preisliste.');seen.add(key);
+        const existing=staged.list('materials').find(m=>articleKey(m.data)===key);
+        if(existing)values={...existing.data,...values};
+        if(existing?.status==='Freigegeben') {
+          // Validate the proposed price in isolation without invalidating approved live prices.
+          const proposed=staged.save('materials',values,{status:'Prüfung',owner:source.owner || ''});
+          const pending={...existing,pendingPrice:{data:proposed.data,importedAt:new Date().toISOString(),status:'Prüfung'}};
+          staged.data.records=staged.data.records.filter(r=>r.id!==proposed.id);
+          return pending;
+        }
+        return staged.save('materials',values,{id:existing?.id,status:'Prüfung',owner:source.owner || ''});
+      });
+      const list=staged.save('pricelists',{title:source.title || source.source,source:source.source,priceDate:source.priceDate,supplier:source.supplier || '',notes:`${imported.length} Artikel importiert – Einzelpreise vor Kalkulationsübernahme freigeben.`},{status:'Prüfung',owner:source.owner || ''});
+      return this.transaction('Preisliste importiert','pricelists',list.id,d=>{
+        // Imported updates remain in review; no automatic approval of new prices.
+        for(const record of imported){const i=d.records.findIndex(r=>r.id===record.id);if(i<0)d.records.push(record);else d.records[i]=record;}
+        d.records.push(list);return imported;
+      });
+    }
+    restore(text) {
+      // Akzeptiert das datierte Sicherungsformat (ab 21.11.2026) und ältere reine Bestandsdateien.
+      const data=backupFormat.unwrap(typeof text==='string'?JSON.parse(text):text).state;this.validate(data);
+      return this.transaction('Sicherung wiederhergestellt','projects',null,d=>{
+        d.records=data.records;d.selectedProject=data.selectedProject;d.settings=data.settings;
+        // Logbuch bleibt erhalten; Einträge, die schon vorhanden sind, werden nicht doppelt angehängt.
+        const known=new Set(d.audit.map(e=>e.id).filter(Boolean));
+        d.audit.push(...data.audit.filter(e=>!e.id || !known.has(e.id)));
+      });
+    }
+  }
+  // BFW blank exchange sheet: Pos | Menge | MEH | Kurztext | Langtext | EP | PA.
+  // The legacy PA semantics are not documented in the supplied blank file: do not guess.
+  const bfwTransferRows=positions=>{
+    if(!Array.isArray(positions))throw Error('BFW-Übergabe benötigt eine Positionsliste.');
+    const decimal=value=>Number(value || 0).toFixed(2).replace('.',',');
+    return [['Pos','Menge','MEH','Kurztext','Langtext','EP','PA'],...positions.map(p=>[
+      String(p.number || ''),decimal(p.qty),String(p.unit || ''),String(p.text || '').slice(0,80),
+      String(p.text || ''),decimal(p.ep),''
+    ])];
+  };
+  // Gesetzliche Feiertage je Bundesland (Standard Bremen). Sonntage wie Oster- und
+  // Pfingstsonntag fehlen, weil Einsätze nur Mo–Sa geplant werden. Mariä Himmelfahrt
+  // nur Saarland (in Bayern gemeindeabhängig), Buß- und Bettag nur Sachsen.
+  const holidayStates={BW:'Baden-Württemberg',BY:'Bayern',BE:'Berlin',BB:'Brandenburg',HB:'Bremen',HH:'Hamburg',HE:'Hessen',MV:'Mecklenburg-Vorpommern',NI:'Niedersachsen',NW:'Nordrhein-Westfalen',RP:'Rheinland-Pfalz',SL:'Saarland',SN:'Sachsen',ST:'Sachsen-Anhalt',SH:'Schleswig-Holstein',TH:'Thüringen'};
+  function easterSunday(year) {
+    const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),n=h+l-7*m+114;
+    return Date.UTC(year,Math.floor(n/31)-1,n%31+1);
+  }
+  function holidays(year, state='HB') {
+    year=Number(year);
+    if(!Number.isInteger(year) || year<1995 || year>2200)return [];
+    if(!Object.hasOwn(holidayStates,state))state='HB';
+    const iso=t=>new Date(t).toISOString().slice(0,10),easter=easterSunday(year),rel=n=>iso(easter+n*864e5),fix=(m,d)=>`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const list=[[fix(1,1),'Neujahr'],[rel(-2),'Karfreitag'],[rel(1),'Ostermontag'],[fix(5,1),'Tag der Arbeit'],[rel(39),'Christi Himmelfahrt'],[rel(50),'Pfingstmontag'],[fix(10,3),'Tag der Deutschen Einheit'],[fix(12,25),'1. Weihnachtstag'],[fix(12,26),'2. Weihnachtstag']];
+    const add=(states,date,name,since=0)=>{if(year>=since && states.includes(state))list.push([date,name]);};
+    add(['BW','BY','ST'],fix(1,6),'Heilige Drei Könige');
+    add(['BE'],fix(3,8),'Internationaler Frauentag',2019);
+    add(['MV'],fix(3,8),'Internationaler Frauentag',2023);
+    add(['BW','BY','HE','NW','RP','SL'],rel(60),'Fronleichnam');
+    add(['SL'],fix(8,15),'Mariä Himmelfahrt');
+    add(['TH'],fix(9,20),'Weltkindertag',2019);
+    add(['BB','MV','SN','ST','TH'],fix(10,31),'Reformationstag');
+    add(['HB','HH','NI','SH'],fix(10,31),'Reformationstag',2018);
+    if(year===2017 && !list.some(h=>h[1]==='Reformationstag'))list.push([fix(10,31),'Reformationstag']);
+    add(['BW','BY','NW','RP','SL'],fix(11,1),'Allerheiligen');
+    if(state==='SN'){const t=Date.UTC(year,10,22);list.push([iso(t-((new Date(t).getUTCDay()+4)%7)*864e5),'Buß- und Bettag']);}
+    return list.map(([date,name])=>({date,name})).sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  // Feiertage im Zeitraum from..to (je JJJJ-MM-TT, einschließlich).
+  function holidaysBetween(from, to, state='HB') {
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '') || from>to)return [];
+    const out=[];
+    for(let y=Number(from.slice(0,4));y<=Number(to.slice(0,4)) && y<=Number(from.slice(0,4))+5;y++)out.push(...holidays(y,state).filter(h=>h.date>=from && h.date<=to));
+    return out;
+  }
+  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,berlinDay,backupFormat,holidays,holidaysBetween,holidayStates,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
+  if(typeof module!=='undefined' && module.exports) module.exports=api;
+  else root.DWPProject=api;
+})(typeof globalThis!=='undefined'?globalThis:this);

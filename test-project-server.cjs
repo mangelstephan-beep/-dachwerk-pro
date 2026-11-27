@@ -1,0 +1,43 @@
+const assert=require('node:assert/strict');
+const {execute,memoryRepository,visibleState}=require('./lib/project-service.cjs');
+const {createHandler}=require('./api/projects.js');
+const {createHandler:authHandler}=require('./api/auth.js');
+const repo=memoryRepository();
+const admin={id:'admin1',name:'Admin',role:'admin',tenantId:'companyA'};
+async function cmd(actor,method,args,projectId){const row=await repo.read(actor.tenantId);return execute(repo,actor,{method,args,projectId,revision:row.state.revision});}
+function response(){return {statusCode:200,headers:{},status(n){this.statusCode=n;return this;},setHeader(k,v){this.headers[k]=v;return this;},json(v){this.body=v;return this;},send(v){this.body=v;return this;},end(){return this;}};}
+(async()=>{
+ const created=await cmd(admin,'save',['customers',{name:'AG'}]);
+ const c=created.recordId;
+ const project=await cmd(admin,'save',['projects',{name:'Dach',customerId:c,phase:'Erfassung'}]);
+ const p=project.recordId;
+ assert.equal((await repo.read('companyA')).state.selectedProject,null);
+ assert.equal((await repo.read('companyB')).state.records.length,0);
+ await assert.rejects(cmd({...admin,tenantId:'companyB'},'save',['lv',{number:'01',text:'Fremdprojekt',qty:1,unit:'m²'}],p),/Projekt gehört/);
+ await assert.rejects(cmd({...admin,role:'viewer'},'save',['customers',{name:'Unzulässig'}]),/Berechtigung/);
+ await assert.rejects(cmd({...admin,role:'editor'},'issue',['offers'],p),/Freigabeberechtigung/);
+ await assert.rejects(cmd({...admin,role:'editor'},'save',['personnel',{name:'Privat',number:'P1',employment:'Arbeiter'}]),/Personal/);
+ const staff=await cmd(admin,'save',['personnel',{name:'Personal',number:'P1',employment:'Arbeiter',wage:27}]);
+ const masked=visibleState((await repo.read('companyA')).state,{...admin,role:'editor'});
+ assert.equal(masked.records.find(r=>r.id===staff.recordId).data.wage,0);
+ assert(!masked.audit.some(e=>e.module==='personnel'));
+ const latest=await repo.read('companyA');
+ const race={method:'save',args:['customers',{name:'Parallel'}],revision:latest.state.revision};
+ const outcomes=await Promise.allSettled([execute(repo,admin,race),execute(repo,admin,race)]);
+ assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,1);
+ assert.equal(outcomes.find(o=>o.status==='rejected').reason.status,409);
+ assert(repo.ledger.every(l=>l.actor===admin.id && l.tenantId==='companyA'));
+ assert.equal(repo.ledger[1].previousHash,repo.ledger[0].hash);
+ const handler=createHandler({sessionFromRequest:async()=>admin,repository:()=>repo});
+ const noOrigin=response();await handler({method:'POST',headers:{host:'dachwerk.test','content-type':'application/json'},body:{}},noOrigin);assert.equal(noOrigin.statusCode,403);
+ const guest=createHandler({sessionFromRequest:async()=>{throw Object.assign(Error('Bitte anmelden'),{status:401});},repository:()=>repo});
+ const denied=response();await guest({method:'GET',headers:{}},denied);assert.equal(denied.statusCode,401);
+ const get=response();await handler({method:'GET',headers:{}},get);assert.equal(get.statusCode,200);assert.equal(get.body.user.role,'admin');
+ const broken=createHandler({sessionFromRequest:async()=>admin,repository:()=>{throw Error('Database secret not for output');}});
+ const failure=response();await broken({method:'GET',headers:{}},failure);assert.equal(failure.statusCode,503);assert(!failure.body.error.includes('secret'));
+ let request;
+ const auth=authHandler({getAuth:async()=>({handler:async req=>{request=req;return new Response('{"ok":true}',{status:200,headers:{'set-cookie':'test-session=synthetic; HttpOnly; Secure'}});}})});
+ const authResult=response();await auth({method:'POST',url:'/api/auth',query:{authPath:'sign-in/email'},headers:{host:'dachwerk.test','content-type':'application/json'},body:{email:'synthetic@example.invalid',password:'test-only-value'}},authResult);
+ assert.equal(authResult.statusCode,200);assert.equal(new URL(request.url).pathname,'/api/auth/sign-in/email');assert.equal((await request.json()).email,'synthetic@example.invalid');assert(authResult.headers['Set-Cookie'][0].includes('HttpOnly'));
+ console.log('Server: authenticated tenant isolation, approval/HR permissions, payroll redaction, concurrent writes, audit chain, CSRF, failure redaction and parsed auth request/cookie bridge passed.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

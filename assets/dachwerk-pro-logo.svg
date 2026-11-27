@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">DachWerk Pro by Stephan Mangel</title>
+  <desc id="desc">Das Tool vom Dachhandwerker für Dachhandwerker</desc>
+  <g fill="none" stroke="#df1018" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M130 174 480 34l350 140" stroke-width="30"/>
+    <path d="M698 112V65h42v65" stroke-width="30"/>
+  </g>
+  <g fill="#222629">
+    <rect x="457" y="91" width="21" height="21"/>
+    <rect x="486" y="91" width="21" height="21"/>
+    <rect x="457" y="120" width="21" height="21"/>
+    <rect x="486" y="120" width="21" height="21"/>
+  </g>
+  <text x="45" y="278" font-family="Arial, Helvetica, sans-serif" font-size="126" font-weight="800" letter-spacing="-8">
+    <tspan fill="#16191d">DachWerk</tspan><tspan fill="#df1018">Pro</tspan>
+  </text>
+  <text x="900" y="207" fill="#222629" font-family="Arial, Helvetica, sans-serif" font-size="25">®</text>
+  <path d="M54 310h180M728 310h180" fill="none" stroke="#df1018" stroke-width="5"/>
+  <text x="480" y="322" fill="#222629" font-family="Arial, Helvetica, sans-serif" font-size="34" text-anchor="middle">by Stephan Mangel</text>
+  <rect x="340" y="344" width="280" height="52" rx="26" fill="#272b2e"/>
+  <text x="480" y="380" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="28" text-anchor="middle">KI-unterstützt</text>
+  <text x="480" y="445" fill="#16191d" font-family="Brush Script MT, Segoe Script, cursive" font-size="39" font-style="italic" font-weight="600" text-anchor="middle">Das Tool vom Dachhandwerker</text>
+  <text x="480" y="490" fill="#16191d" font-family="Brush Script MT, Segoe Script, cursive" font-size="39" font-style="italic" font-weight="600" text-anchor="middle">für Dachhandwerker.</text>
+  <path d="M350 505c105-24 236-24 340-7" fill="none" stroke="#df1018" stroke-linecap="round" stroke-width="7"/>
+</svg>
