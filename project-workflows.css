@@ -75,3 +75,35 @@
 .dwp-global-note{padding:14px 16px;margin:0 0 20px;border-radius:10px;background:#eaf7f0;color:#1d4a33;font-size:14px;line-height:1.5}
 .dwp-workspace h1[tabindex="-1"]:focus,.dwp-workspace h1[tabindex="-1"]:focus-visible{outline:none;box-shadow:none}
 @media(max-width:650px){.dwp-workspace{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}}
+
+/* Kalender Modul 18: Wochenansicht, Rückmeldung und Startseite „Anstehend“. */
+.dwp-cal-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 12px}.dwp-cal-nav strong{flex:1;text-align:center;font-size:14px;min-width:180px}.dwp-cal-nav .button{min-width:44px;min-height:40px}
+.dwp-cal{display:flex;flex-direction:column;gap:4px;overflow-x:auto}
+.dwp-cal-row{display:grid;grid-template-columns:minmax(62px,110px) repeat(6,minmax(40px,1fr));grid-auto-rows:minmax(34px,auto);gap:3px;align-items:stretch;min-width:300px}
+.dwp-cal-head span{text-align:center;font-size:12px;color:#667085;line-height:1.3;padding:2px 0;border-radius:6px}.dwp-cal-head span.is-today{background:#eaf7f0;color:#1d4a33;font-weight:600}
+.dwp-cal-name{grid-column:1;grid-row:1;align-self:center;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dwp-cal-cell{grid-row:1;border-radius:6px;background:#f5f6f8}.dwp-cal-cell.is-today{background:#eaf7f0}
+.dwp-cal-bar{grid-row:1;z-index:1;border:1px solid transparent;border-radius:6px;padding:6px 7px;font:inherit;font-size:12px;text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:34px}
+.dwp-cal-bar.tone-blue{background:#eef5ff;color:#1d4f86}.dwp-cal-bar.tone-purple{background:#f3efff;color:#4b2d99}.dwp-cal-bar.tone-green{background:#eaf7f0;color:#1d4a33}.dwp-cal-bar.tone-amber{background:#fff6df;color:#765400}.dwp-cal-bar.tone-red{background:#fff0f1;color:#8c1018}
+.dwp-cal-bar.is-open{border-style:dashed;border-color:currentColor}.dwp-cal-bar.is-declined{text-decoration:line-through;opacity:.7}
+.dwp-cal-legend{font-size:12px;color:#667085}.dwp-cal-empty{grid-column:1/-1;color:#667085}
+.dwp-cal-status{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;white-space:nowrap}.dwp-cal-status.is-open{background:#fff6df;color:#765400}.dwp-cal-status.is-accepted{background:#eaf7f0;color:#1c6a45}.dwp-cal-status.is-declined{background:#fff0f1;color:#a9121b}.dwp-cal-status.is-cancelled{background:#f1f2f4;color:#667085}
+.dwp-row-flash td{background:#fff6df!important;transition:background .3s}
+.dwp-upcoming{list-style:none;margin:0 0 12px;padding:0}.dwp-upcoming-item{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid #e5e7eb}.dwp-upcoming-date{width:62px;flex:none;font-size:13px;font-weight:600}.dwp-upcoming-copy{flex:1;min-width:0}.dwp-upcoming-copy strong{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dwp-workspace .data-table td a.button{margin:3px;font-size:12px;padding:7px 9px;display:inline-flex}
+
+/* Benutzerverwaltung */
+.dwp-user-list{list-style:none;margin:0;padding:0}.dwp-user-card{padding:12px 0;border-top:1px solid #e5e7eb}.dwp-user-card:first-child{border-top:0}
+.dwp-user-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.dwp-user-head strong{font-size:15px}
+.dwp-user-card small{margin-top:4px;line-height:1.5}.dwp-user-card .dwp-actions .button{min-height:40px}.dwp-user-card.is-blocked strong{color:#667085}
+.dwp-user-rights{border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px;margin:6px 0 12px}.dwp-user-rights legend{font-weight:600;font-size:13px;padding:0 4px}
+.dwp-workspace label.dwp-check{display:flex;align-items:center;gap:10px;font-weight:400;font-size:14px;padding:4px 0;margin:0;min-height:36px}.dwp-workspace label.dwp-check input{width:20px;height:20px;margin:0;flex:none}
+.dwp-hint{font-size:13px;color:#667085}
+.dwp-credentials{border:2px solid #1c8a5a}.dwp-credentials dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:10px 0}.dwp-credentials dt{color:#667085}.dwp-secret{font-family:ui-monospace,Menlo,monospace;font-size:16px;letter-spacing:.02em;word-break:break-all}
+/* Feiertage und Outlook-Abo (Modul 18) */
+.dwp-cal-head span.is-holiday{background:#eceef2;color:#475467}.dwp-cal-head span small{display:block;font-size:10px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dwp-cal-cell.is-holiday{background:repeating-linear-gradient(135deg,#e7e9ee 0 6px,#f1f2f5 6px 12px)}
+.dwp-cal-holidays{margin:0 0 8px;font-size:13px;color:#475467}.dwp-cal-holiday-note{color:#8a5a00}
+.dwp-cal-status.is-holiday{background:#eceef2;color:#475467}.dwp-upcoming-item.is-holiday strong{color:#475467}
+.dwp-feed-url{width:100%;font:inherit;font-size:13px;padding:8px;border:1px solid #d0d5dd;border-radius:8px;background:#f9fafb;word-break:break-all}
+.dwp-feed-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.dwp-feed-actions .button{min-height:40px}

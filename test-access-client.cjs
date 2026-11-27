@@ -23,7 +23,10 @@ const {createHandler:access}=require('./api/access.js');
   await tick();assert(w.DWPRemote.active);w.DWPWorkspace.store.data.selectedProject=p.id;
   w.DWPWorkspace.open('documents');await tick();assert(events.some(e=>e.type==='module_open' && e.module==='documents'));
   assert.equal(w.DWPWorkspace.store.get(d.id).attachments[0].dataUrl,undefined);
-  q('[data-dwp="backup"]').click();await tick();assert(q('#dwp-error').textContent.includes('Nur Stephan'));
+  // Sicherung: Modul nur für den Administrator; der Server verweigert den Export auch bei direktem Aufruf.
+  await assert.rejects(w.DWPRemote.export({kind:'backup'}),/Nur Stephan/);
+  w.DWPWorkspace.open('backup');assert(q('h1').textContent.includes('Sicherung'));assert(!q('[data-dwp="backup"]'));assert(!q('#dwp-restore'));assert(q('section').textContent.includes('Nur der Administrator'));
+  w.DWPWorkspace.open('documents');await tick();
   q('[data-dwp="file"]').click();await tick();assert(q('dialog'));assert(q('dialog').textContent.includes('Testbetrachter'));assert(q('dialog img').src.startsWith('data:image/'));
   q('dialog button').click();assert(!q('dialog'));
   q('[data-dwp="file"]').click();await tick();assert(q('#dwp-error').textContent.includes('bereits einmal'));assert(!q('dialog'));

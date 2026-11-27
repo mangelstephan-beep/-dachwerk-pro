@@ -10,13 +10,42 @@
   const blocking = f('blocking','Sperrt nächsten Arbeitsschritt bis Erledigung','checkbox');
   // Modul 29: Buchungsarten. Skonto/Abzug und Sicherheitseinbehalt gleichen die Rechnung aus, ohne Geldeingang.
   // Ein Einbehalt bleibt bis zur Auszahlung offen und blockiert den Projektabschluss nicht.
-  const PAYMENT_KINDS=['Zahlungseingang','Skonto / Abzug','Restbetrag ausgebucht','Restbetrag auf Zwischenkonto','Sicherheitseinbehalt','Einbehalt ausgezahlt','Rückzahlung'];
+  const PAYMENT_KINDS=['Zahlungseingang','Skonto / Abzug','Restbetrag ausgebucht','Restbetrag auf Zwischenkonto','Sicherheitseinbehalt','Einbehalt ausgezahlt','Rückzahlung','Mahngebühr erhalten','Verzugszinsen erhalten'];
+  // Gezahlte Mahnkosten gleichen nicht die Rechnung aus; sie werden getrennt vereinnahmt (höchstens die angemahnten Beträge).
+  const COST_KINDS=['Mahngebühr erhalten','Verzugszinsen erhalten'];
   // Vorschlag Gegenkonto SKR03 (änderbar, mit dem Steuerberater abstimmen). Steht kein Konto im Buchungshinweis, wird es eingetragen.
-  const SKR03={'Skonto / Abzug':tax=>tax===19?'SKR03 8736 Gewährte Skonti 19 % USt':tax===7?'SKR03 8731 Gewährte Skonti 7 % USt':'SKR03 8730 Gewährte Skonti','Restbetrag ausgebucht':()=>'SKR03 8700 Erlösschmälerungen','Restbetrag auf Zwischenkonto':()=>'SKR03 1590 Durchlaufende Posten'};
+  const SKR03={'Skonto / Abzug':(tax,a)=>tax===19?'SKR03 '+a.discount19+' Gewährte Skonti 19 % USt':tax===7?'SKR03 '+a.discount7+' Gewährte Skonti 7 % USt':'SKR03 '+a.discount0+' Gewährte Skonti','Restbetrag ausgebucht':(tax,a)=>'SKR03 '+a.writeOff+' Erlösschmälerungen','Restbetrag auf Zwischenkonto':(tax,a)=>'SKR03 '+a.suspense+' Durchlaufende Posten'};
   const SETTLING=['Skonto / Abzug','Restbetrag ausgebucht','Restbetrag auf Zwischenkonto'];
   const paymentEffect=r=>{const a=r.data.amount,k=r.data.direction || 'Zahlungseingang';
-    return {cash:k==='Zahlungseingang' || k==='Einbehalt ausgezahlt'?a:k==='Rückzahlung'?-a:0,discount:k==='Skonto / Abzug'?a:0,writeOff:k==='Restbetrag ausgebucht'?a:0,suspense:k==='Restbetrag auf Zwischenkonto'?a:0,retained:k==='Sicherheitseinbehalt'?a:k==='Einbehalt ausgezahlt'?-a:0};};
-  const paymentTotals=rows=>rows.reduce((s,r)=>{const e=paymentEffect(r);for(const k in e)s[k==='cash'?'paid':k]+=e[k];return s;},{paid:0,discount:0,writeOff:0,suspense:0,retained:0});
+    return {cash:k==='Zahlungseingang' || k==='Einbehalt ausgezahlt'?a:k==='Rückzahlung'?-a:0,discount:k==='Skonto / Abzug'?a:0,writeOff:k==='Restbetrag ausgebucht'?a:0,suspense:k==='Restbetrag auf Zwischenkonto'?a:0,retained:k==='Sicherheitseinbehalt'?a:k==='Einbehalt ausgezahlt'?-a:0,fees:k==='Mahngebühr erhalten'?a:0,interest:k==='Verzugszinsen erhalten'?a:0};};
+  const paymentTotals=rows=>rows.reduce((s,r)=>{const e=paymentEffect(r);for(const k in e)s[k==='cash'?'paid':k]+=e[k];return s;},{paid:0,discount:0,writeOff:0,suspense:0,retained:0,fees:0,interest:0});
+  // Buchhaltung nach SKR03. Alle Konten sind Vorschläge (mit dem Steuerberater abstimmen) und in den Einstellungen änderbar.
+  // Erlös-, Skonto- und Wareneingangskonten sind DATEV-Automatikkonten: gebucht wird brutto, die Steuer rechnet DATEV heraus.
+  const ACCOUNTS={bank:'1200',receivables:'1400',payables:'1600',suspense:'1590',revenue19:'8400',revenue7:'8300',revenueOther:'8200',revenueSmall:'8195',revenue13b:'8337',discount19:'8736',discount7:'8731',discount0:'8730',writeOff:'8700',material19:'3400',material7:'3300',material0:'3200',subcontract:'3100',received19:'3736',received7:'3731',received0:'3730',dunningIncome:'2700',interestIncome:'2650'};
+  const ACCOUNT_LABELS={bank:'Bank',receivables:'Forderungen aus Lieferungen und Leistungen',payables:'Verbindlichkeiten aus Lieferungen und Leistungen',suspense:'Durchlaufende Posten / Zwischenkonto',revenue19:'Erlöse 19 % USt',revenue7:'Erlöse 7 % USt',revenueOther:'Erlöse (sonstiger Steuersatz)',revenueSmall:'Erlöse Kleinunternehmer § 19 UStG',revenue13b:'Erlöse § 13b UStG (Leistungsempfänger schuldet USt)',discount19:'Gewährte Skonti 19 % USt',discount7:'Gewährte Skonti 7 % USt',discount0:'Gewährte Skonti',writeOff:'Erlösschmälerungen',material19:'Wareneingang 19 % Vorsteuer',material7:'Wareneingang 7 % Vorsteuer',material0:'Wareneingang (ohne Vorsteuer)',subcontract:'Fremdleistungen',received19:'Erhaltene Skonti 19 % Vorsteuer',received7:'Erhaltene Skonti 7 % Vorsteuer',received0:'Erhaltene Skonti',dunningIncome:'Sonstige Erträge (Mahngebühren, Verzugspauschale)',interestIncome:'Zinserträge (Verzugszinsen)'};
+  const OUTGOING_KINDS=['Zahlungsausgang','Skonto erhalten'];
+  // Mahnwesen. Basiszinssatz nach § 247 BGB (Deutsche Bundesbank); neue Halbjahreswerte in den Einstellungen ergänzen.
+  const DUNNING_LEVELS=['Zahlungserinnerung','1. Mahnung','2. Mahnung','Letzte Mahnung'];
+  const BASE_RATES=[['2024-01-01',3.62],['2024-07-01',3.37],['2025-01-01',2.27],['2025-07-01',1.27],['2026-01-01',1.27],['2026-07-01',1.52]];
+  const dayOf=iso=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(new Date(iso));
+  const addDays=(day,n)=>{const [y,m,d]=day.split('-').map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10);};
+  const daysBetween=(a,b)=>Math.round((Date.parse(b)-Date.parse(a))/864e5);
+  const germanDate=day=>day?day.slice(8,10)+'.'+day.slice(5,7)+'.'+day.slice(0,4):'';
+  const baseRates=extra=>{const map=new Map(BASE_RATES);for(const r of Array.isArray(extra)?extra:[])map.set(r.from,r.rate);return [...map].sort((a,b)=>a[0].localeCompare(b[0]));};
+  const nextRateChange=from=>from.slice(5)==='01-01'?from.slice(0,4)+'-07-01':(Number(from.slice(0,4))+1)+'-01-01';
+  // Verzugszinsen tagesgenau (365 Tage) je Basiszins-Halbjahr für die Tage first..last (beide einschließlich).
+  const lateInterest=(amount,first,last,plus,extra)=>{
+    const rates=baseRates(extra);let total=0,rate=0;
+    if(!(amount>0) || last<first)return {amount:0,rate:0,days:0};
+    const known=nextRateChange(rates.at(-1)[0]);
+    if(last>=known)throw Error('Basiszinssatz ab '+germanDate(known)+' fehlt. Bitte in den Einstellungen unter Buchhaltung nachtragen (Bundesbank).');
+    if(first<rates[0][0])throw Error('Verzugsbeginn vor '+germanDate(rates[0][0])+' wird nicht berechnet.');
+    rates.forEach(([from,base],i)=>{
+      const to=i+1<rates.length?addDays(rates[i+1][0],-1):last,start=first>from?first:from,end=last<to?last:to;
+      if(end>=start){total+=amount*(base+plus)/100*(daysBetween(start,end)+1)/365;rate=base+plus;}
+    });
+    return {amount:round(total),rate:round(rate),days:daysBetween(first,last)+1};
+  };
   const modules = [
     ['customers', 'Kunden und Kontakte', 'customers', [f('customerNumber','Kundennummer (leer = automatisch, danach unveränderlich)'),f('name','Firma / Name','text',true),Object.assign(f('customerType','Kundenart','select',false,['Gewerbekunde','Privatkunde']),{blank:true}),f('contact','Hauptansprechpartner'),f('contactRole','Rolle des Hauptkontakts','select',false,['Auftraggeber','Hausverwaltung','Planer','Bauleitung','Buchhaltung','Versicherung','Sonstige']),f('phone','Telefon'),f('email','E-Mail','email'),f('contacts','Weitere Kontakte: Name | Rolle | E-Mail | Telefon (eine Person je Zeile)','contacts'),f('address','Straße und Hausnummer'),f('postalCode','PLZ'),f('location','Ort'),f('country','Land (ISO-Code, z. B. DE)'),f('vatId','USt-IdNr.'),f('buyerReference','Leitweg-ID / Käuferreferenz'),f('publicCustomer','Öffentlicher Auftraggeber','checkbox')], 'global'],
     ['projects','Projekte und Kostenstellen','projects',[f('name','Projektname','text',true),f('customerId','Kunde','customer',true),f('address','Objektanschrift'),f('costCenter','Kostenstelle'),f('memberIds','Freigegebene Benutzer-IDs (kommagetrennt; Administratoren haben Zugriff)','textarea'),f('phase','Projektphase','select',true,['Erfassung','Kalkulation','Beauftragt','Ausführung','Abnahme','Abgeschlossen']),f('buyerReference','Leitweg-ID / Käuferreferenz'),note], 'global'],
@@ -35,7 +64,7 @@
     ['correspondence','Schriftverkehr und E-Mail','communication',[title,f('recipient','Empfänger','email'),f('body','Nachricht','textarea',true),f('direction','Richtung','select',false,['Ausgehend – Entwurf','Eingehend']),note]],
     ['purchase','Einkauf und Bestellung','prices',[title,f('materialId','Material','material',true),f('quantity','Bestellmenge','number',true),f('supplier','Lieferant'),f('unitPrice','Preis netto je Einheit','number',true),f('deliveryDate','Wunschliefertermin','date'),note]],
     ['logistics','Liefertermine und Logistik','projects',[title,f('purchaseId','Bestellung','purchase'),f('deliveryDate','Lieferdatum','date',true),f('quantity','Gelieferte Menge','number',true),f('location','Lieferort'),f('receipt','Lieferscheinnummer'),note]],
-    ['personnel','Personal und Termine','users',[f('name','Mitarbeiter','text',true),f('number','Personalnummer','text',true),f('employment','Beschäftigungsart','select',true,['Arbeiter','Angestellte','Auszubildende','Teilzeit','Aushilfe']),f('role','Tätigkeit'),f('wage','Stundenkostensatz','number'),f('start','Eintritt','date'),f('qualification','Qualifikationen'),note],'global'],
+    ['personnel','Personal und Termine','users',[f('name','Mitarbeiter','text',true),f('number','Personalnummer','text',true),f('employment','Beschäftigungsart','select',true,['Arbeiter','Angestellte','Auszubildende','Teilzeit','Aushilfe']),f('role','Tätigkeit'),f('wage','Stundenkostensatz','number'),f('start','Eintritt','date'),f('qualification','Qualifikationen'),f('mobile','Mobilnummer für WhatsApp','tel'),f('userId','DWP-Benutzer-ID (Kalenderzugang)'),note],'global'],
     ['technical','Technische Prüfung','ai-check',[title,f('positionId','LV-Position','position'),f('finding','Prüfpunkt / Feststellung','textarea',true),f('source','Regel / Hersteller / Fassung'),f('decision','Fachliche Entscheidung','textarea'),blocking,note]],
     ['safety','Arbeitsschutz und Unterweisung','safety',[title,f('hazard','Gefährdung','textarea',true),f('measure','Schutzmaßnahme','textarea',true),f('participants','Unterwiesene Personen'),blocking,date,note]],
     ['diary','Mobile Bauleitung','site-docs',[title,date,f('weather','Wetter'),f('team','Personal / Geräte'),f('work','Ausgeführte Leistungen','textarea',true),f('obstruction','Behinderungen','textarea'),f('progress','Bautenstand %','number'),note]],
@@ -70,6 +99,8 @@
   definitions.purchase.fields.push(f('overDeliveryPercent','Zulässige Mehrlieferung %','number'),f('underDeliveryPercent','Zulässige Minderlieferung %','number'),f('toleranceReason','Vereinbarung zur Mengentoleranz','textarea'));
   definitions.contract.fields.push(f('decision','Prüfentscheidung / Begründung','textarea'));
   // Modul 27: Kunde ist selbst Bauleister → Steuerschuld geht nach § 13b UStG auf ihn über (Rechnung ohne USt).
+  // Pauschalpreis (15.11.2026): Hauptauftrag wird in % der Pauschalsumme abgerechnet, ohne Aufmaß. Einheitspreis bleibt beim Aufmaß.
+  definitions.orders.fields.splice(2,0,f('lumpSum','Pauschalpreis vereinbart (Abrechnung in % der Pauschalsumme, ohne Aufmaß)','checkbox'),f('lumpSumNet','Pauschalsumme netto € (leer = Angebotssumme)','number'));
   definitions.customers.fields.push(f('reverseCharge','Bauleistender Unternehmer: Rechnung ohne USt nach § 13b UStG','checkbox'));
   definitions.lv.fields.push(f('epPrecision','EP-Nachkommastellen (0 / 2 = Standard, 3 = LV-Original)','number'));
   definitions.lv.fields.push(f('useEfbRates','Kostenartenzuschläge nach Kalkulationsnachweis verwenden','checkbox'),f('efbWage','Kalkulationslohn für Kostenartenzuschläge €/h','number'),f('laborMarkup','Zuschlag Lohn %','number'),f('materialMarkup','Zuschlag Stoffe %','number'),f('equipmentMarkup','Zuschlag Geräte %','number'),f('useNuMarkup','Eigenen NU-Zuschlag statt globaler AGK/W&G verwenden','checkbox'),f('subcontractMarkup','NU-Zuschlag %','number'));
@@ -101,6 +132,30 @@
   const DOC_NUMBER_START=100;
   const SMALL_BUSINESS_NOTE='Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.';
   const REVERSE_CHARGE_NOTE='Steuerschuldnerschaft des Leistungsempfängers (§ 13b Abs. 2 Nr. 4, Abs. 5 UStG). Die Umsatzsteuer ist vom Leistungsempfänger anzumelden und abzuführen.';
+  // Datierte Sicherungsdatei: DWP_Sicherung_JJJJ-MM-TT_HH-MM.json mit Kopfangaben,
+  // damit beim Einspielen aus Dropbox, Drive oder eigener Cloud sofort erkennbar ist,
+  // von wann und von wem die Sicherung stammt. Uhrzeit immer deutsche Ortszeit.
+  const backupFormat={
+    FORMAT:'DachWerkPro-Sicherung',
+    stamp(date=new Date()){
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(date)).map(p=>[p.type,p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}_${parts.hour}-${parts.minute}`;
+    },
+    fileName(date=new Date()){return `DWP_Sicherung_${backupFormat.stamp(date)}.json`;},
+    label(date){return new Date(date).toLocaleString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+' Uhr';},
+    summary(state){const records=Array.isArray(state?.records)?state.records:[];return {projects:records.filter(r=>r.module==='projects').length,customers:records.filter(r=>r.module==='customers').length,records:records.length};},
+    wrap(state,{createdAt=new Date().toISOString(),createdBy='',kind='manuell'}={}){
+      return {format:backupFormat.FORMAT,version:1,createdAt:new Date(createdAt).toISOString(),createdBy:String(createdBy || ''),kind,revision:state.revision,summary:backupFormat.summary(state),state};
+    },
+    unwrap(parsed){
+      if(parsed && parsed.format===backupFormat.FORMAT){
+        if(parsed.version!==1 || !parsed.state)throw Error('Sicherungsdatei: Format wird nicht unterstützt.');
+        return {state:parsed.state,meta:{createdAt:parsed.createdAt || null,createdBy:parsed.createdBy || '',kind:parsed.kind || '',summary:backupFormat.summary(parsed.state)}};
+      }
+      if(parsed && parsed.schema===1 && Array.isArray(parsed.records))return {state:parsed,meta:{createdAt:null,createdBy:'',kind:'ältere Sicherung',summary:backupFormat.summary(parsed)}};
+      throw Error('Diese Datei ist keine DachWerkPro-Sicherung.');
+    }
+  };
   const berlinDay=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin'}).format(new Date());
   function validatePricing(module,data) {
     if(module==='projects' && (data.plannedOverhead || data.actualOverhead) && !data.overheadBasis?.trim())throw Error('Zusätzliche Gemeinkosten benötigen Abgrenzung und Nachweis.');
@@ -228,7 +283,10 @@
           if(q.withdrawnAt!==undefined && (!validDate(q.withdrawnAt) || typeof q.withdrawnReason!=='string' || !q.withdrawnReason.trim()))throw Error('Sicherung: zurückgezogener Lieferantenpreis ohne Datum oder Grund.');
           round((q.price*(1-q.discount/100)+q.freight)/(q.baseQuantity ?? 1));
         }
+        for(const m of r.dunnings || [])if(r.module!=='invoices' || !DUNNING_LEVELS.includes(m.level) || !validDate(m.date) || !validDate(m.deadline) || !DOC_NUMBER.test(String(m.number || '')) || ['open','fee','flatFee','interest','total'].some(k=>typeof m[k]!=='number' || !Number.isFinite(m[k]) || m[k]<0))throw Error('Sicherung: Mahnung ungültig.');
+        for(const o of r.payouts || [])if(r.module!=='incoming' || !OUTGOING_KINDS.includes(o.kind) || !validDate(o.date) || typeof o.amount!=='number' || !Number.isFinite(o.amount) || o.amount<=0)throw Error('Sicherung: Zahlungsausgang ungültig.');
         for(const a of r.assignments || [])if(r.module!=='personnel' || !data.records.some(p=>p.module==='projects' && p.id===a.projectId) || !a.start || !a.end || a.start>a.end)throw Error('Sicherung: Einsatzplanung ungültig.');
+        for(const a of r.assignments || [])if(a.response!==undefined && !['Zugesagt','Abgesagt'].includes(a.response))throw Error('Sicherung: Rückmeldung zum Einsatz ungültig.');
         for(const s of r.signatures || []) {
           if(!['acceptance','times'].includes(r.module) || !s.signer || !Array.isArray(s.strokes) || !s.strokes.some(a=>Array.isArray(a) && a.length>=2) || JSON.stringify(s.snapshot?.data)!==JSON.stringify(r.data))throw Error('Sicherung: unterschriebener Dokumentstand ungültig.');
           for(const stroke of s.strokes)for(const p of stroke)if(!Array.isArray(p) || p.length!==2 || p.some(n=>typeof n!=='number' || !Number.isFinite(n) || n<0 || n>1))throw Error('Sicherung: Unterschrift ungültig.');
@@ -265,11 +323,11 @@
     // Allocates against every record of the tenant (the server runs this on the full
     // state, so hidden projects are counted too) and never against visible row counts.
     nextDocumentNumber(type, date) {
-      if(!['A','AB','R'].includes(type))throw Error('Belegart für Nummernvergabe ungültig.');
+      if(!['A','AB','R','M'].includes(type))throw Error('Belegart für Nummernvergabe ungültig.');
       const day=validDate(date)?date:berlinDay();
       const start=Number.isInteger(this.data.settings.documentNumberStart)?this.data.settings.documentNumberStart:DOC_NUMBER_START;
       let max=start-1;
-      for(const r of this.data.records)for(const value of [r.data?.number,r.confirmation?.number]) {
+      for(const r of this.data.records)for(const value of [r.data?.number,r.confirmation?.number,...(r.dunnings || []).map(d=>d.number)]) {
         const match=DOC_NUMBER.exec(String(value || ''));
         if(match && match[1]===type)max=Math.max(max,Number(match[3]));
       }
@@ -310,6 +368,7 @@
         if(field.required && (value===undefined || value===null || String(value).trim()==='')) throw Error(`${field.label} fehlt.`);
         data[field.key]=field.type==='contacts' ? parseContacts(value) : field.type==='number' ? num(value) : field.type==='checkbox' ? (field.key==='useTargetPrice' && typeof value==='string' ? /^(true|1|ja)$/i.test(value.trim()) : Boolean(value)) : String(value ?? '').trim();
         if(field.type==='email' && data[field.key] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[field.key]))throw Error(`${field.label} ist ungültig.`);
+        if(field.type==='tel' && data[field.key] && (!/^\+?[0-9 ()/-]+$/.test(data[field.key]) || !/^\d{6,15}$/.test(data[field.key].replace(/\D/g,''))))throw Error(`${field.label} ist ungültig.`);
         if(field.type==='number' && data[field.key]>Number.MAX_SAFE_INTEGER/100)throw Error(`${field.label} außerhalb des sicheren Zahlenbereichs.`);
         if(field.type==='number' && data[field.key]<0) throw Error(`${field.label} darf nicht negativ sein.`);
         if(field.type==='select' && data[field.key] && !field.options.includes(data[field.key])) throw Error(`${field.label} ist ungültig.`);
@@ -374,6 +433,7 @@
       if(module==='incoming' && data.subcontractId && this.get(data.subcontractId).data.contractor.trim().toLocaleLowerCase('de')!==data.supplier.trim().toLocaleLowerCase('de'))throw Error('Rechnungssteller stimmt nicht mit dem NU-Kostenvorgang überein.');
       if(module==='suppliers' && this.list('suppliers').some(r=>r.id!==options.id && String(r.data.name).trim().toLocaleLowerCase('de')===String(data.name).trim().toLocaleLowerCase('de')))throw Error('Lieferant mit diesem Namen ist bereits vorhanden.');
       if(module==='incoming' && this.list('incoming').some(r=>r.id!==options.id && r.data.supplier===data.supplier && r.data.invoiceNumber===data.invoiceNumber)) throw Error('Eingangsbeleg bereits vorhanden.');
+      if(module==='incoming' && status==='Freigegeben')this.assertOpenPeriod(data.date,'Eingangsrechnung');
       if(module==='logistics' && status==='Freigegeben' && data.purchaseId) {
         const order=this.get(data.purchaseId);
         if(order.status!=='Freigegeben') throw Error('Bestellung vor Lieferung freigeben.');
@@ -393,7 +453,14 @@
         if(!(data.amount>0))throw Error('Betrag muss positiv sein.');
         const others=this.list('payments').filter(r=>r.id!==options.id && r.status==='Freigegeben' && r.data.invoiceId===invoice.id);
         const t=paymentTotals(others),settled=round(t.paid+t.discount+t.writeOff+t.suspense+t.retained);
-        if(kind==='Rückzahlung') {
+        this.assertOpenPeriod(data.date,'Zahlung');
+        if(COST_KINDS.includes(kind)) {
+          const fees=kind==='Mahngebühr erhalten',c=this.dunningCosts(invoice.id,options.id),open=fees?c.feesOpen:c.interestOpen;
+          if(!(open>0))throw Error(kind+': Für diese Rechnung sind keine offenen '+(fees?'Mahngebühren':'Verzugszinsen')+' angemahnt.');
+          if(round(data.amount)>open)throw Error(kind+': höchstens '+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(open)+' (angemahnt und noch nicht erhalten).');
+          const a=this.accounts(),account=fees?a.dunningIncome:a.interestIncome;
+          if(!/\b\d{4}\b/.test(data.account || ''))data.account=['SKR03 '+account+' '+ACCOUNT_LABELS[fees?'dunningIncome':'interestIncome'],String(data.account || '').trim()].filter(Boolean).join(' · ');
+        } else if(kind==='Rückzahlung') {
           if(!invoice.data.stornoOf)throw Error('Rückzahlungen müssen einer Stornorechnung zugeordnet werden.');
           const received=paymentTotals(this.list('payments').filter(r=>r.status==='Freigegeben' && r.data.invoiceId===invoice.data.stornoOf)).paid;
           const refunded=others.filter(r=>r.data.direction==='Rückzahlung').reduce((n,r)=>n+r.data.amount,0);
@@ -405,7 +472,7 @@
           } else if(round(settled+data.amount)>invoice.data.gross) throw Error('Betrag darf den offenen Rechnungsbetrag nicht überschreiten.');
           if(kind==='Sicherheitseinbehalt' && !validDate(data.retentionUntil))throw Error('Sicherheitseinbehalt: Datum „Einbehalt bis (Ende Gewährleistung)“ angeben.');
           if(SETTLING.includes(kind) && !String(data.notes || data.account || '').trim())throw Error(kind+': Grund in „Bemerkung“ angeben, z. B. „2 % Skonto“ oder „Kunde zahlt Rest nicht, Kulanz“.');
-          if(SKR03[kind] && !/\b\d{4}\b/.test(data.account || ''))data.account=[SKR03[kind](invoice.data.tax),String(data.account || '').trim()].filter(Boolean).join(' · ');
+          if(SKR03[kind] && !/\b\d{4}\b/.test(data.account || ''))data.account=[SKR03[kind](invoice.data.tax,this.accounts()),String(data.account || '').trim()].filter(Boolean).join(' · ');
         }
       }
       if(options.due && (!/^\d{4}-\d{2}-\d{2}$/.test(options.due) || Number.isNaN(Date.parse(options.due)) || new Date(options.due).toISOString().slice(0,10)!==options.due))throw Error('Rückmeldefrist ungültig.');
@@ -416,9 +483,14 @@
         record.autoCheck={positionId:finding.positionId,code:finding.code,basis:finding.basis};
       }
       if(module==='materials')delete record.pendingPrice;
+      if(module==='orders') {
+        if(data.lumpSumNet>0 && !data.lumpSum)throw Error('Pauschalsumme nur eintragen, wenn „Pauschalpreis vereinbart“ angehakt ist.');
+        if(data.lumpSum && this.get(data.offerId)?.data.baseOfferId)throw Error('Pauschalpreis nur beim Hauptauftrag. Nachträge werden nach Aufmaß abgerechnet.');
+      }
       if(module==='orders' && status==='Freigegeben') {
         const offer=this.get(data.offerId);
-        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',number:before?.confirmation?.number || this.nextDocumentNumber('AB',data.date),documentFamily:undefined,documentRevision:1,offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:data.notes}));
+        const lumpNote=data.lumpSum?'Pauschalpreis: '+round(data.lumpSumNet || offer.data.net).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' € netto. Abrechnung nach Leistungsstand in % der Pauschalsumme, ohne Aufmaß.':'';
+        record.confirmation=JSON.parse(JSON.stringify({...offer.data,title:'Auftragsbestätigung',number:before?.confirmation?.number || this.nextDocumentNumber('AB',data.date),documentFamily:undefined,documentRevision:1,offerNumber:offer.data.number,orderNumber:data.orderNumber,date:data.date,notes:[lumpNote,data.notes].filter(Boolean).join('\n'),...(data.lumpSum?{lumpSum:true,lumpSumNet:round(data.lumpSumNet || offer.data.net)}:{})}));
       }
       return this.transaction(before?'Geändert':'Angelegt',module,record.id,d=>{
         if(module==='materials') record.history=[...(before?.history || []),...(before ? [{price:before.data.price,priceDate:before.data.priceDate,validUntil:before.data.validUntil || '',priceBasis:before.data.priceBasis || '',supplier:before.data.supplier,source:before.data.source}] : [])].slice(-3);
@@ -436,6 +508,47 @@
       if(values.smallBusiness!==undefined)clean.smallBusiness=[true,'true','ja','on'].includes(values.smallBusiness);
       if(clean.smallBusiness===true)clean.tax=0;
       else if(this.data.settings.smallBusiness===true && clean.tax===0 && values.tax===undefined)clean.tax=19;
+      for(const [k,min,max] of [['paymentDays',0,365],['dunningDays',1,60]])if(values[k]!==undefined) {
+        if(String(values[k]).trim()==='')delete clean[k];
+        else {clean[k]=Number(values[k]);if(!Number.isInteger(clean[k]) || clean[k]<min || clean[k]>max)throw Error((k==='paymentDays'?'Zahlungsziel':'Mahnfrist')+': ganze Tage von '+min+' bis '+max+'.');}
+      }
+      if(values.dunningFee!==undefined) {
+        if(String(values.dunningFee).trim()==='')delete clean.dunningFee;
+        else {clean.dunningFee=num(values.dunningFee);if(clean.dunningFee<0 || clean.dunningFee>100)throw Error('Mahngebühr: 0 bis 100 EUR.');}
+      }
+      if(values.accounts!==undefined) {
+        if(!values.accounts || typeof values.accounts!=='object' || Array.isArray(values.accounts))throw Error('Kontenplan ungültig.');
+        const own={};
+        for(const [k,v] of Object.entries(values.accounts)) {
+          if(!Object.hasOwn(ACCOUNTS,k))throw Error('Unbekanntes Konto: '+k);
+          const value=String(v ?? '').trim();
+          if(!value || value===ACCOUNTS[k])continue;
+          if(!/^\d{4,8}$/.test(value))throw Error(ACCOUNT_LABELS[k]+': Kontonummer mit 4 bis 8 Ziffern.');
+          own[k]=value;
+        }
+        clean.accounts=own;
+      }
+      if(values.baseRates!==undefined) {
+        const list=typeof values.baseRates==='string'?values.baseRates.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(line=>{const m=/^(\d{4}-\d{2}-\d{2})\s*[=;: ]\s*(-?\d+(?:[.,]\d+)?)\s*%?$/.exec(line);if(!m)throw Error('Basiszinssatz: je Zeile „JJJJ-MM-TT = Satz“, z. B. 2027-01-01 = 1,52.');return {from:m[1],rate:Number(m[2].replace(',','.'))};}):values.baseRates;
+        if(!Array.isArray(list) || list.some(r=>!validDate(r.from) || !['01-01','07-01'].includes(r.from.slice(5)) || typeof r.rate!=='number' || !Number.isFinite(r.rate) || Math.abs(r.rate)>20))throw Error('Basiszinssatz: nur Stichtage 1. Januar oder 1. Juli mit Satz in Prozent.');
+        clean.baseRates=list;
+      }
+      if(values.lockedUntil!==undefined) {
+        const lock=String(values.lockedUntil || '').trim(),current=this.lockedUntil();
+        if(!validDate(lock))throw Error('Festschreibung: Datum angeben.');
+        if(lock>=berlinDay())throw Error('Festschreibung: nur abgelaufene Tage (bis gestern) festschreiben.');
+        if(current && lock<current)throw Error('Festschreibung bis '+germanDate(current)+' kann nicht zurückgenommen werden.');
+        clean.lockedUntil=lock;
+      }
+      for(const [k,re,msg] of [['datevConsultant',/^\d{4,7}$/,'DATEV-Beraternummer: 4 bis 7 Ziffern.'],['datevClient',/^\d{1,5}$/,'DATEV-Mandantennummer: 1 bis 5 Ziffern.']])if(values[k]!==undefined) {
+        const v=String(values[k] ?? '').trim();
+        if(!v)delete clean[k];else{if(!re.test(v) || (k==='datevConsultant' && Number(v)<1001) || Number(v)<1)throw Error(msg);clean[k]=v;}
+      }
+      if(values.fiscalYearStart!==undefined) {
+        if(String(values.fiscalYearStart).trim()==='')delete clean.fiscalYearStart;
+        else{clean.fiscalYearStart=Number(values.fiscalYearStart);if(!Number.isInteger(clean.fiscalYearStart) || clean.fiscalYearStart<1 || clean.fiscalYearStart>12)throw Error('Beginn Wirtschaftsjahr: Monat 1 bis 12.');}
+      }
+      if(values.holidayState!==undefined && !Object.hasOwn(holidayStates,values.holidayState))throw Error('Bundesland für Feiertage ungültig.');
       if(values.documentNumberStart!==undefined) {
         if(String(values.documentNumberStart).trim()==='')delete clean.documentNumberStart;
         else {
@@ -482,7 +595,7 @@
       const orders=this.list('orders').filter(r=>r.status==='Freigegeben');
       if(!orders.length)add('orders','Freigegebene Beauftragung fehlt.');
       const assigned=new Map();
-      for(const o of orders)for(const p of this.get(o.data.offerId).data.positions)assigned.set(p.id,p);
+      for(const o of orders.filter(o=>o.data.lumpSum!==true))for(const p of this.get(o.data.offerId).data.positions)assigned.set(p.id,p);
       for(const p of assigned.values())if(this.measured(p.id)<=0)add('measurements','Freigegebenes Aufmaß für Position '+p.number+' fehlt.',p.id);
       for(const r of this.list('defects').filter(r=>r.status!=='Erledigt'))add('defects','Offener Mangel: '+r.data.title,r.id);
       if(!this.list('acceptance').some(r=>r.status==='Freigegeben' && r.data.result==='Abgenommen' && r.signatures?.length))add('acceptance','Freigegebene, unterschriebene Abnahme ohne offene Restpunkte fehlt.');
@@ -825,7 +938,8 @@
         const changeOffers=this.list('orders').filter(r=>r.status==='Freigegeben').map(r=>this.get(r.data.offerId)).filter(r=>r?.data.baseOfferId===offer.id);
         const all=[...offer.data.positions,...changeOffers.flatMap(r=>r.data.positions)];
         if(new Set(all.map(p=>p.id)).size!==all.length)throw Error('Beauftragte Position mehrfach vorhanden.');
-        positions=all.map(p=>{
+        const lumpSum=order.data.lumpSum===true,mainIds=new Set(offer.data.positions.map(p=>p.id));
+        positions=all.filter(p=>!lumpSum || !mainIds.has(p.id)).map(p=>{
           const measured=this.measured(p.id),cumulativeQty=round(measured*percentage/100);
           if(measured<=0 && invoiceType==='Schlussrechnung')throw Error('Für jede beauftragte Position ist ein freigegebenes Aufmaß erforderlich.');
           const billedQty=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===p.id).reduce((a,x)=>a+x.qty,0),0));
@@ -833,6 +947,15 @@
           if(cumulativeQty<billedQty)throw Error('Kumulativer Leistungsstand liegt unter bereits berechneten Mengen.');
           return {...p,qty:round(cumulativeQty-billedQty),cumulativeQty,previousQty:billedQty,gp:round(round(cumulativeQty*p.ep)-billedGrossPosition)};
         }).filter(p=>p.qty>0 || p.gp!==0);
+        if(lumpSum) {
+          // Pauschale: Menge = kumulativer Leistungsstand in %, EP = 1 % der Pauschalsumme; Betrag exakt aus der Pauschalsumme.
+          const id='pauschal-'+order.id,lumpNet=round(order.data.lumpSumNet || offer.data.net);
+          const billedPct=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===id).reduce((a,x)=>a+x.qty,0),0));
+          const billedGross=round(previous.reduce((n,r)=>n+r.data.positions.filter(x=>x.id===id).reduce((a,x)=>a+x.gp,0),0));
+          if(percentage<billedPct)throw Error('Kumulativer Leistungsstand liegt unter bereits berechneten '+billedPct+' %.');
+          const lump={id,number:'P',kind:'Pauschale',text:'Pauschalpreis gemäß Auftragsbestätigung '+(order.confirmation?.number || '')+' – Leistungsstand kumulativ '+percentage+' %',qty:round(percentage-billedPct),cumulativeQty:percentage,previousQty:billedPct,unit:'%',ep:round(lumpNet/100),gp:round(round(lumpNet*percentage/100)-billedGross)};
+          if(lump.qty>0 || lump.gp!==0)positions.unshift(lump);
+        }
         positions.push(...this.openRegie().map(r=>({id:r.id,number:'Regie',kind:'Stundenlohnarbeit',text:'Stundenlohnarbeit '+r.data.date+': '+r.data.work+' (bestätigt: '+r.data.customerConfirmation+')',qty:r.open,cumulativeQty:r.data.hours,previousQty:round(r.data.hours-r.open),unit:'Std.',ep:round(r.data.billingRate),gp:round(r.open*r.data.billingRate)})));
         if(!positions.length)throw Error('Keine noch nicht berechnete Leistung vorhanden.');
         if(customer.data.reverseCharge===true && !smallBusiness) {
@@ -842,10 +965,12 @@
         } else if(previous.some(r=>r.data.reverseCharge===true && !r.data.stornoOf))throw Error('§ 13b: Für diesen Auftrag gibt es schon Rechnungen ohne USt. Diese zuerst stornieren.');
         if(customer.data.publicCustomer && !(project.data.buyerReference || customer.data.buyerReference)) throw Error('Leitweg-ID / Käuferreferenz fehlt.');
       }
+      const invoiceDate=berlinDay(),paymentDays=kind==='invoices'?(options.paymentDays===undefined || String(options.paymentDays).trim()===''?this.paymentDays():Number(options.paymentDays)):0;
+      if(kind==='invoices' && (!Number.isInteger(paymentDays) || paymentDays<0 || paymentDays>365))throw Error('Zahlungsziel: ganze Tage von 0 bis 365.');
       const net=round(positions.reduce((n,p)=>n+p.gp,0));
       const previouslyNet=round(previous.reduce((n,r)=>n+r.data.net,0)),previouslyTax=round(previous.reduce((n,r)=>n+r.data.taxAmount,0));
       const taxAmount=round(round((previouslyNet+net)*tax/100)-previouslyTax);
-      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:this.nextDocumentNumber(kind==='offers'?'A':'R'),documentRevision:1,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount),...(smallBusiness?{smallBusiness:true,taxNote:SMALL_BUSINESS_NOTE}:{}),...(reverseCharge?{reverseCharge:true,taxNote:REVERSE_CHARGE_NOTE}:{})}};
+      const record={id:uid(),module:kind,projectId:project.id,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data:{title:kind==='offers'?(baseOfferId?'Nachtragsangebot':'Angebot'):invoiceType,invoiceType,percentage,baseOfferId,changeNumber,version,supersedesOfferId,number:this.nextDocumentNumber(kind==='offers'?'A':'R'),documentRevision:1,project:JSON.parse(JSON.stringify(project.data)),customer:JSON.parse(JSON.stringify(customer.data)),company:JSON.parse(JSON.stringify(this.data.settings)),buyerReference:project.data.buyerReference || customer.data.buyerReference || '',sourceOfferId,positions,optionalPositions,alternativePositions,previouslyNet,previouslyTax,net,tax,taxAmount,gross:round(net+taxAmount),...(smallBusiness?{smallBusiness:true,taxNote:SMALL_BUSINESS_NOTE}:{}),...(reverseCharge?{reverseCharge:true,taxNote:REVERSE_CHARGE_NOTE}:{}),...(kind==='invoices'?{invoiceDate,paymentDays,dueDate:addDays(invoiceDate,paymentDays)}:{})}};
       Object.assign(record.data,terms);
       validatePricing(kind,record.data);
       return this.transaction('Dokumentfassung freigegeben',kind,record.id,d=>{d.records.push(record);return record;});
@@ -888,9 +1013,180 @@
       const data=JSON.parse(JSON.stringify(invoice.data));
       data.title='Stornorechnung';data.invoiceType='Stornorechnung';data.stornoOf=id;data.originalNumber=invoice.data.number;data.reason=options.reason.trim();
       data.number=this.nextDocumentNumber('R');data.documentRevision=1;delete data.documentFamily;
+      // Die Stornorechnung trägt ihr eigenes Ausstellungsdatum (nicht das der Ursprungsrechnung) und ist sofort ausgeglichen fällig.
+      data.invoiceDate=berlinDay();data.paymentDays=0;data.dueDate=data.invoiceDate;
       data.net=-data.net;data.taxAmount=-data.taxAmount;data.gross=-data.gross;data.positions=data.positions.map(p=>({...p,qty:-p.qty,gp:-p.gp}));
       const record={id:uid(),module:'invoices',projectId:invoice.projectId,status:'Freigegeben',owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString(),data};
       return this.transaction('Rechnung storniert','invoices',record.id,d=>{d.records.push(record);return record;});
+    }
+    // ---- Buchhaltung SKR03, Offene Posten, Mahnwesen ----
+    accounts() {
+      const own=this.data.settings.accounts || {};
+      return Object.fromEntries(Object.entries(ACCOUNTS).map(([k,v])=>[k,/^\d{4,8}$/.test(own[k] || '')?own[k]:v]));
+    }
+    // Festschreibung (Monatsabschluss): Buchungen mit Datum bis einschließlich lockedUntil sind gesperrt.
+    lockedUntil() {return validDate(this.data.settings.lockedUntil)?this.data.settings.lockedUntil:'';}
+    assertOpenPeriod(date,what) {
+      const lock=this.lockedUntil();
+      if(lock && validDate(date) && date<=lock)throw Error(what+': Der Zeitraum bis '+germanDate(lock)+' ist festgeschrieben. Bitte mit einem späteren Datum buchen.');
+    }
+    // Angemahnte und erhaltene Mahnkosten einer Rechnung. Gebühren und Pauschale gelten je Schreiben;
+    // Verzugszinsen werden je Mahnung neu ab Verzugsbeginn berechnet, maßgeblich ist daher der höchste Betrag.
+    dunningCosts(invoiceId, excludePaymentId) {
+      const inv=this.get(invoiceId),dunnings=inv?.dunnings || [];
+      const fees=round(dunnings.reduce((n,d)=>n+(d.fee || 0)+(d.flatFee || 0),0)),interest=round(Math.max(0,...dunnings.map(d=>d.interest || 0)));
+      const t=paymentTotals(this.data.records.filter(r=>r.module==='payments' && r.status==='Freigegeben' && r.id!==excludePaymentId && r.data.invoiceId===invoiceId));
+      return {fees,interest,feesReceived:round(t.fees),interestReceived:round(t.interest),feesOpen:round(Math.max(0,fees-t.fees)),interestOpen:round(Math.max(0,interest-t.interest))};
+    }
+    paymentDays() {return Number.isInteger(this.data.settings.paymentDays)?this.data.settings.paymentDays:14;}
+    dunningDays() {return Number.isInteger(this.data.settings.dunningDays)?this.data.settings.dunningDays:10;}
+    invoiceDates(invoice) {
+      const d=invoice.data,date=validDate(d.invoiceDate)?d.invoiceDate:dayOf(invoice.createdAt);
+      return {date,due:validDate(d.dueDate)?d.dueDate:addDays(date,this.paymentDays())};
+    }
+    // Offene Forderungen über alle sichtbaren Projekte. Ein Sicherheitseinbehalt ist erst mit Ablauf seiner Frist fällig
+    // und wird nicht angemahnt, sondern als „Einbehalt fällig“ gemeldet.
+    openItems(asOf=berlinDay()) {
+      const all=this.data.records,invoices=all.filter(r=>r.module==='invoices');
+      const cancelled=new Set(invoices.map(r=>r.data.stornoOf).filter(Boolean)),items=[];
+      for(const inv of invoices.filter(r=>!r.data.stornoOf && !cancelled.has(r.id) && r.data.gross>0)) {
+        const pays=all.filter(r=>r.module==='payments' && r.status==='Freigegeben' && r.data.invoiceId===inv.id),t=paymentTotals(pays);
+        const open=round(inv.data.gross-t.paid-t.discount-t.writeOff-t.suspense-t.retained);
+        const retentionDue=round(Math.max(0,Math.min(t.retained,pays.filter(r=>r.data.direction==='Sicherheitseinbehalt' && r.data.retentionUntil<=asOf).reduce((n,r)=>n+r.data.amount,0)-pays.filter(r=>r.data.direction==='Einbehalt ausgezahlt').reduce((n,r)=>n+r.data.amount,0))));
+        const costs=this.dunningCosts(inv.id),costsOpen=round(costs.feesOpen+costs.interestOpen);
+        if(open<=0 && retentionDue<=0 && costsOpen<=0)continue;
+        const {date,due}=this.invoiceDates(inv),dunnings=inv.dunnings || [],last=dunnings.at(-1);
+        const daysOverdue=open>0?Math.max(0,daysBetween(due,asOf)):0;
+        const nextLevel=!daysOverdue?null:!last?DUNNING_LEVELS[0]:DUNNING_LEVELS[DUNNING_LEVELS.indexOf(last.level)+1] || null;
+        items.push({invoiceId:inv.id,projectId:inv.projectId,number:inv.data.number,customer:inv.data.customer?.name || '',date,due,gross:inv.data.gross,open:Math.max(0,open),retained:round(t.retained),retentionDue,costsOpen,daysOverdue,level:last?.level || '',lastDate:last?.date || '',deadline:last?.deadline || '',dunnings:dunnings.length,nextLevel,canDun:Boolean(nextLevel) && (!last || asOf>last.deadline)});
+      }
+      return items.sort((a,b)=>b.daysOverdue-a.daysOverdue || a.due.localeCompare(b.due) || a.number.localeCompare(b.number));
+    }
+    // Verzug (§ 286 BGB): mit Zugang der ersten Mahnung nach Fälligkeit, bei Unternehmern spätestens 30 Tage nach Fälligkeit.
+    // Bei Verbrauchern gilt die 30-Tage-Regel nur mit Hinweis auf der Rechnung – daher hier erst ab der 1. Mahnung.
+    dunInvoice(invoiceId, options={}) {
+      const invoice=this.get(invoiceId);
+      if(invoice?.module!=='invoices' || invoice.projectId!==this.data.selectedProject || invoice.data.stornoOf)throw Error('Rechnung im aktuellen Projekt auswählen.');
+      const date=options.date===undefined || options.date===''?berlinDay():options.date;
+      if(!validDate(date))throw Error('Mahndatum ungültig.');
+      if(date>berlinDay())throw Error('Mahndatum darf nicht in der Zukunft liegen.');
+      const item=this.openItems(date).find(i=>i.invoiceId===invoiceId);
+      if(!item || !(item.open>0))throw Error('Rechnung ist bezahlt, storniert oder ohne offenen Betrag.');
+      if(!item.daysOverdue)throw Error('Rechnung ist am '+germanDate(item.due)+' fällig. Mahnung erst ab '+germanDate(addDays(item.due,1))+'.');
+      if(!item.nextLevel)throw Error('Letzte Mahnung ist bereits erstellt. Weiter über gerichtliches Mahnverfahren oder Anwalt.');
+      if(!item.canDun)throw Error('Nächste Mahnstufe erst nach Ablauf der Frist am '+germanDate(item.deadline)+'.');
+      const s=this.data.settings,level=item.nextLevel,reminder=level===DUNNING_LEVELS[0];
+      const business=invoice.data.reverseCharge===true || invoice.data.customer?.customerType==='Gewerbekunde';
+      const yes=v=>v===true || ['true','on','ja'].includes(v);
+      const fee=reminder?0:round(num(options.fee===undefined || String(options.fee).trim()===''?(s.dunningFee || 0):options.fee));
+      if(fee<0 || fee>100)throw Error('Mahngebühr: 0 bis 100 EUR.');
+      const flatFee=!reminder && yes(options.flatFee);
+      if(flatFee && !business)throw Error('Die Verzugspauschale von 40 EUR gilt nur gegenüber Unternehmern (§ 288 Abs. 5 BGB). Kundenart „Gewerbekunde“ setzen oder Häkchen entfernen.');
+      if(flatFee && (invoice.dunnings || []).some(d=>d.flatFee>0))throw Error('Die Verzugspauschale wurde für diese Rechnung bereits berechnet.');
+      const days=options.days===undefined || String(options.days).trim()===''?this.dunningDays():Number(options.days);
+      if(!Number.isInteger(days) || days<1 || days>60)throw Error('Zahlungsfrist der Mahnung: 1 bis 60 Tage.');
+      const firstDunning=(invoice.dunnings || []).find(d=>d.level!==DUNNING_LEVELS[0]);
+      const starts=[firstDunning?addDays(firstDunning.date,1):null,business?addDays(item.due,31):null].filter(Boolean).sort();
+      let interest={amount:0,rate:0,days:0},interestFrom='';
+      if(!reminder && yes(options.interest) && starts.length && starts[0]<=date) {
+        interestFrom=starts[0];
+        interest=lateInterest(item.open,interestFrom,date,business?9:5,s.baseRates);
+      }
+      // Noch nicht bezahlte Kosten früherer Schreiben werden mitgefordert (Zinsen nur, wenn diesmal keine neu berechnet werden).
+      const prior=this.dunningCosts(invoice.id),previousFees=prior.feesOpen,previousInterest=interest.amount>0?0:prior.interestOpen;
+      const entry={id:uid(),level,number:this.nextDocumentNumber('M',date),date,deadline:addDays(date,days),due:item.due,open:item.open,fee,flatFee:flatFee?40:0,interest:interest.amount,interestRate:interest.rate,interestFrom,interestDays:interest.days,previousFees,previousInterest,total:round(item.open+fee+(flatFee?40:0)+interest.amount+previousFees+previousInterest),business,owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString()};
+      return this.transaction(level+' erstellt','invoices',invoice.id,d=>{const r=d.records.find(x=>x.id===invoice.id);r.dunnings=[...(r.dunnings || []),entry];return entry;});
+    }
+    dunningLetter(invoiceId, dunningId) {
+      const invoice=this.get(invoiceId),m=(invoice?.dunnings || []).find(d=>d.id===dunningId);
+      if(!m)throw Error('Mahnung nicht gefunden.');
+      const d=invoice.data,eur=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v),c=d.customer || {};
+      const lines=[['Rechnung '+d.number+' vom '+germanDate(this.invoiceDates(invoice).date)+', fällig am '+germanDate(m.due),eur(m.open)]];
+      if(m.fee)lines.push(['Mahngebühr',eur(m.fee)]);
+      if(m.flatFee)lines.push(['Verzugspauschale nach § 288 Abs. 5 BGB',eur(m.flatFee)]);
+      if(m.previousFees)lines.push(['Offene Mahnkosten aus früheren Schreiben',eur(m.previousFees)]);
+      if(m.previousInterest)lines.push(['Offene Verzugszinsen aus früheren Schreiben',eur(m.previousInterest)]);
+      if(m.interest)lines.push(['Verzugszinsen '+String(m.interestRate).replace('.',',')+' % p. a. vom '+germanDate(m.interestFrom)+' bis '+germanDate(m.date)+' ('+m.interestDays+' Tage)',eur(m.interest)]);
+      const intro={
+        'Zahlungserinnerung':'sicher haben Sie es im Alltag übersehen: Die folgende Rechnung ist noch nicht vollständig beglichen. Bitte überweisen Sie den offenen Betrag bis zum '+germanDate(m.deadline)+'. Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie es bitte als gegenstandslos.',
+        '1. Mahnung':'leider konnten wir zu der folgenden Rechnung trotz Fälligkeit noch keinen vollständigen Zahlungseingang feststellen. Bitte überweisen Sie den Gesamtbetrag bis zum '+germanDate(m.deadline)+'.',
+        '2. Mahnung':'auf unsere bisherigen Schreiben haben wir keinen vollständigen Zahlungseingang erhalten. Wir fordern Sie auf, den Gesamtbetrag bis spätestens '+germanDate(m.deadline)+' zu überweisen.',
+        'Letzte Mahnung':'trotz mehrfacher Erinnerung ist die folgende Forderung weiterhin offen. Wir fordern Sie letztmalig auf, den Gesamtbetrag bis spätestens '+germanDate(m.deadline)+' auf unser Konto zu überweisen. Nach fruchtlosem Ablauf dieser Frist werden wir ohne weitere Ankündigung das gerichtliche Mahnverfahren einleiten bzw. einen Rechtsanwalt beauftragen; die dadurch entstehenden Kosten gehen zu Ihren Lasten.'
+      }[m.level];
+      return {title:m.level+' '+m.number,number:m.number,level:m.level,date:m.date,deadline:m.deadline,recipient:[c.name,...customerAddressLines(c)].filter(Boolean),salutation:'Sehr geehrte Damen und Herren,',intro,lines,total:eur(m.total),closing:'Mit freundlichen Grüßen',reference:'Bitte geben Sie bei der Zahlung die Rechnungsnummer '+d.number+' an.'};
+    }
+    // Zahlungsausgang an Lieferanten / Nachunternehmer zu einer freigegebenen Eingangsrechnung.
+    payIncoming(incomingId, options={}) {
+      const r=this.get(incomingId);
+      if(r?.module!=='incoming' || r.projectId!==this.data.selectedProject)throw Error('Eingangsrechnung im aktuellen Projekt auswählen.');
+      if(r.status!=='Freigegeben')throw Error('Eingangsrechnung zuerst prüfen und freigeben.');
+      const kind=options.kind || 'Zahlungsausgang';
+      if(!OUTGOING_KINDS.includes(kind))throw Error('Buchungsart ungültig.');
+      const date=options.date;if(!validDate(date))throw Error('Zahlungsdatum angeben.');
+      this.assertOpenPeriod(date,'Zahlungsausgang');
+      const amount=round(num(options.amount));if(!(amount>0))throw Error('Betrag muss positiv sein.');
+      const open=this.incomingOpen(r);
+      if(amount>open)throw Error('Betrag übersteigt den offenen Betrag '+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(open)+'.');
+      const account=String(options.account || '').trim();
+      if(account && !/^\d{4,8}$/.test(account))throw Error('Konto: 4 bis 8 Ziffern oder leer lassen.');
+      const entry={id:uid(),kind,date,amount,account,notes:String(options.notes || '').trim().slice(0,500),owner:options.owner || 'Lokaler Testanwender',createdAt:new Date().toISOString()};
+      return this.transaction(kind+' gebucht','incoming',r.id,d=>{const x=d.records.find(y=>y.id===r.id);x.payouts=[...(x.payouts || []),entry];return entry;});
+    }
+    incomingGross(r) {return round(r.data.net*(1+(r.data.tax || 0)/100));}
+    incomingOpen(r) {return round(this.incomingGross(r)-(r.payouts || []).reduce((n,p)=>n+p.amount,0));}
+    openPayables() {
+      return this.data.records.filter(r=>r.module==='incoming' && r.status==='Freigegeben').map(r=>({id:r.id,projectId:r.projectId,supplier:r.data.supplier,number:r.data.invoiceNumber,date:r.data.date,gross:this.incomingGross(r),open:this.incomingOpen(r)})).filter(r=>r.open>0).sort((a,b)=>a.date.localeCompare(b.date));
+    }
+    // Buchungsjournal SKR03 (Soll an Haben, brutto). Abschlags-, Teil- und Schlussrechnungen buchen jeweils ihren eigenen Betrag;
+    // die Schlussrechnung enthält nur den noch nicht berechneten Rest. Sicherheitseinbehalt bleibt Forderung bis zur Auszahlung.
+    journal(range={}) {
+      for(const k of ['from','to'])if(range[k] && !validDate(range[k]))throw Error('Zeitraum ungültig.');
+      const a=this.accounts(),small=this.data.settings.smallBusiness===true,rows=[];
+      const projects=new Map(this.data.records.filter(r=>r.module==='projects').map(r=>[r.id,r.data.name]));
+      const inRange=day=>(!range.from || day>=range.from) && (!range.to || day<=range.to);
+      const own=text=>/\b(\d{4,8})\b/.exec(String(text || ''))?.[1];
+      const add=(date,document,text,debit,credit,amount,tax,source,projectId)=>{
+        amount=round(amount);if(!amount || !inRange(date))return;
+        if(amount<0)[debit,credit,amount]=[credit,debit,-amount];
+        rows.push({date,document:String(document || ''),text:String(text || '').replace(/\s+/g,' ').trim(),debit,credit,amount,tax:tax || 0,source,projectId,project:projects.get(projectId) || ''});
+      };
+      const revenue=d=>d.smallBusiness?a.revenueSmall:d.reverseCharge?a.revenue13b:d.tax===19?a.revenue19:d.tax===7?a.revenue7:a.revenueOther;
+      for(const r of this.data.records) {
+        const d=r.data;
+        if(r.module==='invoices') add(this.invoiceDates(r).date,d.number,(d.stornoOf?'Storno zu '+d.originalNumber:d.invoiceType || 'Rechnung')+' '+(d.customer?.name || ''),a.receivables,revenue(d),d.gross,d.smallBusiness || d.reverseCharge?0:d.tax,'Ausgangsrechnung',r.projectId);
+        if(r.module==='payments' && r.status==='Freigegeben') {
+          const inv=this.get(d.invoiceId),no=inv?.data.number || '',k=d.direction || 'Zahlungseingang',text=k+' '+(inv?.data.customer?.name || '');
+          const tax=inv?.data.smallBusiness || inv?.data.reverseCharge?0:inv?.data.tax;
+          if(k==='Zahlungseingang' || k==='Einbehalt ausgezahlt')add(d.date,no,text,own(d.account) || a.bank,a.receivables,d.amount,0,'Zahlung',r.projectId);
+          if(k==='Rückzahlung')add(d.date,no,text,a.receivables,own(d.account) || a.bank,d.amount,0,'Zahlung',r.projectId);
+          if(k==='Skonto / Abzug')add(d.date,no,text,own(d.account) || (tax===19?a.discount19:tax===7?a.discount7:a.discount0),a.receivables,d.amount,tax,'Zahlung',r.projectId);
+          if(k==='Restbetrag ausgebucht')add(d.date,no,text,own(d.account) || a.writeOff,a.receivables,d.amount,tax,'Zahlung',r.projectId);
+          if(k==='Restbetrag auf Zwischenkonto')add(d.date,no,text,own(d.account) || a.suspense,a.receivables,d.amount,0,'Zahlung',r.projectId);
+          // Mahnkosten und Verzugszinsen sind nicht umsatzsteuerbarer Schadensersatz: Bank an sonstige Erträge bzw. Zinserträge.
+          if(k==='Mahngebühr erhalten')add(d.date,no,text,a.bank,own(d.account) || a.dunningIncome,d.amount,0,'Zahlung',r.projectId);
+          if(k==='Verzugszinsen erhalten')add(d.date,no,text,a.bank,own(d.account) || a.interestIncome,d.amount,0,'Zahlung',r.projectId);
+        }
+        if(r.module==='incoming' && r.status==='Freigegeben') {
+          const tax=small?0:d.tax,expense=d.subcontractId?a.subcontract:tax===19?a.material19:tax===7?a.material7:a.material0;
+          add(d.date,d.invoiceNumber,'ER '+d.supplier,expense,a.payables,this.incomingGross(r),tax,'Eingangsrechnung',r.projectId);
+          for(const p of r.payouts || []) {
+            if(p.kind==='Zahlungsausgang')add(p.date,d.invoiceNumber,'Zahlung an '+d.supplier,a.payables,p.account || a.bank,p.amount,0,'Zahlungsausgang',r.projectId);
+            else add(p.date,d.invoiceNumber,'Skonto '+d.supplier,a.payables,p.account || (tax===19?a.received19:tax===7?a.received7:a.received0),p.amount,tax,'Zahlungsausgang',r.projectId);
+          }
+        }
+      }
+      return rows.sort((x,y)=>x.date.localeCompare(y.date) || x.document.localeCompare(y.document) || x.debit.localeCompare(y.debit));
+    }
+    // DATEV-Buchungsstapel (EXTF) für einen Zeitraum mit Berater-/Mandantennummer aus den Einstellungen.
+    datevExport(range={}, now=new Date()) {
+      const s=this.data.settings;
+      return {fileName:'EXTF_DachWerkPro_Buchungsstapel_'+range.from+'_'+range.to+'.csv',text:datevExtf(this.journal(range),{consultant:s.datevConsultant,client:s.datevClient,fiscalYearStart:s.fiscalYearStart,from:range.from,to:range.to,now})};
+    }
+    // Kontensalden (Soll − Haben) aus dem Journal, z. B. 1400 = offene Forderungen inkl. Einbehalt.
+    balances(range={}) {
+      const sums=new Map();
+      for(const r of this.journal(range)){sums.set(r.debit,round((sums.get(r.debit) || 0)+r.amount));sums.set(r.credit,round((sums.get(r.credit) || 0)-r.amount));}
+      return [...sums].map(([account,balance])=>({account,balance})).sort((x,y)=>x.account.localeCompare(y.account));
     }
     costChecks() {
       if(!this.project())throw Error('Projekt auswählen.');
@@ -1075,6 +1371,33 @@
       if(!employee?.assignments?.some(a=>a.id===assignmentId && !a.cancelled))throw Error('Aktiver Einsatz nicht gefunden.');
       return this.transaction('Einsatz storniert','personnel',employeeId,d=>{const a=d.records.find(r=>r.id===employeeId).assignments.find(a=>a.id===assignmentId);a.cancelled=true;a.cancelledAt=new Date().toISOString();});
     }
+    // Benutzerrechte (nur Administrator): Projekt-Häkchen, Verknüpfung mit dem Personalsatz und Sonderschalter.
+    setUserAccess(userId, values={}) {
+      userId=String(userId || '').trim();
+      if(!/^[A-Za-z0-9_-]{1,100}$/.test(userId))throw Error('Benutzer fehlt.');
+      const projectIds=new Set(Array.isArray(values.projectIds)?values.projectIds.map(String):[]);
+      for(const id of projectIds)if(this.get(id)?.module!=='projects')throw Error('Projekt nicht gefunden.');
+      const personnelId=values.personnelId?String(values.personnelId):'';
+      if(personnelId && this.get(personnelId)?.module!=='personnel')throw Error('Personalsatz nicht gefunden.');
+      return this.transaction('Benutzerrechte geändert','operating',null,d=>{
+        for(const p of d.records.filter(r=>r.module==='projects')) {
+          const members=String(p.data.memberIds || '').split(',').map(s=>s.trim()).filter(Boolean).filter(id=>id!==userId);
+          if(projectIds.has(p.id))members.push(userId);
+          p.data.memberIds=members.join(',');
+        }
+        for(const e of d.records.filter(r=>r.module==='personnel')) {
+          if(e.id===personnelId)e.data.userId=userId;
+          else if(String(e.data.userId || '').trim()===userId)e.data.userId='';
+        }
+        d.settings.userAccess={...(d.settings.userAccess || {}),[userId]:{allCalendars:values.allCalendars===true,hidePhone:values.hidePhone===true}};
+      });
+    }
+    respondSchedule(employeeId, assignmentId, values={}) {
+      const employee=this.get(employeeId),answer=values.answer,note=String(values.note || '').trim().slice(0,300);
+      if(!['Zugesagt','Abgesagt'].includes(answer))throw Error('Bitte zusagen oder absagen.');
+      if(employee?.module!=='personnel' || !employee.assignments?.some(a=>a.id===assignmentId && !a.cancelled))throw Error('Aktiver Einsatz nicht gefunden.');
+      return this.transaction(answer==='Zugesagt'?'Einsatz zugesagt':'Einsatz abgesagt','personnel',employeeId,d=>{const a=d.records.find(r=>r.id===employeeId).assignments.find(a=>a.id===assignmentId);a.response=answer;a.responseNote=note;a.respondedAt=new Date().toISOString();});
+    }
     sign(recordId, values) {
       if(this.project()?.data.phase==='Abgeschlossen')throw Error('Abgeschlossenes Projekt zuerst mit Begründung wieder öffnen.');
       const record=this.get(recordId);
@@ -1173,10 +1496,13 @@
       });
     }
     restore(text) {
-      const data=JSON.parse(text);this.validate(data);
+      // Akzeptiert das datierte Sicherungsformat (ab 21.11.2026) und ältere reine Bestandsdateien.
+      const data=backupFormat.unwrap(typeof text==='string'?JSON.parse(text):text).state;this.validate(data);
       return this.transaction('Sicherung wiederhergestellt','projects',null,d=>{
         d.records=data.records;d.selectedProject=data.selectedProject;d.settings=data.settings;
-        d.audit.push(...data.audit);
+        // Logbuch bleibt erhalten; Einträge, die schon vorhanden sind, werden nicht doppelt angehängt.
+        const known=new Set(d.audit.map(e=>e.id).filter(Boolean));
+        d.audit.push(...data.audit.filter(e=>!e.id || !known.has(e.id)));
       });
     }
   }
@@ -1190,7 +1516,69 @@
       String(p.text || ''),decimal(p.ep),''
     ])];
   };
-  const api={Store,modules,definitions,statuses,stages,num,round,empty,capacity,berlinDay,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
+  // Gesetzliche Feiertage je Bundesland (Standard Bremen). Sonntage wie Oster- und
+  // Pfingstsonntag fehlen, weil Einsätze nur Mo–Sa geplant werden. Mariä Himmelfahrt
+  // nur Saarland (in Bayern gemeindeabhängig), Buß- und Bettag nur Sachsen.
+  const holidayStates={BW:'Baden-Württemberg',BY:'Bayern',BE:'Berlin',BB:'Brandenburg',HB:'Bremen',HH:'Hamburg',HE:'Hessen',MV:'Mecklenburg-Vorpommern',NI:'Niedersachsen',NW:'Nordrhein-Westfalen',RP:'Rheinland-Pfalz',SL:'Saarland',SN:'Sachsen',ST:'Sachsen-Anhalt',SH:'Schleswig-Holstein',TH:'Thüringen'};
+  function easterSunday(year) {
+    const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),n=h+l-7*m+114;
+    return Date.UTC(year,Math.floor(n/31)-1,n%31+1);
+  }
+  function holidays(year, state='HB') {
+    year=Number(year);
+    if(!Number.isInteger(year) || year<1995 || year>2200)return [];
+    if(!Object.hasOwn(holidayStates,state))state='HB';
+    const iso=t=>new Date(t).toISOString().slice(0,10),easter=easterSunday(year),rel=n=>iso(easter+n*864e5),fix=(m,d)=>`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const list=[[fix(1,1),'Neujahr'],[rel(-2),'Karfreitag'],[rel(1),'Ostermontag'],[fix(5,1),'Tag der Arbeit'],[rel(39),'Christi Himmelfahrt'],[rel(50),'Pfingstmontag'],[fix(10,3),'Tag der Deutschen Einheit'],[fix(12,25),'1. Weihnachtstag'],[fix(12,26),'2. Weihnachtstag']];
+    const add=(states,date,name,since=0)=>{if(year>=since && states.includes(state))list.push([date,name]);};
+    add(['BW','BY','ST'],fix(1,6),'Heilige Drei Könige');
+    add(['BE'],fix(3,8),'Internationaler Frauentag',2019);
+    add(['MV'],fix(3,8),'Internationaler Frauentag',2023);
+    add(['BW','BY','HE','NW','RP','SL'],rel(60),'Fronleichnam');
+    add(['SL'],fix(8,15),'Mariä Himmelfahrt');
+    add(['TH'],fix(9,20),'Weltkindertag',2019);
+    add(['BB','MV','SN','ST','TH'],fix(10,31),'Reformationstag');
+    add(['HB','HH','NI','SH'],fix(10,31),'Reformationstag',2018);
+    if(year===2017 && !list.some(h=>h[1]==='Reformationstag'))list.push([fix(10,31),'Reformationstag']);
+    add(['BW','BY','NW','RP','SL'],fix(11,1),'Allerheiligen');
+    if(state==='SN'){const t=Date.UTC(year,10,22);list.push([iso(t-((new Date(t).getUTCDay()+4)%7)*864e5),'Buß- und Bettag']);}
+    return list.map(([date,name])=>({date,name})).sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  // Feiertage im Zeitraum from..to (je JJJJ-MM-TT, einschließlich).
+  function holidaysBetween(from, to, state='HB') {
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '') || from>to)return [];
+    const out=[];
+    for(let y=Number(from.slice(0,4));y<=Number(to.slice(0,4)) && y<=Number(from.slice(0,4))+5;y++)out.push(...holidays(y,state).filter(h=>h.date>=from && h.date<=to));
+    return out;
+  }
+  // DATEV-Format „Buchungsstapel“ (EXTF, Version 700, Formatversion 13) mit den ersten 14 Standardfeldern.
+  // Vor dem ersten produktiven Import mit dem Steuerberater testen. Kodierung: Windows-1252 (siehe cp1252).
+  const EXTF_COLUMNS=['Umsatz (ohne Soll/Haben-Kz)','Soll/Haben-Kennzeichen','WKZ Umsatz','Kurs','Basis-Umsatz','WKZ Basis-Umsatz','Konto','Gegenkonto (ohne BU-Schlüssel)','BU-Schlüssel','Belegdatum','Belegfeld 1','Belegfeld 2','Skonto','Buchungstext'];
+  function datevExtf(rows, options={}) {
+    const consultant=String(options.consultant || '').trim(),client=String(options.client || '').trim(),{from,to}=options;
+    if(!/^\d{4,7}$/.test(consultant) || Number(consultant)<1001)throw Error('DATEV: Beraternummer (4 bis 7 Ziffern, ab 1001) unter Einstellungen → Buchhaltung eintragen.');
+    if(!/^\d{1,5}$/.test(client) || Number(client)<1)throw Error('DATEV: Mandantennummer (1 bis 99999) unter Einstellungen → Buchhaltung eintragen.');
+    if(!validDate(from) || !validDate(to) || from>to)throw Error('DATEV: Zeitraum mit „Von“ und „Bis“ wählen.');
+    const startMonth=Number.isInteger(options.fiscalYearStart) && options.fiscalYearStart>=1 && options.fiscalYearStart<=12?options.fiscalYearStart:1;
+    const fy=day=>{const [y,m]=day.split('-').map(Number),year=m>=startMonth?y:y-1;return year+'-'+String(startMonth).padStart(2,'0')+'-01';};
+    if(fy(from)!==fy(to))throw Error('DATEV: Ein Buchungsstapel darf nur ein Wirtschaftsjahr umfassen. Zeitraum ab '+germanDate(fy(to))+' wählen.');
+    const lengths=new Set(rows.flatMap(r=>[r.debit,r.credit]).map(a=>String(a).length));
+    if(lengths.size>1)throw Error('DATEV: Alle Konten müssen gleich lang sein (gefunden: '+[...lengths].sort().join(', ')+' Stellen). Konten unter Einstellungen angleichen.');
+    const length=[...lengths][0] || 4,q=v=>'"'+String(v ?? '').replace(/"/g,'""')+'"',d=day=>day.replace(/-/g,'');
+    const now=options.now instanceof Date?options.now:new Date(),stamp=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(now).replace(/\D/g,'')+'000';
+    const header=[q('EXTF'),700,21,q('Buchungsstapel'),13,stamp,'',q('RE'),q(''),q(''),consultant,client,d(fy(from)),length,d(from),d(to),q(String(options.label || 'DWP '+from+' bis '+to).slice(0,30)),q(''),1,0,0,q('EUR'),'',q(''),'','',q('03'),'','',q(''),q('')];
+    const belegfeld=v=>String(v || '').replace(/[^A-Za-z0-9$&%*+\-/]/g,'').slice(0,36);
+    const lines=[header.join(';'),EXTF_COLUMNS.join(';'),...rows.map(r=>[Number(r.amount).toFixed(2).replace('.',','),q('S'),q('EUR'),'','','',r.debit,r.credit,q(''),r.date.slice(8,10)+r.date.slice(5,7),q(belegfeld(r.document)),q(''),'',q(String(r.text || '').slice(0,60))].join(';'))];
+    return lines.join('\r\n')+'\r\n';
+  }
+  // Windows-1252 für DATEV. Zeichen außerhalb des Zeichensatzes werden durch „?“ ersetzt.
+  const CP1252_EXTRA={'€':0x80,'‚':0x82,'ƒ':0x83,'„':0x84,'…':0x85,'†':0x86,'‡':0x87,'ˆ':0x88,'‰':0x89,'Š':0x8a,'‹':0x8b,'Œ':0x8c,'Ž':0x8e,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,'•':0x95,'–':0x96,'—':0x97,'˜':0x98,'™':0x99,'š':0x9a,'›':0x9b,'œ':0x9c,'ž':0x9e,'Ÿ':0x9f};
+  function cp1252(text) {
+    const chars=[...String(text).normalize('NFC')],out=new Uint8Array(chars.length);
+    chars.forEach((c,i)=>{const code=c.codePointAt(0);out[i]=CP1252_EXTRA[c] ?? (code<0x80 || (code>=0xa0 && code<=0xff)?code:0x3f);});
+    return out;
+  }
+  const api={ACCOUNTS,ACCOUNT_LABELS,DUNNING_LEVELS,BASE_RATES,OUTGOING_KINDS,PAYMENT_KINDS,COST_KINDS,datevExtf,cp1252,lateInterest,addDays,germanDate,Store,modules,definitions,statuses,stages,num,round,empty,capacity,berlinDay,backupFormat,holidays,holidaysBetween,holidayStates,bfwTransferRows,supplierQuotePrice,customerAddressLines,nextCustomerNumber,projectDefaultsFromCustomer,sortRecords};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else root.DWPProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

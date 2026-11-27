@@ -782,7 +782,7 @@ function handleAction(action) {
     "run-analysis": ["Analyse gestartet", "184 Positionen werden technisch und kaufmännisch geprüft."],
     "review-issue": ["Prüfvorgang geöffnet", "Der Hinweis ist zur fachlichen Bewertung vorgemerkt."],
     "save-settings": ["Einstellungen gespeichert", "Die Testwerte wurden in diesem Browser lokal übernommen."],
-    calendar: ["Kalender", "Die Outlook-Kalenderanbindung folgt mit Microsoft Graph."],
+    calendar: ["Kalender", "Wochenansicht, Feiertage und Outlook-Abo stehen in Modul 18 „Personal und Termine“."],
     activity: ["Aktivitätsprotokoll", "Das vollständige Änderungsjournal ist für Release 0.2 vorgesehen."],
     "open-project": ["Projektakte geöffnet", "Detailansicht, Dokumente und Kalkulation werden zusammengeführt."],
     "list-view": ["Listenansicht", "Die Tabellenansicht wird für die Projektübersicht ergänzt."],
@@ -794,6 +794,10 @@ function handleAction(action) {
   };
   if (action.startsWith("connect-")) {
     showToast("Verbindung vorbereitet", "Die Anmeldung wird erst nach Einrichtung der jeweiligen API freigeschaltet.");
+    return;
+  }
+  if (action === "calendar" && window.DWPWorkspace) {
+    window.DWPWorkspace.open("personnel");
     return;
   }
   const [title, copy] = messages[action] || ["Funktion vorbereitet", "Dieser Baustein wird in einem der nächsten Releases aktiviert."];

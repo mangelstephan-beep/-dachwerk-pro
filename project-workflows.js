@@ -17,7 +17,7 @@
   try {db=new core.Store(localStorage);} catch(error) {
     main.innerHTML=panel('Bestand kann nicht geöffnet werden',`<p>${esc(error.message)}</p><p>Der vorhandene Speicher wird nicht überschrieben.</p>`);return;
   }
-  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings','register'].includes(id);
+  const validModule=id=>Object.hasOwn(core.definitions,id) || ['dashboard','workflow','access','audit','help','settings','register','users','backup'].includes(id);
   const moduleUrl=id=>{const url=new URL(window.location.href);url.searchParams.set('start','app');url.searchParams.set('module',validModule(id)?id:'dashboard');url.hash='';return url;};
   window.DWPWorkspace={get store(){return db;},open:openModule,start(){
     const requested=new URLSearchParams(window.location.search).get('module');
@@ -31,6 +31,7 @@
     let raw=JSON.stringify(data);
     db=new core.Store({getItem:()=>raw,setItem:(_key,value)=>{raw=value;}});
     if(selected && db.get(selected)?.module==='projects')db.data.selectedProject=selected;
+    if(selectionKey!==key){feedInfo=null;feedUrl='';}
     selectionKey=key;rememberProject();
     state.currentUser=user.name || user.id;
   }};
@@ -147,7 +148,7 @@
     const mod=core.definitions[current], isGlobal=mod?.scope==='global' && !['customers','projects'].includes(current);
     const subtitle=moduleSubtitles[current] || (isGlobal?'Betriebsweite Stammdaten für alle Projekte.':'Gemeinsame Projektakte mit nachvollziehbaren Freigaben und Dokumentfassungen.');
     const context=isGlobal?`<p class="dwp-global-note"><strong>Betriebsweite Stammdaten</strong> · Kein Projekt erforderlich. Einträge stehen in allen Projekten zur Verfügung.</p>`:projectBar();
-    return `<nav class="dwp-module-navigation" aria-label="Modulnavigation">${btn('← Zurück','module-back')}${btn('Alle Module','open','dashboard')}<a class="button button-secondary" data-dwp="direct-link" href="${esc(moduleUrl(current).href)}">Direktlink</a></nav><header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>${esc(subtitle)}</p></div><div class="header-actions">${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${context}`;
+    return `<nav class="dwp-module-navigation" aria-label="Modulnavigation">${btn('← Zurück','module-back')}${btn('Alle Module','open','dashboard')}<a class="button button-secondary" data-dwp="direct-link" href="${esc(moduleUrl(current).href)}">Direktlink</a></nav><header class="page-header"><div><span class="eyebrow">DachWerk Pro · Verbundene Arbeitsmodule</span><h1 tabindex="-1">${esc(name)}</h1><p>${esc(subtitle)}</p></div><div class="header-actions">${btn('Workflow','open','workflow')}${btn('Zugriff und Nutzung','open','access')}${btn('Logbuch','open','audit')}${btn('Sicherung','open','backup')}</div></header><p class="dwp-local-note">Lokaler Testbetrieb · Daten bleiben in diesem Browser. Produktive Benutzerrechte, Cloud-Ablage und Schnittstellen sind noch nicht freigegeben.</p>${context}`;
   }
   function shell(name,body) {
     subpage=!renderingModule;
@@ -173,14 +174,15 @@
     if(!window.DWPRemote?.active)return panel('Zugriffsschutz','<p>Anmelde- und Modulprotokoll sowie Gerätefreigaben sind ausschließlich in der zentralen Betriebsfassung verfügbar. Im lokalen Modultest werden keine produktiven Anmeldungen protokolliert.</p>');
     window.DWPRemote.accessReport().then(report=>{
       const node=main.querySelector('#dwp-access-report');if(!node)return;
-      node.innerHTML=panel('Modulnutzung der letzten 30 Tage',table(['Benutzer','Modul','Aufrufe','Zuletzt'],report.usage.map(r=>[esc(r.actor_name || r.actor),esc(core.definitions[r.module_id]?.name || r.module_id),esc(r.opens),esc(new Date(r.last_used).toLocaleString('de-DE'))])))+panel('Anmeldungen und Zugriffsvorgänge',table(['Wann','Wer','Vorgang','Ergebnis','Browser'],report.events.map(r=>[esc(new Date(r.created_at).toLocaleString('de-DE')),esc(r.actor_name || r.actor),esc(({login:'Anmeldung',password_reset:'Passwort per Mail-Link zurückgesetzt',module_open:'Modul geöffnet',export_denied:'Export gesperrt'})[r.event_type] || r.event_type),esc(r.outcome),esc(r.user_agent)])))+panel('Freigegebene Exportgeräte',table(['Gerät','Freigabe'],report.devices.map(d=>[esc(d.slot),esc(new Date(d.paired_at).toLocaleString('de-DE'))])));
+      node.innerHTML=panel('Modulnutzung der letzten 30 Tage',table(['Benutzer','Modul','Aufrufe','Zuletzt'],report.usage.map(r=>[esc(r.actor_name || r.actor),esc(core.definitions[r.module_id]?.name || r.module_id),esc(r.opens),esc(new Date(r.last_used).toLocaleString('de-DE'))])))+panel('Anmeldungen und Zugriffsvorgänge',table(['Wann','Wer','Vorgang','Ergebnis','Browser'],report.events.map(r=>[esc(new Date(r.created_at).toLocaleString('de-DE')),esc(r.actor_name || r.actor),esc(({login:'Anmeldung',password_reset:'Passwort per Mail-Link zurückgesetzt',module_open:'Modul geöffnet',export_denied:'Export gesperrt',export:'Export',backup_created:'Sicherung angelegt',backup_download:'Sicherung heruntergeladen',backup_restored:'Sicherung eingespielt',user_create:'Benutzer angelegt',user_update:'Benutzer geändert',user_block:'Benutzer gesperrt',user_unblock:'Benutzer entsperrt',user_set_password:'Neues Passwort gesetzt',password_changed:'Eigenes Passwort geändert'})[r.event_type] || r.event_type),esc(r.outcome),esc(r.user_agent)])))+panel('Freigegebene Exportgeräte',table(['Gerät','Freigabe'],report.devices.map(d=>[esc(d.slot),esc(new Date(d.paired_at).toLocaleString('de-DE'))])));
     }).catch(showError);
     return panel('Eigentümer-Zugriff',`<p>Nur Stephan kann dieses Protokoll lesen. Modulaufrufe werden gezählt, nicht die aktive Arbeitszeit. Direkte API-Schreibvorgänge stehen zusätzlich im Projektlogbuch.</p><div id="dwp-access-report">Protokoll wird geladen …</div><form id="dwp-pair" class="quick-form">${field('Einmaliger Gerätefreigabecode', '<input name="token" type="password" autocomplete="off" required>')}<button class="button button-primary" type="submit">Dieses Gerät freigeben</button></form><p>Die kurz gültigen Codes werden außerhalb der App für iPhone oder HP-Laptop ausgestellt. Auf anderen Geräten bleiben Exporte gesperrt.</p>`);
   }
   function dashboard() {
     const p=db.project(), stats=p?db.controlling():null;
-    shell('Alle Arbeitsmodule',`${panel('Modul 37 · Schriftverkehr-Sammelpool',btn('Dokumentenregister öffnen','open','register',true))}${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
+    shell('Alle Arbeitsmodule',`<div id="dwp-expiry-alerts"></div>${panel('Modul 37 · Schriftverkehr-Sammelpool',btn('Dokumentenregister öffnen','open','register',true))}${upcomingPanel()}${p?panel('Aktuelles Projekt',`<h3>${esc(p.data.name)}</h3><p>${esc(names(p.data.customerId))} · ${esc(p.data.phase)}</p><div class="dwp-metrics"><span>LV: ${db.list('lv').length} Positionen</span><span>Kalkulation: ${money(db.calculation().net)}</span><span>Ist-Kosten: ${money(stats.actual)}</span><span>Offener Zahlungsbetrag: ${money(stats.outstanding)}</span></div>`):panel('Projekt starten',`<p>Lege zuerst einen Kunden und danach ein Projekt an. Wähle das Projekt oben aus; alle Fachvorgänge folgen dieser Zuordnung.</p>`)}${p?panel('Nächster Arbeitsschritt',`${btn(core.definitions[db.workflow().next].name,'open',db.workflow().next,true)}${btn('Übergaben prüfen','open','workflow')}`):''}<p class="dwp-acceptance-summary">Produktionsabnahme: ${core.modules.filter(m=>verified(m.id)).length} von ${core.modules.length} Modulen GRÜN. ${window.DWPRemote?.active?'Offene Prüfungen stehen am jeweiligen Modul.':'Im lokalen Testbetrieb werden keine Produktionsfreigaben angezeigt.'}</p><label>Modul suchen<input id="dwp-module-search" type="search" placeholder="z. B. Aufmaß, Rechnung, Gutachten" value="${esc(search)}"></label><div class="module-grid dwp-module-grid">${core.modules.map((m,i)=>`<article class="module-card" data-dwp-card data-name="${esc(m.name.toLocaleLowerCase('de'))}"><span class="eyebrow">${String(i+1).padStart(2,'0')} · ${m.scope==='global'?'Stammdaten':'Projektakte'}</span><h3>${esc(m.name)}</h3><p>${verificationBadge(m.id)}</p><p class="dwp-module-reason">${esc(verified(m.id)?'Produktiv abgenommen am '+window.DWPVerification.modules[m.id].checkedAt:window.DWPVerification?.modules[m.id]?.remaining || 'Dokumentierte Produktions- und Geräteabnahme ausstehend.')}</p><p>${db.list(m.id).length} gespeicherte Vorgänge${['imports','pricelists','correspondence','documents','tenders','acceptance','efb'].includes(m.id)?' · Spezialfunktionen in Entwicklung':''}</p>${btn('Öffnen','open',m.id)}</article>`).join('')}</div>`);
     filterModules();
+    setTimeout(dashboardAlerts,0);
   }
   function searchRecords(query) {
     if(state.unsavedChanges && !confirm('Ungespeicherte Eingaben verwerfen und Suche öffnen?'))return;
@@ -275,11 +277,70 @@
     if(['materials','suppliers'].includes(mod.id))summary+=quotePanel();
     if(mod.id==='personnel')summary+=schedulePanel();
     if(mod.id==='pricelists')summary+=priceImportPanel();
+    if(mod.id==='payments')summary=dunningPanels()+summary;
+    if(mod.id==='incoming')summary+=payablesPanel();
     let integration='';
-    const missing={pricelists:'CSV, XLSX, XLS (Excel 2.0 bis 2003) und DATANORM 4 werden mit Spaltenzuordnung, Preisberechnung und verbindlicher Vorschau übernommen. Importierte Preise müssen einzeln freigegeben werden. DATANORM 5 und Geräteabnahme sind noch offen.',correspondence:'Nachrichten werden als Entwurf geführt. Ein Versand- oder Zustellnachweis entsteht erst mit einer eingerichteten Mailanbindung.',documents:'Fotos und PDF können zugeordnet werden. Scannersteuerung und automatische OCR sind noch nicht angeschlossen.',tenders:'Vergaben mit Fundstelle und Frist können erfasst werden. Der automatische Quellenscan ist noch nicht angeschlossen.',acceptance:'Handschriftliche Unterschriften werden mit dem angezeigten Protokollstand gespeichert. Zentrale Originalablage und qualifizierte elektronische Signatur sind nicht angeschlossen.',personnel:'Einsatzzeiträume werden auf Doppelbelegung geprüft. Sensible Lohn-, Steuer- und SV-Stammdaten benötigen geschützte serverseitige Rollen.'};
+    const missing={pricelists:'CSV, XLSX, XLS (Excel 2.0 bis 2003) und DATANORM 4 werden mit Spaltenzuordnung, Preisberechnung und verbindlicher Vorschau übernommen. Importierte Preise müssen einzeln freigegeben werden. DATANORM 5 und Geräteabnahme sind noch offen.',correspondence:'Nachrichten werden als Entwurf geführt. Ein Versand- oder Zustellnachweis entsteht erst mit einer eingerichteten Mailanbindung.',documents:'Fotos und PDF können zugeordnet werden. Scannersteuerung und automatische OCR sind noch nicht angeschlossen.',tenders:'Vergaben mit Fundstelle und Frist können erfasst werden. Der automatische Quellenscan ist noch nicht angeschlossen.',acceptance:'Handschriftliche Unterschriften werden mit dem angezeigten Protokollstand gespeichert. Zentrale Originalablage und qualifizierte elektronische Signatur sind nicht angeschlossen.',personnel:'Einsatzzeiträume werden auf Doppelbelegung geprüft. Jeder Benutzer sieht im Kalender nur seine eigenen Einsätze; Administrator und Personal sehen alle. WhatsApp öffnet nur eine vorbereitete Nachricht, einen Zustellnachweis gibt es nicht. Outlook-Kalender, Feiertage und Teilzeitschichten sind noch nicht angebunden. Sensible Lohn-, Steuer- und SV-Stammdaten benötigen geschützte serverseitige Rollen.'};
     if(missing[mod.id]) integration=panel('Funktionsstand',`<p>${esc(missing[mod.id])}</p>`);
     const attachments=list.flatMap(r=>(r.attachments || []).map(a=>`<li>${esc(names(r.id))} · ${esc(a.name)} ${btn('Öffnen','file',`${r.id}/${a.id}`)}</li>`));
-    shell(mod.name,`${integration}${recordForm(mod)}${panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
+    shell(mod.name,`${integration}${mod.id==='personnel'?calendarPanel()+feedPanel():''}${recordForm(mod)}${panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
+  }
+  // ---- Buchhaltung: Offene Posten, Mahnwesen (Modul 29), Zahlungsausgang (Modul 28), SKR03-Journal (Modul 30) ----
+  let journalRange={};
+  const projectName=id=>db.get(id)?.data.name || '';
+  function dunningPanels() {
+    const items=db.openItems(),today=core.berlinDay(),due=items.filter(i=>i.canDun);
+    const rows=items.map(i=>[`<strong>${esc(i.number)}</strong>`,`${esc(i.customer)}<small>${esc(projectName(i.projectId))}</small>`,esc(deDate(i.due)),i.daysOverdue?`<strong>${esc(i.daysOverdue)}</strong>`:'–',money(i.open),i.retentionDue?money(i.retentionDue):'–',i.costsOpen?money(i.costsOpen):'–',esc(i.level || '–')+(i.deadline?`<small>Frist ${esc(deDate(i.deadline))}</small>`:''),esc(i.canDun?i.nextLevel:i.nextLevel?'nach Fristablauf':i.open>0?'–':i.retentionDue>0?'Einbehalt anfordern':'Mahnkosten verbuchen')]);
+    const options=due.map(i=>`<option value="${esc(i.invoiceId)}">${esc(i.number+' · '+i.customer+' · offen '+money(i.open)+' → '+i.nextLevel)}</option>`).join('');
+    const form=due.length?`<form id="dwp-dunning" class="quick-form">${field('Rechnung',`<select name="invoiceId" required>${options}</select>`)}${field('Mahndatum',`<input type="date" name="date" value="${esc(today)}" max="${esc(today)}" required>`)}${field('Zahlungsfrist in Tagen',`<input name="days" inputmode="numeric" value="${esc(db.dunningDays())}">`)}${field('Mahngebühr EUR (nicht bei Zahlungserinnerung)',`<input name="fee" inputmode="decimal" value="${esc(String(db.data.settings.dunningFee ?? 0).replace('.',','))}">`)}<div><label><input type="checkbox" name="interest"> Verzugszinsen berechnen (§ 288 BGB: Privat Basiszins + 5, Gewerbe + 9 Prozentpunkte)</label></div><div><label><input type="checkbox" name="flatFee"> Verzugspauschale 40 EUR (nur Gewerbekunden, einmal je Rechnung)</label></div><div class="dwp-actions"><button class="button button-primary" type="submit">Mahnstufe erstellen</button></div></form><p>Stufen: Zahlungserinnerung (ohne Kosten) → 1. Mahnung → 2. Mahnung → Letzte Mahnung. Die nächste Stufe ist erst nach Ablauf der Frist möglich. Verzugszinsen laufen bei Privatkunden ab Zugang der 1. Mahnung, bei Gewerbekunden spätestens 30 Tage nach Fälligkeit. Kein Rechtsrat – im Zweifel Anwalt fragen.</p>`:'<p>Aktuell ist keine Rechnung mahnfähig.</p>';
+    const history=db.data.records.filter(r=>r.module==='invoices' && r.dunnings?.length).flatMap(r=>r.dunnings.map(m=>({r,m}))).sort((a,b)=>b.m.date.localeCompare(a.m.date) || b.m.number.localeCompare(a.m.number));
+    return panel('Offene Posten und Mahnwesen',`<p>Alle offenen Ausgangsrechnungen der sichtbaren Projekte. Fälligkeit = Rechnungsdatum + Zahlungsziel. Sicherheitseinbehalte werden nicht angemahnt, sondern nach Fristablauf als „Einbehalt fällig“ gemeldet.</p>${table(['Rechnung','Kunde / Projekt','Fällig','Tage überfällig','Offen','Einbehalt fällig','Mahnkosten offen','Mahnstufe','Nächster Schritt'],rows)}${form}<p>Gezahlte Mahngebühren, Verzugspauschale und Verzugszinsen unten unter „Zahlung und Kontierung“ mit der Buchungsart „Mahngebühr erhalten“ bzw. „Verzugszinsen erhalten“ buchen (höchstens der angemahnte Betrag; SKR03 ${esc(db.accounts().dunningIncome)} bzw. ${esc(db.accounts().interestIncome)}).</p>`)
+      +panel('Erstellte Mahnungen',table(['Nummer','Stufe','Rechnung','Datum','Frist','Gesamt','Aktion'],history.map(({r,m})=>[esc(m.number),esc(m.level),esc(r.data.number),esc(deDate(m.date)),esc(deDate(m.deadline)),money(m.total),btn('Drucken / PDF','dunning-print',r.id+'/'+m.id)])));
+  }
+  function payablesPanel() {
+    const open=db.openPayables(),today=core.berlinDay();
+    const form=open.length?`<form id="dwp-payout" class="quick-form">${field('Eingangsrechnung',`<select name="incomingId" required>${open.map(r=>`<option value="${esc(r.id)}">${esc(r.supplier+' · '+r.number+' · offen '+money(r.open))}</option>`).join('')}</select>`)}${field('Buchungsart',`<select name="kind">${core.OUTGOING_KINDS.map(k=>`<option>${esc(k)}</option>`).join('')}</select>`)}${field('Datum',`<input type="date" name="date" value="${esc(today)}" required>`)}${field('Betrag brutto EUR',`<input name="amount" inputmode="decimal" required>`)}${field('Konto (leer = Bank '+db.accounts().bank+' bzw. Skontokonto)',`<input name="account" inputmode="numeric">`)}${field('Bemerkung',`<input name="notes">`)}<div class="dwp-actions"><button class="button button-primary" type="submit">Zahlung buchen</button></div></form>`:'<p>Keine offenen Eingangsrechnungen.</p>';
+    const paid=db.data.records.filter(r=>r.module==='incoming' && r.payouts?.length).flatMap(r=>r.payouts.map(p=>[esc(deDate(p.date)),esc(r.data.supplier+' · '+r.data.invoiceNumber),esc(p.kind),money(p.amount),esc(p.account || '')]));
+    return panel('Offene Verbindlichkeiten und Zahlungsausgang',`<p>Freigegebene Eingangsrechnungen aller sichtbaren Projekte (brutto). Gebucht wird SKR03 ${esc(db.accounts().payables)} an Bank bzw. an „Erhaltene Skonti“.</p>${table(['Datum','Rechnungssteller / Beleg','Brutto','Offen'],open.map(r=>[esc(deDate(r.date)),esc(r.supplier+' · '+r.number)+`<small>${esc(projectName(r.projectId))}</small>`,money(r.gross),money(r.open)]))}${form}${paid.length?'<h3>Gebuchte Zahlungsausgänge</h3>'+table(['Datum','Beleg','Art','Betrag','Konto'],paid):''}`);
+  }
+  function journalPanel() {
+    const rows=db.journal(journalRange),balances=db.balances(journalRange),labels=Object.fromEntries(Object.entries(db.accounts()).map(([k,v])=>[v,core.ACCOUNT_LABELS[k]]));
+    const shown=rows.slice(-200);
+    return panel('Buchungsjournal SKR03',`<p>Ausgangsrechnungen, Zahlungen, Skonti, Eingangsrechnungen und Zahlungsausgänge aller sichtbaren Projekte als Buchungssätze „Soll an Haben“ (brutto). Erlös-, Skonto- und Wareneingangskonten sind DATEV-Automatikkonten; die Umsatz- bzw. Vorsteuer rechnet DATEV heraus. Konten sind Vorschläge – vor dem ersten Export mit dem Steuerberater abstimmen und unter Einstellungen anpassen.</p><form id="dwp-journal" class="quick-form">${field('Von',`<input type="date" name="from" value="${esc(journalRange.from || '')}">`)}${field('Bis',`<input type="date" name="to" value="${esc(journalRange.to || '')}">`)}<div class="dwp-actions"><button class="button button-secondary" type="submit">Zeitraum anzeigen</button>${btn('Journal CSV','journal-csv')}${btn('DATEV-Buchungen CSV','datev-csv','',true)}${btn('DATEV-Buchungsstapel (EXTF)','datev-extf','',true)}</div></form><p>DATEV-Buchungsstapel: Zeitraum innerhalb eines Wirtschaftsjahres wählen; Berater- und Mandantennummer unter Einstellungen → Buchhaltung. Vor dem ersten produktiven Import vom Steuerberater testen lassen.</p>${lockForm()}${table(['Konto','Bezeichnung','Saldo (Soll − Haben)'],balances.map(b=>[esc(b.account),esc(labels[b.account] || ''),money(b.balance)]))}<h3>Buchungen${rows.length>200?' (letzte 200 von '+rows.length+')':''}</h3>${table(['Datum','Beleg','Buchungstext','Soll','Haben','Betrag','USt %'],shown.map(r=>[esc(deDate(r.date)),esc(r.document),esc(r.text)+(r.project?`<small>${esc(r.project)}</small>`:''),esc(r.debit),esc(r.credit),money(r.amount),esc(r.tax)]))}`);
+  }
+  function lockForm() {
+    const lock=db.lockedUntil(),today=core.berlinDay(),yesterday=core.addDays(today,-1);
+    const [y,m]=today.split('-').map(Number),lastMonthEnd=new Date(Date.UTC(y,m-1,0)).toISOString().slice(0,10);
+    return `<h3>Monatsabschluss / Festschreibung</h3><p>${lock?'Festgeschrieben bis <strong>'+esc(deDate(lock))+'</strong>. Zahlungen, Zahlungsausgänge und Eingangsrechnungen mit Datum bis dahin werden abgelehnt.':'Noch kein Zeitraum festgeschrieben.'} Die Festschreibung kann nicht zurückgenommen werden; erst nach Abstimmung mit dem Steuerberater festschreiben.</p><form id="dwp-lock" class="quick-form">${field('Festschreiben bis einschließlich',`<input type="date" name="lockedUntil" value="${esc(lock && lock>lastMonthEnd?lock:lastMonthEnd)}" min="${esc(lock || '')}" max="${esc(yesterday)}" required>`)}<div class="dwp-actions"><button class="button button-secondary" type="submit">Zeitraum festschreiben</button></div></form>`;
+  }
+  function journalExtf() {
+    if(!journalRange.from || !journalRange.to)throw Error('DATEV: Zuerst Zeitraum mit „Von“ und „Bis“ wählen und „Zeitraum anzeigen“ tippen.');
+    const file=db.datevExport(journalRange);
+    download(file.fileName,core.cp1252(file.text),'text/csv;charset=windows-1252');
+  }
+  function journalFile(kind) {
+    const rows=db.journal(journalRange),span=(journalRange.from || 'Beginn')+'_'+(journalRange.to || core.berlinDay()),de=n=>n.toFixed(2).replace('.',',');
+    if(kind==='journal')return csvExport('DachWerkPro_Buchungsjournal_'+span+'.csv',[['Datum','Beleg','Buchungstext','Soll','Haben','Betrag','USt %','Quelle','Projekt'],...rows.map(r=>[deDate(r.date),r.document,r.text,r.debit,r.credit,de(r.amount),r.tax,r.source,r.project])]);
+    csvExport('DachWerkPro_DATEV_Buchungen_'+span+'.csv',[['Umsatz (ohne Soll/Haben-Kz)','Soll/Haben-Kennzeichen','WKZ Umsatz','Konto','Gegenkonto (ohne BU-Schlüssel)','BU-Schlüssel','Belegdatum','Belegfeld 1','Buchungstext'],...rows.map(r=>[de(r.amount),'S','EUR',r.debit,r.credit,'',r.date.slice(8,10)+r.date.slice(5,7),r.document.slice(0,36),r.text.slice(0,60)])]);
+  }
+  function printHtml(title,body,company,recordId,createdAt) {
+    const frame=document.createElement('iframe');frame.className='dwp-print-frame';frame.title='Druckansicht';document.body.append(frame);
+    const doc=frame.contentDocument;
+    if(!window.DWPDocument)throw Error('Original-Briefpapier konnte nicht geladen werden. Bitte Anwendung neu laden.');
+    frame.onload=()=>window.DWPDocument.ready(doc).then(()=>{frame.contentWindow.focus();frame.contentWindow.print();}).catch(showError);
+    doc.open();doc.write(window.DWPDocument.render({title,body,company,recordId,createdAt}));doc.close();
+    setTimeout(()=>frame.remove(),60000);
+  }
+  function printDunning(invoiceId,dunningId) {
+    const inv=db.get(invoiceId),l=db.dunningLetter(invoiceId,dunningId),m=inv.dunnings.find(d=>d.id===dunningId),company=db.data.settings;
+    const body=`<p>${l.recipient.map(esc).join('<br>')}</p><h1>${esc(l.level)} ${esc(l.number)}</h1><p>Datum: ${esc(deDate(l.date))}${inv.data.project?.name?' · Projekt: '+esc(inv.data.project.name):''}</p><p>${esc(l.salutation)}</p><p>${esc(l.intro)}</p>${table(['Forderung','Betrag'],l.lines.map(([a,b])=>[esc(a),esc(b)]))}<p><strong>Gesamtbetrag: ${esc(l.total)} · zahlbar bis ${esc(deDate(l.deadline))}</strong></p><p>${esc(l.reference)}</p><p>${esc(l.closing)}<br>${esc(company.proprietor || company.company || '')}</p>`;
+    printHtml(l.title,body,company,m.id,m.createdAt);
+  }
+  function accountingSettings() {
+    const s=db.data.settings,acc=db.accounts(),own=s.accounts || {};
+    const rates=(s.baseRates || []).map(r=>r.from+' = '+String(r.rate).replace('.',',')).join('\n');
+    const known=core.BASE_RATES.map(([from,rate])=>deDate(from)+': '+String(rate).replace('.',',')+' %').join(' · ');
+    return panel('Buchhaltung, Zahlungsziel und Mahnwesen',`<form id="dwp-accounting" class="quick-form">${field('Zahlungsziel Rechnungen (Tage)',`<input name="paymentDays" inputmode="numeric" value="${esc(db.paymentDays())}">`)}${field('Zahlungsfrist je Mahnstufe (Tage)',`<input name="dunningDays" inputmode="numeric" value="${esc(db.dunningDays())}">`)}${field('Mahngebühr ab 1. Mahnung (EUR)',`<input name="dunningFee" inputmode="decimal" value="${esc(String(s.dunningFee ?? 0).replace('.',','))}">`)}${field('Weitere Basiszinssätze (je Zeile JJJJ-MM-TT = Satz)',`<textarea name="baseRates" rows="3" placeholder="2027-01-01 = 1,52">${esc(rates)}</textarea>`)}<p>Hinterlegt (Bundesbank): ${esc(known)}. Neue Werte gibt die Bundesbank zum 1. Januar und 1. Juli bekannt.</p><h3>DATEV</h3>${field('Beraternummer (vom Steuerberater)',`<input name="datevConsultant" inputmode="numeric" value="${esc(s.datevConsultant || '')}">`)}${field('Mandantennummer (vom Steuerberater)',`<input name="datevClient" inputmode="numeric" value="${esc(s.datevClient || '')}">`)}${field('Beginn Wirtschaftsjahr (Monat 1–12)',`<input name="fiscalYearStart" inputmode="numeric" value="${esc(s.fiscalYearStart || '')}" placeholder="1">`)}<h3>SKR03-Konten (Vorschlag, mit Steuerberater abstimmen)</h3>${Object.keys(core.ACCOUNTS).map(k=>field(core.ACCOUNT_LABELS[k],`<input name="acc_${esc(k)}" inputmode="numeric" value="${esc(own[k] || '')}" placeholder="${esc(core.ACCOUNTS[k])}">`)).join('')}<p>Leer = Standardkonto (grau). Aktuell verwendet: ${esc(Object.values(acc).join(', '))}.</p><div class="dwp-actions"><button class="button button-primary" type="submit">Buchhaltung speichern</button></div></form>`);
   }
   function deliveryPanel() {
     const rows=db.deliverySchedule();
@@ -310,9 +371,216 @@
       output.textContent=`Einkaufspreis netto: ${money(price)} / ${material.data.unit} · ${values.packageUnit.trim() || 'Preisgebinde'} = ${quantity} ${material.data.unit}. Fracht gilt je Preisgebinde. Vorschau – noch nicht gespeichert.`;
     } catch(error){output.textContent=error.message;}
   }
+  // ---- Kalender (Modul 18): Wochenansicht, Rückmeldung, WhatsApp-Versand ----
+  let calendarWeek=null;
+  const calendarRole=()=>window.DWPRemote?.active?state.currentRole:'admin';
+  const canPlan=()=>['admin','hr','manager'].includes(calendarRole());
+  const isoAdd=(iso,days)=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+  const mondayOf=iso=>{const d=new Date(iso+'T00:00:00Z');return isoAdd(iso,-((d.getUTCDay()+6)%7));};
+  const dayLabel=(iso,year=false)=>{const d=new Date(iso+'T00:00:00Z');return ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getUTCDay()]+' '+iso.slice(8,10)+'.'+iso.slice(5,7)+'.'+(year?iso.slice(0,4):'');};
+  // Sonntags zeigt der Kalender schon die kommende Woche.
+  const defaultMonday=()=>{const t=core.berlinDay();return new Date(t+'T00:00:00Z').getUTCDay()===0?isoAdd(t,1):mondayOf(t);};
+  const isoWeek=iso=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+3-(d.getUTCDay()+6)%7);const y=new Date(Date.UTC(d.getUTCFullYear(),0,4));return 1+Math.round(((d-y)/864e5-3+(y.getUTCDay()+6)%7)/7);};
+  function calendarEntries() {
+    // Server mode for non-admins: the server sends only the entries this user may see.
+    if(Array.isArray(db.data.calendarEntries))return db.data.calendarEntries;
+    return db.list('personnel').flatMap(e=>(e.assignments || []).map(a=>{const p=db.get(a.projectId);return {...a,employeeId:e.id,employeeName:e.data.name,own:false,projectLabel:p?[p.data.name,p.data.address].filter(Boolean).join(' · '):'Projekt'};}));
+  }
+  const responseLabel=a=>a.cancelled?'Storniert':a.response || 'Offen';
+  const responseClass=a=>a.cancelled?'is-cancelled':a.response==='Zugesagt'?'is-accepted':a.response==='Abgesagt'?'is-declined':'is-open';
+  const range=a=>a.start===a.end?dayLabel(a.start,true):`${dayLabel(a.start)} bis ${dayLabel(a.end,true)}`;
+  // Feiertage nach dem Bundesland aus den Einstellungen (Standard Bremen); Sonntage zählen nicht.
+  const holidayState=()=>db.data.settings?.holidayState || 'HB';
+  const holidaysIn=(from,to)=>core.holidaysBetween(from,to,holidayState()).filter(h=>new Date(h.date+'T00:00:00Z').getUTCDay()!==0);
+  const holidayNote=a=>holidaysIn(a.start,a.end).map(h=>`${dayLabel(h.date)} ${h.name}`).join(', ');
+  function whatsappLink(a) {
+    let digits=String(db.get(a.employeeId)?.data.mobile || '').replace(/\D/g,'');
+    if(!digits)return '';
+    if(digits.startsWith('00'))digits=digits.slice(2);else if(digits.startsWith('0'))digits='49'+digits.slice(1);
+    const url=new URL(window.location.href);url.search='';url.hash='';url.searchParams.set('start','app');url.searchParams.set('module','personnel');
+    const free=holidayNote(a),text=`Hallo ${a.employeeName}, dein Einsatz: ${range(a)}, ${a.projectLabel}${a.task?` (${a.task})`:''}.${free?` Achtung Feiertag: ${free}.`:''} Bitte in DachwerkPro zusagen oder absagen: ${url}`;
+    return `<a class="button button-secondary" href="https://wa.me/${digits}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Per WhatsApp senden</a>`;
+  }
+  function calendarPanel() {
+    const today=core.berlinDay(),monday=calendarWeek || defaultMonday(),days=[0,1,2,3,4,5].map(n=>isoAdd(monday,n)),saturday=days[5];
+    const active=calendarEntries().filter(a=>!a.cancelled && a.start<=saturday && a.end>=monday);
+    const free=new Map(holidaysIn(monday,saturday).map(h=>[h.date,h.name]));
+    const people=new Map();
+    if(calendarRole()==='admin' || db.data.calendarScope==='all')db.list('personnel').forEach(e=>people.set(e.id,e.data.name));
+    calendarEntries().forEach(a=>{if(!people.has(a.employeeId))people.set(a.employeeId,a.employeeName);});
+    const tones=['blue','purple','green','amber'],tone=id=>tones[[...String(id)].reduce((n,c)=>n+c.charCodeAt(0),0)%tones.length];
+    const rows=[...people].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'de')).map(([id,name])=>{
+      const bars=active.filter(a=>a.employeeId===id).map(a=>{
+        const from=days.indexOf(a.start<monday?monday:a.start),to=days.indexOf(a.end>saturday?saturday:a.end);
+        const mark={'Zugesagt':'✓ ','Abgesagt':'✗ '}[a.response] || '';
+        return `<button type="button" class="dwp-cal-bar tone-${tone(a.projectId)} ${responseClass(a)}" style="grid-column:${from+2}/${to+3}" data-dwp="calendar-focus" data-id="${esc(a.id)}" title="${esc(`${a.projectLabel} · ${responseLabel(a)}`)}">${esc(mark+a.projectLabel)}</button>`;
+      }).join('');
+      return `<div class="dwp-cal-row"><span class="dwp-cal-name">${esc(name)}</span>${days.map((d,i)=>`<span class="dwp-cal-cell${d===today?' is-today':''}${free.has(d)?' is-holiday':''}" style="grid-column:${i+2}"></span>`).join('')}${bars}</div>`;
+    }).join('');
+    const scope=calendarRole()==='admin' || db.data.calendarScope==='all'?'Du siehst die Einsätze aller Mitarbeiter.':'Du siehst deine Einsätze und die deiner Kollegen aus gemeinsamen Projekten.';
+    return `<section class="panel panel-pad dwp-panel" id="dwp-calendar"><h2>Kalender · Wochenansicht</h2><p>${esc(scope)}</p><div class="dwp-cal-nav">${btn('‹','calendar-week','-7')}<strong>KW ${isoWeek(monday)} · ${esc(dayLabel(monday))} bis ${esc(dayLabel(saturday,true))}</strong>${btn('›','calendar-week','7')}${monday!==defaultMonday()?btn('Heute','calendar-week','0'):''}</div>${free.size?`<p class="dwp-cal-holidays">Feiertag ${esc(core.holidayStates[holidayState()])}: ${[...free].map(([d,n])=>`${esc(dayLabel(d))} ${esc(n)}`).join(', ')}</p>`:''}<div class="dwp-cal"><div class="dwp-cal-row dwp-cal-head"><span></span>${days.map(d=>`<span class="${[d===today?'is-today':'',free.has(d)?'is-holiday':''].filter(Boolean).join(' ')}"${free.has(d)?` title="${esc(free.get(d))}"`:''}>${esc(dayLabel(d)).replace(' ','<br>')}${free.has(d)?`<small>${esc(free.get(d))}</small>`:''}</span>`).join('')}</div>${rows || '<p class="dwp-cal-empty">Noch keine Einsätze geplant.</p>'}</div><p class="dwp-cal-legend">✓ zugesagt · ✗ abgesagt · ohne Zeichen: Rückmeldung offen · grau: Feiertag. Tippen auf einen Balken zeigt den Einsatz in der Liste.</p></section>`;
+  }
+  // Kalender-Abo: persönlicher Link für Outlook, iPhone und Google (nur angemeldet).
+  let feedInfo=null,feedUrl='',feedLoading=false;
+  const feedRemote=()=>window.DWPRemote?.active && typeof window.DWPRemote.calendarFeed==='function';
+  function loadFeed() {
+    if(!feedRemote() || feedInfo || feedLoading)return;
+    feedLoading=true;
+    window.DWPRemote.calendarFeed().then(data=>{feedInfo=data;refreshFeed();}).catch(error=>{feedInfo={error:error.message};refreshFeed();}).finally(()=>{feedLoading=false;});
+  }
+  function refreshFeed(){const el=main.querySelector('#dwp-feed');if(el)el.outerHTML=feedPanel();}
+  function feedPanel() {
+    const head='<section class="panel panel-pad dwp-panel" id="dwp-feed"><h2>Outlook und iPhone · Kalender abonnieren</h2>';
+    if(!feedRemote())return `${head}<p>Nach der Anmeldung in DachwerkPro kannst du hier einen persönlichen Kalender-Link erstellen. Outlook, iPhone und Google zeigen dann deine Einsätze und die Feiertage automatisch an.</p></section>`;
+    loadFeed();
+    if(!feedInfo)return `${head}<p>Wird geladen …</p></section>`;
+    if(feedInfo.error)return `${head}<p>${esc(feedInfo.error)}</p></section>`;
+    const scope=calendarRole()==='admin' || db.data.calendarScope==='all'?'alle Einsätze':'dieselben Einsätze wie hier in DachwerkPro';
+    const intro=`<p>Dein persönlicher Link zeigt ${scope} sowie die Feiertage (${esc(core.holidayStates[holidayState()])}) in Outlook, auf dem iPhone oder in Google Kalender. Outlook holt Änderungen selbst ab, je nach Programm alle paar Stunden. Zusagen und Absagen bleiben in DachwerkPro. Den Link nicht weitergeben: Wer ihn hat, sieht diese Termine.</p>`;
+    if(feedUrl) {
+      const enc=encodeURIComponent(feedUrl),name=encodeURIComponent('DachwerkPro');
+      return `${head}${intro}<p><strong>Dein Link (nur jetzt sichtbar):</strong></p><input class="dwp-feed-url" readonly value="${esc(feedUrl)}" aria-label="Kalender-Link"><div class="dwp-feed-actions">${btn('Link kopieren','feed-copy')}<a class="button button-primary" href="https://outlook.office.com/calendar/0/addfromweb?url=${enc}&name=${name}" target="_blank" rel="noopener">In Outlook (Microsoft 365) hinzufügen</a><a class="button button-secondary" href="https://outlook.live.com/calendar/0/addfromweb?url=${enc}&name=${name}" target="_blank" rel="noopener">In Outlook.com hinzufügen</a><a class="button button-secondary" href="${esc(feedUrl.replace(/^https:/,'webcal:'))}">iPhone / Outlook am PC</a></div><p class="dwp-cal-legend">Outlook am PC (Windows): falls sich nichts öffnet, Kalender → Kalender hinzufügen → Aus dem Internet, Link einfügen.</p></section>`;
+    }
+    if(feedInfo.active)return `${head}${intro}<p>Ein Link ist aktiv seit ${esc(new Date(feedInfo.createdAt).toLocaleDateString('de-DE'))}${feedInfo.lastUsedAt?`, zuletzt abgerufen am ${esc(new Date(feedInfo.lastUsedAt).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}))}`:', noch nicht abgerufen'}. Aus Sicherheitsgründen wird er nur beim Erstellen angezeigt.</p><div class="dwp-feed-actions">${btn('Neuen Link erstellen','feed-create')}${btn('Link sperren','feed-revoke')}</div></section>`;
+    return `${head}${intro}<div class="dwp-feed-actions">${btn('Kalender-Link erstellen','feed-create')}</div></section>`;
+  }
+  function scheduleListPanel() {
+    const today=core.berlinDay();
+    const list=[...calendarEntries()].sort((a,b)=>(a.end<today)-(b.end<today) || (a.end<today?b.start.localeCompare(a.start):a.start.localeCompare(b.start)));
+    const rows=list.map(a=>{
+      const actions=[];
+      if(!a.cancelled && (a.own || calendarRole()==='admin')){if(a.response!=='Zugesagt')actions.push(btn(a.own?'Zusagen':'Zusage eintragen','respond-schedule',`${a.employeeId}/${a.id}/Zugesagt`));if(a.response!=='Abgesagt')actions.push(btn(a.own?'Absagen':'Absage eintragen','respond-schedule',`${a.employeeId}/${a.id}/Abgesagt`));}
+      const phone=String(db.get(a.employeeId)?.data.mobile || '').replace(/[^\d+]/g,'');
+      if(!a.cancelled && !a.own && phone)actions.push(`<a class="button button-secondary" href="tel:${esc(phone)}">Anrufen</a>`);
+      if(!a.cancelled && canPlan()){const wa=whatsappLink(a);if(wa)actions.push(wa);actions.push(btn('Einsatz stornieren','cancel-schedule',`${a.employeeId}/${a.id}`));}
+      return [`<span id="dwp-einsatz-${esc(a.id)}">${esc(a.employeeName)}</span>`,esc(a.projectLabel),esc(range(a))+(!a.cancelled && holidayNote(a)?`<br><small class="dwp-cal-holiday-note">Feiertag: ${esc(holidayNote(a))}</small>`:''),esc(a.task),`<span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span>`,actions.join(' ') || '–'];
+    });
+    return panel(calendarRole()==='admin' || db.data.calendarScope==='all'?'Einsätze aller Projekte':'Einsätze in meinen Projekten',table(['Mitarbeiter','Projekt','Zeitraum','Aufgabe','Rückmeldung','Aktion'],rows));
+  }
   function schedulePanel() {
     const options=records=>`<option value="">Bitte auswählen</option>${records.map(r=>`<option value="${esc(r.id)}" ${r.id===db.data.selectedProject?'selected':''}>${esc(names(r.id))}</option>`).join('')}`;
-    return panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage und Teilzeitschichten sind noch nicht berücksichtigt.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`)+panel('Einsatzübersicht aller Projekte',table(['Mitarbeiter','Projekt','Von','Bis','Aufgabe','Status'],db.list('personnel').flatMap(e=>(e.assignments || []).map(a=>[esc(e.data.name),esc(names(a.projectId)),esc(a.start),esc(a.end),esc(a.task),a.cancelled?'Storniert':btn('Einsatz stornieren','cancel-schedule',`${e.id}/${a.id}`)]))));
+    const plan=canPlan()?panel('Einsatz planen',`<p>Zeiträume werden einschließlich Anfangs- und Endtag reserviert. Doppelbelegungen werden projektübergreifend verhindert. Feiertage (Bundesland in den Einstellungen) sind in der Wochenansicht grau markiert; liegt ein Feiertag im Einsatz, steht das in der Liste und in der WhatsApp-Nachricht. Teilzeitschichten sind noch nicht berücksichtigt. Damit ein Mitarbeiter seine Einsätze sieht und zusagen kann, trag in seinem Personalsatz die DWP-Benutzer-ID ein; für den WhatsApp-Versand die Mobilnummer.</p><form id="dwp-schedule" class="quick-form">${field('Mitarbeiter',`<select name="employeeId" required>${options(db.list('personnel'))}</select>`)}${field('Projekt',`<select name="projectId" required>${options(db.list('projects'))}</select>`)}${field('Von',`<input name="start" type="date" required>`)}${field('Bis',`<input name="end" type="date" required>`)}${field('Aufgabe',`<input name="task">`)}<button class="button button-primary" type="submit">Einsatz speichern</button></form>`):'';
+    return plan+scheduleListPanel();
+  }
+  // ---- Modul Sicherung: Verlauf nach Datum/Uhrzeit, Ablage in Dropbox/Drive/Cloud, Wiederherstellung ----
+  let backupList=null,readyFile=null,restoreCandidate=null;
+  const sizeLabel=n=>n>=1048576?`${(n/1048576).toLocaleString('de-DE',{maximumFractionDigits:1})} MB`:`${Math.max(1,Math.round((n || 0)/1024))} KB`;
+  function loadBackups() {
+    window.DWPRemote.backups().then(data=>{backupList=data.backups;if(current==='backup')renderBackup();}).catch(showError);
+  }
+  function offerFile(file){readyFile=file;if(current==='backup')renderBackup();else openModule('backup');main.querySelector('#dwp-backup-ready')?.scrollIntoView({block:'nearest'});}
+  function readyPanel() {
+    if(!readyFile)return '';
+    const share=typeof navigator.share==='function' && typeof File==='function' && navigator.canShare?.({files:[new File(['x'],'x.json',{type:'application/json'})]});
+    return `<section class="panel panel-pad dwp-panel dwp-credentials" id="dwp-backup-ready"><h2>Sicherungsdatei bereit</h2><p><strong>${esc(readyFile.name)}</strong> · ${esc(sizeLabel(new Blob([readyFile.text]).size))}</p><p>Datum und Uhrzeit stehen im Dateinamen. Jetzt in Dropbox, Google Drive, iCloud oder deiner eigenen Cloud ablegen:</p><ul><li>iPhone/iPad: „Teilen“ → Dropbox, oder „In Dateien sichern“ → Ordner in Dropbox/Drive wählen.</li><li>Laptop: „Herunterladen“ und die Datei in den Dropbox-/Drive-Ordner verschieben.</li></ul><div class="dwp-actions">${share?btn('Teilen (Dropbox, Drive …)','backup-share','',true):''}${btn('Herunterladen','backup-save','',!share)}${btn('Ausblenden','backup-ready-close')}</div></section>`;
+  }
+  function restorePanel() {
+    const c=restoreCandidate,m=c?.meta;
+    const preview=c?`<div class="dwp-restore-preview" id="dwp-restore-preview"><p><strong>${esc(c.name)}</strong></p><p>Sicherung vom <strong>${m.createdAt?esc(core.backupFormat.label(m.createdAt)):'unbekannten Datum (ältere Sicherung ohne Zeitangabe)'}</strong>${m.createdBy?' · erstellt von '+esc(m.createdBy):''}<br>${esc(m.summary.projects)} Projekte · ${esc(m.summary.customers)} Kunden · ${esc(m.summary.records)} Vorgänge</p><div class="dwp-actions">${btn('Diese Sicherung einspielen','backup-file-restore','',true)}${btn('Abbrechen','backup-file-cancel')}</div></div>`:'';
+    return panel('Aus Datei wiederherstellen (Dropbox, Drive, eigene Cloud)',`<p>Sicherungsdatei auswählen – auf dem iPhone über „Durchsuchen“ direkt aus Dropbox, Google Drive oder iCloud. Vor dem Einspielen siehst du, von wann die Sicherung ist.</p><label>Sicherungsdatei wählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>${preview}`);
+  }
+  function renderBackup() {
+    const title='Sicherung und Wiederherstellung',remote=window.DWPRemote?.active;
+    if(remote && calendarRole()!=='admin')return shell(title,panel('Sicherung','<p>Nur der Administrator sichert und stellt wieder her.</p>'));
+    const steps=remote
+      ?`<ol><li><strong>Sichern:</strong> „Jetzt sichern“ legt eine Sicherung mit Datum und Uhrzeit im Verlauf unten ab. Zusätzlich sichert DachWerkPro jeden Morgen automatisch.</li><li><strong>Extern ablegen:</strong> „Herunterladen“ erzeugt die Datei <b>DWP_Sicherung_JJJJ-MM-TT_HH-MM.json</b> – diese in Dropbox, Google Drive oder eigener Cloud speichern.</li><li><strong>Wiederherstellen:</strong> im Verlauf „Wiederherstellen“ wählen oder unten die Datei aus der Cloud auswählen. Der aktuelle Stand wird vorher automatisch gesichert.</li></ol>`
+      :`<ol><li><strong>Sichern:</strong> „Sicherung herunterladen“ erzeugt <b>DWP_Sicherung_JJJJ-MM-TT_HH-MM.json</b> – in Dropbox, Drive oder eigener Cloud ablegen.</li><li><strong>Wiederherstellen:</strong> unten die Datei auswählen, Datum prüfen, einspielen.</li></ol><p class="dwp-hint">Lokaler Testbetrieb: Der Verlauf und die automatische Tagessicherung gibt es nur auf www.dachwerkpro.de.</p>`;
+    const intro=panel('So funktioniert die Sicherung',steps);
+    if(!remote)return shell(title,readyPanel()+intro+panel('Neue Sicherung',`<div class="dwp-actions">${btn('Sicherung herunterladen','backup','',true)}</div>`)+restorePanel());
+    const rows=(backupList || []).map(b=>[`<strong>${esc(core.backupFormat.label(b.createdAt))}</strong>`,esc(b.kind)+(b.sourceCreatedAt?`<br><small>Datei vom ${esc(core.backupFormat.label(b.sourceCreatedAt))}</small>`:''),esc(b.createdBy || '—'),esc(b.projects),esc(b.records),esc(sizeLabel(b.bytes)),`<div class="dwp-actions">${btn('Herunterladen','backup-download',b.id)}${btn('Wiederherstellen','backup-restore',b.id)}</div>`]);
+    shell(title,readyPanel()+intro+panel('Neue Sicherung',`<div class="dwp-actions">${btn('Jetzt sichern','backup-create','',true)}${btn('Aktuellen Stand herunterladen','backup')}</div><p class="dwp-hint">Herunterladen geht nur auf dem freigegebenen iPhone oder HP-Laptop (Gerätefreigabe unter „Zugriff und Nutzung“). Sichern und Wiederherstellen aus dem Verlauf geht überall.</p>`)
+      +panel('Sicherungsverlauf nach Datum und Uhrzeit',backupList?`${table(['Datum / Uhrzeit','Art','Erstellt von','Projekte','Vorgänge','Größe','Aktion'],rows)}<p class="dwp-hint">Automatische Tagessicherungen bleiben 35 Tage, insgesamt werden die letzten 80 Sicherungen aufbewahrt.</p>`:'<p>Verlauf wird geladen …</p>')+restorePanel());
+    if(!backupList)loadBackups();
+  }
+  // ---- Benutzerverwaltung (nur Administrator, nur im angemeldeten Betrieb) ----
+  let usersData=null,editingUser=null,passwordUser=null,lastCredentials=null;
+  const roleLabel=r=>usersData?.roles?.[r] || r;
+  const deDate=v=>v?String(v).split('-').reverse().join('.'):'';
+  const validityText=u=>!u.validUntil?'unbefristet':u.daysLeft<0?`abgelaufen am ${deDate(u.validUntil)}`:u.daysLeft===0?`läuft heute ab (${deDate(u.validUntil)})`:`bis ${deDate(u.validUntil)} (noch ${u.daysLeft} ${u.daysLeft===1?'Tag':'Tage'})`;
+  function expiryPanel(alerts) {
+    if(!alerts?.length)return '';
+    return `<section class="panel panel-pad dwp-panel dwp-expiry-alerts" id="dwp-expiry-alerts-panel"><h2>Zugänge laufen ab</h2><ul class="dwp-user-list">${alerts.map(a=>`<li class="dwp-user-card${a.daysLeft<0?' is-blocked':''}"><div class="dwp-user-head"><strong>${esc(a.text)}</strong></div><div class="dwp-actions">${btn('Verlängern oder beenden','user-extend',a.userId,true)}</div></li>`).join('')}</ul><p class="dwp-hint">Zusätzlich bekommst du eine E-Mail 7, 3 und 1 Tag vorher, am Ablauftag und nach Ablauf. Nach Ablauf ist keine Anmeldung mehr möglich.</p></section>`;
+  }
+  let expiryToastShown=false;
+  // Startseite: Administrator sieht ablaufende Zugänge sofort (einmal pro Sitzung zusätzlich als Meldung).
+  function dashboardAlerts() {
+    if(!window.DWPRemote?.active || calendarRole()!=='admin' || typeof window.DWPRemote.users!=='function')return;
+    window.DWPRemote.users().then(data=>{
+      usersData=data;const node=main.querySelector('#dwp-expiry-alerts');
+      if(node && current==='dashboard')node.innerHTML=expiryPanel(data.alerts);
+      if(data.alerts?.length && !expiryToastShown){expiryToastShown=true;notice(data.alerts.map(a=>a.text).join(' · '));}
+    }).catch(()=>{});
+  }
+  function suggestPassword() {
+    const words=['Ziegel','Rinne','Sparren','Traufe','Kehle','Lattung','Pfette','Schiefer','Gaube','Firstziegel','Kappe','Bitumen','Blech','Dachhaken'];
+    const n=new Uint32Array(4);(window.crypto || {getRandomValues:a=>a.map(()=>Math.floor(Math.random()*1e9))}).getRandomValues(n);
+    return `${words[n[0]%words.length]}-${words[n[1]%words.length]}-${String(1000+n[2]%9000)}${'!?#+'[n[3]%4]}`;
+  }
+  function loadUsers() {
+    if(!window.DWPRemote?.active || typeof window.DWPRemote.users!=='function')return;
+    window.DWPRemote.users().then(data=>{usersData=data;if(current==='users')renderUsers();}).catch(showError);
+  }
+  function userAction(body,after) {
+    return window.DWPRemote.userAction(body).then(data=>{usersData={domain:data.domain,roles:data.roles,users:data.users};after?.(data);renderUsers();}).catch(showError);
+  }
+  function credentialsPanel() {
+    if(!lastCredentials)return '';
+    const c=lastCredentials,text=`DachWerk Pro Zugang\nAdresse: ${location.origin}/?start=app\nBenutzername: ${c.username}\nStartpasswort: ${c.password}\nBeim ersten Anmelden ein eigenes Passwort festlegen.`;
+    return `<section class="panel panel-pad dwp-panel dwp-credentials"><h2>Zugangsdaten für ${esc(c.name)}</h2><p>Nur jetzt sichtbar. DachWerk Pro speichert Passwörter nicht lesbar. Beim ersten Anmelden muss ${esc(c.name)} ein eigenes Passwort festlegen.</p><dl><dt>Benutzername</dt><dd><strong>${esc(c.username)}</strong></dd><dt>Startpasswort</dt><dd><strong class="dwp-secret">${esc(c.password)}</strong></dd></dl><div class="dwp-actions"><button type="button" class="button button-secondary" data-dwp="user-copy" data-id="" data-text="${esc(text)}">Kopieren</button><a class="button button-secondary" href="https://wa.me/?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Per WhatsApp senden</a>${btn('Ausblenden','user-credentials-close')}</div></section>`;
+  }
+  function userEditPanel(u) {
+    const access=db.data.settings.userAccess?.[u.id] || {};
+    const projects=core.sortRecords('projects',db.list('projects'));
+    const memberOf=p=>String(p.data.memberIds || '').split(',').map(s=>s.trim()).includes(u.id);
+    const linked=db.list('personnel').find(e=>String(e.data.userId || '').trim()===u.id);
+    const roles=Object.entries(usersData.roles).map(([k,v])=>`<option value="${esc(k)}" ${k===u.role?'selected':''}>${esc(v)}</option>`).join('');
+    const rights=u.role==='admin'?'<p>Administratoren sehen und bearbeiten alles. Projekt-Häkchen sind hier nicht nötig.</p>':`<fieldset class="dwp-user-rights"><legend>Projekte, die ${esc(u.name)} sehen darf</legend>${projects.length?projects.map(p=>`<label class="dwp-check"><input type="checkbox" name="projectIds" value="${esc(p.id)}" ${memberOf(p)?'checked':''}> ${esc(names(p.id))}</label>`).join(''):'<p>Noch keine Projekte angelegt.</p>'}<p class="dwp-hint">Wer zusammen in einem Projekt ist, sieht dort die Termine der anderen und deren Telefonnummer.</p></fieldset><fieldset class="dwp-user-rights"><legend>Sonderrechte</legend><label class="dwp-check"><input type="checkbox" name="allCalendars" ${access.allCalendars?'checked':''}> darf alle Kalender sehen (z. B. Vorarbeiter)</label><label class="dwp-check"><input type="checkbox" name="hidePhone" ${access.hidePhone?'checked':''}> eigene Telefonnummer vor anderen ausblenden</label></fieldset>`;
+    return `<section class="panel panel-pad dwp-panel" id="dwp-user-edit"><h2>${esc(u.name)} bearbeiten</h2><form id="dwpu-edit" class="quick-form" data-user="${esc(u.id)}">${field('Name',`<input name="name" required value="${esc(u.name)}">`)}${field('Benutzername',`<input name="username" required autocapitalize="none" autocomplete="off" value="${esc(u.username || '')}" placeholder="z. B. meier">`)}${field('E-Mail für „Passwort vergessen“',`<input name="contactEmail" type="email" value="${esc(u.contactEmail || '')}" placeholder="private oder Firmenadresse">`)}${field('Rolle',`<select name="role" ${u.self?'disabled':''}>${roles}</select>`)}${u.self?field('Zugang gültig bis','<input value="unbefristet (eigener Administratorzugang)" disabled>'):field('Zugang gültig bis (leer = unbefristet)',`<input name="validUntil" type="date" value="${esc(u.validUntil || '')}">`)}${field('Mitarbeiter im Personal (Modul 18)',`<select name="personnelId"><option value="">Kein Personalsatz</option>${db.list('personnel').map(e=>`<option value="${esc(e.id)}" ${linked?.id===e.id?'selected':''}>${esc(e.data.name)}</option>`).join('')}</select>`)}<div class="field-span">${rights}</div><div class="dwp-actions field-span"><button class="button button-primary" type="submit">Speichern</button>${btn('Abbrechen','user-edit-close')}</div></form></section>`;
+  }
+  function passwordPanel(u) {
+    return `<section class="panel panel-pad dwp-panel" id="dwp-user-password"><h2>Neues Passwort für ${esc(u.name)}</h2><p>${u.self?'Dein neues Passwort gilt sofort. Alle anderen Sitzungen werden abgemeldet.':`${esc(u.name)} wird abgemeldet und muss beim nächsten Anmelden ein eigenes Passwort festlegen.`}</p><form id="dwpu-password" class="quick-form" data-user="${esc(u.id)}">${field('Neues Passwort (mind. 12 Zeichen)',`<input name="password" required minlength="12" autocomplete="new-password" value="${u.self?'':esc(suggestPassword())}">`)}<div class="dwp-actions field-span"><button class="button button-primary" type="submit">Passwort setzen</button>${btn('Abbrechen','user-password-close')}</div></form></section>`;
+  }
+  function renderUsers() {
+    if(!window.DWPRemote?.active)return shell('Benutzerverwaltung',panel('Benutzerverwaltung','<p>Benutzer anlegen, sperren und Rechte vergeben geht nur im angemeldeten Betrieb auf www.dachwerkpro.de.</p>'));
+    if(calendarRole()!=='admin')return shell('Benutzerverwaltung',panel('Benutzerverwaltung','<p>Nur der Administrator verwaltet Benutzer.</p>'));
+    if(!usersData){shell('Benutzerverwaltung',panel('Benutzer','<p>Benutzer werden geladen …</p>'));loadUsers();return;}
+    const status=u=>u.blocked?'<span class="dwp-cal-status is-declined">Gesperrt</span>':u.expired?'<span class="dwp-cal-status is-declined">Abgelaufen</span>':u.mustChangePassword?'<span class="dwp-cal-status is-open">Wartet auf eigenes Passwort</span>':u.daysLeft!==null && u.daysLeft!==undefined && u.daysLeft<=7?`<span class="dwp-cal-status is-open">Läuft ${u.daysLeft===0?'heute':`in ${u.daysLeft} ${u.daysLeft===1?'Tag':'Tagen'}`} ab</span>`:'<span class="dwp-cal-status is-accepted">Aktiv</span>';
+    const when=v=>v?new Date(v).toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'noch nie';
+    const use=u=>u.usage || {logins30:0,loginsTotal:0,moduleOpens30:0,lastActive:u.lastLogin || null};
+    const overview=panel('Nutzerübersicht – wer nutzt DachWerkPro wie oft',`${table(['Benutzer','Status','Zugang','Anmeldungen 30 Tage','Anmeldungen gesamt','Modulaufrufe 30 Tage','Zuletzt aktiv'],usersData.users.map(u=>[`<strong>${esc(u.name)}</strong><br><small>${esc(u.username || u.login)} · ${esc(roleLabel(u.role))}</small>`,status(u),esc(validityText(u)),esc(use(u).logins30),esc(use(u).loginsTotal),esc(use(u).moduleOpens30),esc(when(use(u).lastActive))]))}<p class="dwp-hint">Gezählt werden Anmeldungen und geöffnete Module (nicht die Arbeitszeit). Einzelne Vorgänge mit Uhrzeit: ${btn('Zugriffsprotokoll öffnen','open','access')}</p>`);
+    const cards=usersData.users.map(u=>`<li class="dwp-user-card${u.blocked?' is-blocked':''}"><div class="dwp-user-head"><strong>${esc(u.name)}${u.self?' (du)':''}</strong>${status(u)}</div><small>Anmeldung: <b>${esc(u.username || u.login)}</b> · ${esc(roleLabel(u.role))} · Zugang ${esc(validityText(u))} · zuletzt angemeldet: ${esc(when(u.lastLogin))}</small><div class="dwp-actions">${btn('Rechte und Daten','user-edit',u.id,true)}${u.self?'':u.blocked?btn('Entsperren','user-unblock',u.id):btn('Sperren','user-block',u.id)}${btn(u.self?'Mein Passwort ändern':'Neues Passwort','user-password',u.id)}</div></li>`).join('');
+    const roles=Object.entries(usersData.roles).map(([k,v])=>`<option value="${esc(k)}" ${k==='viewer'?'selected':''}>${esc(v)}</option>`).join('');
+    const editing=usersData.users.find(u=>u.id===editingUser),pw=usersData.users.find(u=>u.id===passwordUser);
+    shell('Benutzerverwaltung',`${credentialsPanel()}${editing?userEditPanel(editing):''}${pw?passwordPanel(pw):''}${expiryPanel(usersData.alerts)}${overview}${panel('Benutzer',`<p>Anmelden mit dem Benutzernamen, z. B. <b>meier</b>. Gesperrte Benutzer werden sofort abgemeldet.</p><ul class="dwp-user-list">${cards}</ul>`)}${panel('Neuen Benutzer anlegen',`<form id="dwpu-create" class="quick-form">${field('Name',`<input name="name" required placeholder="z. B. Peter Meier">`)}${field('Benutzername',`<input name="username" required autocapitalize="none" autocomplete="off" placeholder="z. B. meier">`)}${field('E-Mail für „Passwort vergessen“',`<input name="contactEmail" type="email" placeholder="optional">`)}${field('Rolle',`<select name="role">${roles}</select>`)}${field('Startpasswort (mind. 12 Zeichen)',`<input name="password" required minlength="12" autocomplete="off" value="${esc(suggestPassword())}">`)}${field('Zugang gültig bis (leer = unbefristet)',`<input name="validUntil" type="date">`)}<div class="dwp-actions field-span"><button class="button button-primary" type="submit">Benutzer anlegen</button></div></form><p class="dwp-hint">Rollen: Bauleitung plant Einsätze, „bearbeiten“ darf in seinen Projekten erfassen, „nur lesen“ sieht nur. Projekte und Sonderrechte vergibst du danach mit „Rechte und Daten“.</p>`)}`);
+  }
+  main.addEventListener('submit',event=>{
+    const form=event.target;if(!form.id?.startsWith('dwpu-'))return;
+    event.preventDefault();event.stopImmediatePropagation();
+    const values=Object.fromEntries(new FormData(form));
+    const button=form.querySelector('[type="submit"]');if(button)button.disabled=true;
+    const done=()=>{if(button)button.disabled=false;};
+    if(form.id==='dwpu-create') {
+      userAction({action:'create',name:values.name,username:values.username,contactEmail:values.contactEmail,role:values.role,password:values.password,validUntil:values.validUntil || ''},data=>{lastCredentials={name:values.name,username:data.username,password:values.password};editingUser=data.id;notice('Benutzer angelegt. Jetzt Projekte und Rechte festlegen.');}).finally(done);
+    }
+    if(form.id==='dwpu-password') {
+      const u=usersData.users.find(x=>x.id===form.dataset.user);
+      userAction({action:'set-password',userId:u.id,password:values.password},()=>{passwordUser=null;if(!u.self)lastCredentials={name:u.name,username:u.username || u.login,password:values.password};notice(u.self?'Passwort geändert.':'Neues Startpasswort gesetzt.');}).finally(done);
+    }
+    if(form.id==='dwpu-edit') {
+      const u=usersData.users.find(x=>x.id===form.dataset.user);
+      const rights={projectIds:new FormData(form).getAll('projectIds'),personnelId:values.personnelId || '',allCalendars:values.allCalendars==='on',hidePhone:values.hidePhone==='on'};
+      window.DWPRemote.userAction({action:'update',userId:u.id,name:values.name,username:values.username,contactEmail:values.contactEmail,...(u.self?{}:{role:values.role,validUntil:values.validUntil || ''})})
+        .then(data=>{usersData={domain:data.domain,roles:data.roles,users:data.users};return mutate('setUserAccess',[u.id,rights]);})
+        .then(()=>{editingUser=null;notice('Benutzer und Rechte gespeichert.');renderUsers();})
+        .catch(showError).finally(done);
+    }
+  },true);
+  function upcomingPanel() {
+    const today=core.berlinDay(),until=isoAdd(today,6),all=calendarRole()==='admin' || db.data.calendarScope==='all';
+    const next=calendarEntries().filter(a=>!a.cancelled && a.end>=today && a.start<=until).sort((a,b)=>a.start.localeCompare(b.start)).slice(0,8);
+    const free=holidaysIn(today,until).map(h=>`<li class="dwp-upcoming-item is-holiday" data-date="${esc(h.date)}"><span class="dwp-upcoming-date">${esc(h.date===today?'Heute':dayLabel(h.date))}</span><span class="dwp-upcoming-copy"><strong>${esc(h.name)}</strong><small>Gesetzlicher Feiertag · ${esc(core.holidayStates[holidayState()])}</small></span><span class="dwp-cal-status is-holiday">Feiertag</span></li>`);
+    const items=[...free,...next.map(a=>`<li class="dwp-upcoming-item" data-date="${esc(a.start<=today?today:a.start)}"><span class="dwp-upcoming-date">${esc(a.start<=today?'Heute':dayLabel(a.start))}</span><span class="dwp-upcoming-copy"><strong>${esc(a.projectLabel)}</strong><small>${esc([all?a.employeeName:'',a.task,a.end>a.start?`bis ${dayLabel(a.end)}`:''].filter(Boolean).join(' · '))}</small></span><span class="dwp-cal-status ${responseClass(a)}">${esc(responseLabel(a))}</span></li>`)].sort((x,y)=>x.match(/data-date="([^"]+)"/)[1].localeCompare(y.match(/data-date="([^"]+)"/)[1])).join('');
+    return panel(all?'Anstehend · nächste 7 Tage':'Deine Einsätze · nächste 7 Tage',`${items?`<ul class="dwp-upcoming">${items}</ul>`:'<p>Keine Einsätze und keine Feiertage in den nächsten 7 Tagen.</p>'}${btn('Wochenansicht öffnen','calendar-open')}`);
   }
   function priceImportPanel() {
     priceSource=null;pricePreview=null;priceReadToken++;
@@ -482,7 +750,7 @@
     const orders=db.list('orders').filter(r=>r.status==='Freigegeben' && !db.get(r.data.offerId)?.data.baseOfferId);
     const originalInvoices=db.list('invoices').filter(r=>!r.data.stornoOf && !db.list('invoices').some(s=>s.data.stornoOf===r.id));
     const options=rows=>rows.map(r=>`<option value="${esc(r.id)}">${esc(names(r.id))}</option>`).join('');
-    const invoiceFields=kind==='invoices'?`<div id="dwp-invoice-options" class="quick-form">${field('Hauptauftrag',`<select name="orderId"><option value="">Letzter freigegebener Hauptauftrag</option>${options(orders)}</select>`)}${field('Rechnungsart',`<select name="invoiceType"><option>Schlussrechnung</option><option>Abschlagsrechnung</option><option>Teilrechnung</option></select>`)}${field('Kumulativer Anteil des freigegebenen Aufmaßes %',`<input name="percentage" inputmode="decimal" value="100">`)}</div><p>Bei Abschlägen/Teilrechnungen den kumulativen Leistungsanteil angeben. Bereits berechnete Mengen werden abgezogen. Schlussrechnungen rechnen den verbleibenden freigegebenen Leistungsstand ab. XRechnung und ZUGFeRD sind noch nicht freigegeben.</p>`:'';
+    const invoiceFields=kind==='invoices'?`<div id="dwp-invoice-options" class="quick-form">${field('Hauptauftrag',`<select name="orderId"><option value="">Letzter freigegebener Hauptauftrag</option>${options(orders)}</select>`)}${field('Rechnungsart',`<select name="invoiceType"><option>Schlussrechnung</option><option>Abschlagsrechnung</option><option>Teilrechnung</option></select>`)}${field('Kumulativer Leistungsanteil % (Aufmaß bzw. Pauschalsumme)',`<input name="percentage" inputmode="decimal" value="100">`)}${field('Zahlungsziel in Tagen (Fälligkeit = Rechnungsdatum + Tage)',`<input name="paymentDays" inputmode="numeric" value="${esc(db.paymentDays())}">`)}</div><p>Bei Abschlägen/Teilrechnungen den kumulativen Leistungsanteil angeben. Bereits berechnete Mengen werden abgezogen. Schlussrechnungen rechnen den verbleibenden freigegebenen Leistungsstand ab. Bei Pauschalpreis (im Auftrag angehakt) wird ohne Aufmaß in % der Pauschalsumme abgerechnet, z. B. 30 % Abschlag vor Baubeginn. XRechnung und ZUGFeRD sind noch nicht freigegeben.</p>`:'';
     const extra=kind==='offers'?panel('Nachtragsangebot zum Hauptauftrag',`<p>Nachtragspositionen im LV als Nachtrag kennzeichnen, technisch prüfen und freigeben. Ein Nachtragsangebot wird nach seiner Beauftragung in die Abrechnung des Hauptauftrags übernommen.</p><form id="dwp-change-offer" class="quick-form">${field('Hauptangebot',`<select name="baseOfferId" required><option value="">Bitte auswählen</option>${options(originals)}</select>`)}${field('Nachtragsnummer',`<select name="changeNumber">${[...new Set(db.list('lv').filter(r=>r.data.kind==='Nachtrag').map(r=>r.data.changeNumber || ''))].map(n=>`<option value="${esc(n)}">${esc(n || 'Ohne Nachtragsnummer')}</option>`).join('')}</select>`)}${offerTermFields().replace('id="dwp-offer-terms"','id="dwp-change-terms"')}<button class="button button-primary" type="submit">Nachtragsangebot freigeben</button></form>`):panel('Rechnung stornieren',`<p>Das Original bleibt erhalten. Die Stornorechnung führt die Gegenbuchung mit eigenem Beleg und Begründung. Bereits erhaltene Zahlungen bleiben bestehen; Rückzahlungen werden separat auf den Stornobeleg gebucht.</p><form id="dwp-storno" class="quick-form">${field('Rechnung',`<select name="invoiceId" required><option value="">Bitte auswählen</option>${options(originalInvoices)}</select>`)}${field('Stornogrund',`<input name="reason" required>`)}<button class="button button-primary" type="submit">Stornorechnung erzeugen</button></form>`);
     return panel(kind==='offers'?'Angebotsfassungen':'Rechnungsfassungen',`<p>Jede Ausgabe speichert Kunde, Projekt, Leistungspositionen, Preise und Steuer als feste Fassung. Rechnungen übernehmen beauftragte Preise und freigegebene Aufmaßmengen.</p>${invoiceFields}${kind==='offers'?specialOfferFields()+offerTermFields():''}${btn(kind==='offers'?'Angebot freigeben':'Rechnung freigeben','issue',kind,true)}${table(['Nummer','Art','Netto','USt','Brutto','Ausgabe'],db.list(kind).map(r=>[esc(r.data.number),esc(r.data.title)+(r.module==='offers'?` · ${esc(r.data.changeNumber || 'Hauptangebot')} · Version ${esc(r.data.version || 1)}${db.list('offers').some(next=>next.data.supersedesOfferId===r.id)?' · Ersetzt':''}`:''),money(r.data.net),money(r.data.taxAmount),money(r.data.gross),`${kind==='offers'?btn('Öffnen','offer-open',r.id):''}${btn('Drucken / PDF','print',r.id)}${btn('CSV','snapshot-csv',r.id)}`]))}`)+extra;
   }
@@ -662,11 +930,12 @@
   }
   function settings() {
     const s=db.data.settings;
-    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}${field('Umsatzsteuer',`<select name="smallBusiness"><option value="false" ${s.smallBusiness===true?'':'selected'}>Regelbesteuerung (USt laut Kalkulationsbasis)</option><option value="true" ${s.smallBusiness===true?'selected':''}>Kleinunternehmer – § 19 UStG, keine USt</option></select>`)}${field('Belegnummern fortlaufend ab',`<input name="documentNumberStart" inputmode="numeric" pattern="[0-9]{1,4}" value="${esc(s.documentNumberStart ?? '')}" placeholder="0100">`)}<p class="field-span">Format: DWP-A-JJJJMM-NNNN/Version (A Angebot, AB Auftragsbestätigung, R Rechnung). Jede Belegart zählt fortlaufend weiter; ist bereits eine höhere Nummer vergeben, wird dort weitergezählt. Vor dem ersten neuen Beleg den letzten außerhalb der App vergebenen Zähler + 1 eintragen.</p><h3 class="field-span">Briefpapier (wie Schlussrechnung Rottmann/Tittmoning)</h3>${field('Kopf rechts – Zeilen unter dem Namen',`<textarea name="letterheadLines" rows="3">${esc(s.letterheadLines ?? (window.DWPDocument?.DEFAULTS.letterheadLines || ''))}</textarea>`)}${field('Absenderzeile – Bezeichnung vor dem Namen',`<input name="senderTitle" value="${esc(s.senderTitle ?? 'Dachdeckermeister')}">`)}${field('Fußzeile links – Zeilen',`<textarea name="footerQualifications" rows="5">${esc(s.footerQualifications ?? (window.DWPDocument?.DEFAULTS.footerQualifications || ''))}</textarea>`)}${field('Zeile unter der Unterschrift',`<input name="signatureLine" value="${esc(s.signatureLine ?? (window.DWPDocument?.DEFAULTS.signatureLine || ''))}">`)}${field('IBAN',`<input name="iban" value="${esc(s.iban || '')}" placeholder="DE.. .... .... .... .... ..">`)}${field('BIC (optional)',`<input name="bic" value="${esc(s.bic || '')}">`)}${field('Bank (optional)',`<input name="bankName" value="${esc(s.bankName || '')}">`)}${field('Steuernummer',`<input name="taxNumber" value="${esc(s.taxNumber || '')}">`)}${field('USt-IdNr. (optional)',`<input name="vatId" value="${esc(s.vatId || '')}">`)}${field('Zahlungshinweis auf Rechnungen',`<input name="paymentNote" value="${esc(s.paymentNote || 'Bitte zahlen Sie nach Rechnungserhalt ohne Abzug.')}">`)}<p class="field-span">Logo, rote Linien, Barcode mit Belegnummer, QR-Dokumentcode, Fußzeile und Seitenzahl kommen automatisch. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+letterheadImagesPanel()+panel('Sicherung und Wiederherstellung',`<p>Eine Sicherung enthält sämtliche lokalen Projektakten und zugeordneten Testdateien. Eine Wiederherstellung ersetzt den Arbeitsbestand nach ausdrücklicher Bestätigung; das aktuelle Logbuch bleibt erhalten.</p>${btn('Sicherung herunterladen','backup')}<label>Sicherung auswählen<input id="dwp-restore" type="file" accept=".json,application/json"></label>`);
+    return panel('Betriebsdaten',`<form id="dwp-company" class="quick-form">${field('Betrieb / Briefkopf',`<input name="company" value="${esc(s.company)}" required>`)}${field('Anschrift',`<textarea name="address">${esc(s.address || 'Upsalastraße 48 · 28719 Bremen')}</textarea>`)}${field('Inhaber',`<input name="proprietor" value="${esc(s.proprietor || 'Stephan Mangel')}">`)}${field('E-Mail',`<input name="email" type="email" value="${esc(s.email || 'info@dachwerkpro.de')}">`)}${field('Telefon',`<input name="phone" value="${esc(s.phone || '')}">`)}${field('Internetseite',`<input name="website" value="${esc(s.website || 'dachwerkpro.de')}">`)}${field('Umsatzsteuer',`<select name="smallBusiness"><option value="false" ${s.smallBusiness===true?'':'selected'}>Regelbesteuerung (USt laut Kalkulationsbasis)</option><option value="true" ${s.smallBusiness===true?'selected':''}>Kleinunternehmer – § 19 UStG, keine USt</option></select>`)}${field('Bundesland für Feiertage',`<select name="holidayState">${Object.entries(core.holidayStates).map(([k,v])=>`<option value="${k}" ${(s.holidayState || 'HB')===k?'selected':''}>${esc(v)}</option>`).join('')}</select>`)}${field('Belegnummern fortlaufend ab',`<input name="documentNumberStart" inputmode="numeric" pattern="[0-9]{1,4}" value="${esc(s.documentNumberStart ?? '')}" placeholder="0100">`)}<p class="field-span">Format: DWP-A-JJJJMM-NNNN/Version (A Angebot, AB Auftragsbestätigung, R Rechnung). Jede Belegart zählt fortlaufend weiter; ist bereits eine höhere Nummer vergeben, wird dort weitergezählt. Vor dem ersten neuen Beleg den letzten außerhalb der App vergebenen Zähler + 1 eintragen.</p><h3 class="field-span">Briefpapier (wie Schlussrechnung Rottmann/Tittmoning)</h3>${field('Kopf rechts – Zeilen unter dem Namen',`<textarea name="letterheadLines" rows="3">${esc(s.letterheadLines ?? (window.DWPDocument?.DEFAULTS.letterheadLines || ''))}</textarea>`)}${field('Absenderzeile – Bezeichnung vor dem Namen',`<input name="senderTitle" value="${esc(s.senderTitle ?? 'Dachdeckermeister')}">`)}${field('Fußzeile links – Zeilen',`<textarea name="footerQualifications" rows="5">${esc(s.footerQualifications ?? (window.DWPDocument?.DEFAULTS.footerQualifications || ''))}</textarea>`)}${field('Zeile unter der Unterschrift',`<input name="signatureLine" value="${esc(s.signatureLine ?? (window.DWPDocument?.DEFAULTS.signatureLine || ''))}">`)}${field('IBAN',`<input name="iban" value="${esc(s.iban || '')}" placeholder="DE.. .... .... .... .... ..">`)}${field('BIC (optional)',`<input name="bic" value="${esc(s.bic || '')}">`)}${field('Bank (optional)',`<input name="bankName" value="${esc(s.bankName || '')}">`)}${field('Steuernummer',`<input name="taxNumber" value="${esc(s.taxNumber || '')}">`)}${field('USt-IdNr. (optional)',`<input name="vatId" value="${esc(s.vatId || '')}">`)}${field('Zahlungshinweis auf Rechnungen',`<input name="paymentNote" value="${esc(s.paymentNote || 'Bitte zahlen Sie nach Rechnungserhalt ohne Abzug.')}">`)}<p class="field-span">Logo, rote Linien, Barcode mit Belegnummer, QR-Dokumentcode, Fußzeile und Seitenzahl kommen automatisch. Neue Belegfassungen übernehmen diese Angaben; bestehende freigegebene Fassungen behalten ihren gespeicherten Firmenstand.</p><button class="button button-primary" type="submit">Speichern</button></form>`)+letterheadImagesPanel()+panel('Sicherung und Wiederherstellung',`<p>Sichern, Sicherungsverlauf nach Datum und Uhrzeit, Ablage in Dropbox, Drive oder eigener Cloud und Wiederherstellung findest du im Modul „Sicherung“.</p>${btn('Modul Sicherung öffnen','open','backup',true)}`);
   }
   function openModule(id) {
     if(state.unsavedChanges && !window.confirm('Ungespeicherte Eingaben verwerfen und Bereich wechseln?')) return;
     id=validModule(id)?id:'dashboard';
+    if(id!=='personnel')feedUrl='';
     if(moduleTrail.at(-1)!==id)moduleTrail.push(id);
     if(moduleTrail.length>100)moduleTrail.shift();
     window.history.replaceState(window.history.state,'',moduleUrl(id));
@@ -683,7 +952,7 @@
   }
   function renderModule(id) {
     current=id;editing=null;search='';importPreview=null;excelSource=null;
-    const section=id==='register'?'documents':core.definitions[id]?.view || (['help','settings'].includes(id)?id:'dashboard');
+    const section=id==='register'?'documents':core.definitions[id]?.view || (['help','settings','users','backup'].includes(id)?id:'dashboard');
     state.currentView=section;localStorage.setItem('dwp-current-view',section);
     document.querySelectorAll('.nav-item[data-view]').forEach(item=>item.classList.toggle('is-active',item.dataset.view===section));
     if(window.DWPRemote?.active && core.definitions[id])window.DWPRemote.trackModule(id,db.data.selectedProject).catch(e=>showError(Error('Nutzungsprotokoll konnte nicht gespeichert werden: '+e.message)));
@@ -697,9 +966,11 @@
     }
     if(id==='workflow')return shell('Gemeinsamer Projektworkflow',workflowPanel());
     if(id==='access')return shell('Zugriff und Modulnutzung',accessPanel());
+    if(id==='users')return renderUsers();
+    if(id==='backup')return renderBackup();
     if(id==='audit')return shell('Projektlogbuch',panel('Lokales Änderungsjournal',`<p>Im normalen Arbeitsbereich werden keine Einträge gelöscht. Der lokale Testbestand ist technisch veränderbar und daher noch kein revisionssicherer Audit-Trail.</p>${table(['Zeit','Aktion','Bereich','Vorgang'],db.data.audit.filter(r=>!db.project() || r.projectId===db.data.selectedProject || !r.projectId).slice().reverse().map(r=>[esc(new Date(r.at).toLocaleString('de-DE')),esc(r.action),esc(core.definitions[r.module]?.name || r.module),esc(r.recordId || '')]))}`));
     if(id==='help')return shell('DachWerk Hilfe',panel('Durchgängiger Ablauf',`<ol><li>Kunde und Projekt anlegen.</li><li>LV erfassen oder CSV importieren, Material und Zeitansätze ergänzen.</li><li>Fachlich prüfen, Verantwortlichen nennen und LV freigeben.</li><li>Angebotsfassung erzeugen; Auftrag mit Angebotsbezug freigeben.</li><li>Aufmaß, Bautagebuch, Mängel, Zeiten und Kosten im gleichen Projekt erfassen.</li><li>Aufmaß freigeben, Rechnung erzeugen und Zahlungen zuordnen.</li><li>Nachkalkulation und Export prüfen.</li></ol><p>Der freie KI-Assistent ist noch nicht angeschlossen. Die Hilfe erläutert den tatsächlichen Funktionsstand.</p>`));
-    if(id==='settings')return shell('Einstellungen',settings());
+    if(id==='settings')return shell('Einstellungen',settings()+accountingSettings());
     const mod=core.definitions[id];if(!mod)return;
     if(mod.scope==='project' && !db.project())return shell(mod.name,panel('Projektbezug erforderlich',`<p>Bitte zuerst einen Kunden und ein Projekt anlegen. Danach das Projekt oben auswählen.</p>`));
     if(!special.has(id))return records(mod);
@@ -707,7 +978,7 @@
     if(['calculation','efb'].includes(id))body=calculation()+nuMarkupPanel()+(id==='efb'?efbBreakdown()+panel('BFW-Übergabe',`<p>Die separate XLS-Übergabedatei enthält Pos, Menge, MEH, Kurztext, Langtext, EP und PA. Hier werden die aktuellen LV-Positionen als Excel-kompatible CSV ausgegeben. PA bleibt leer, bis die Bedeutung der Zielsystem-Schnittstelle fachlich bestätigt ist. Vor der Übernahme Bedarfs-/Alternativpositionen prüfen.</p>${btn('BFW-Übergabe CSV herunterladen','bfw-csv')}`):'');
     if(['offers','invoices'].includes(id))body=snapshots(id);
     if(id==='controlling')body=controlling();
-    if(id==='closing')body=panel('Projektbezogenes Belegpaket',`<p>JSON enthält die Projektakte, CSV die Rechnungen und Kostenbelege. DATEV-Importformate und automatischer Monatsabschluss sind noch nicht freigegeben.</p>${btn('Projektakte JSON','project-json')}${btn('Belegübersicht CSV','closing-csv')}`);
+    if(id==='closing')body=journalPanel()+panel('Projektbezogenes Belegpaket',`<p>JSON enthält die Projektakte, CSV die Rechnungen und Kostenbelege. Das SKR03-Buchungsjournal oben umfasst alle sichtbaren Projekte.</p>${btn('Projektakte JSON','project-json')}${btn('Belegübersicht CSV','closing-csv')}`);
     if(id==='imports')body=importView()+importJournal();
     shell(mod.name,body);
     if(id==='offers')updateChoiceTotal();
@@ -754,6 +1025,7 @@
       if(isOffer || r.confirmation)notes.push(...[['Gültig bis einschließlich',d.validUntil],['Zahlungsbedingungen',d.paymentTerms],['Ausführungsbedingungen / Termine',d.executionTerms],['Angebotshinweise',d.offerNotes],...(r.confirmation?[['Auftragshinweise',d.notes]]:[])].filter(([,value])=>value).map(([heading,text])=>({heading,text})));
       body+=L.notesBlock(notes);
       if(isInvoice && !d.stornoOf)body+=L.paymentBlock({company:d.company || db.data.settings,number:d.number});
+      if(r.module==='invoices' && d.dueDate && !d.stornoOf && d.gross>0)body+=`<p>Rechnungsdatum ${esc(deDate(d.invoiceDate))} · zahlbar ohne Abzug bis <strong>${esc(deDate(d.dueDate))}</strong>.</p>`;
     } else {
       body=`<h1>${esc(mod.name)}</h1><h2>${esc(names(r.id))}</h2><p>Projekt: ${esc(signed?.project?.name || db.get(r.projectId)?.data.name || 'Stammdaten')} · Status ${esc(r.status)}</p>${table(['Feld','Angabe'],mod.fields.map(f=>[esc(f.label),esc(signed?.labels?.[f.key] ?? (['customer','position','material','employee','offer','purchase','invoice','subcontract','record'].includes(f.type)?names(r.data[f.key]):f.type==='contacts'?(r.data[f.key] || []).map(c=>[c.name,c.role,c.email,c.phone].filter(Boolean).join(' · ')).join('\n'):r.data[f.key]))]))}<p>Verantwortlich: ${esc(r.owner)} · Frist ${esc(r.due)}</p>`;
       if(r.signatures?.length)body+=r.signatures.map(s=>`<p>${esc(s.role)}: ${esc(s.signer)} · ${esc(new Date(s.signedAt).toLocaleString('de-DE'))}</p>${signatureSvg(s)}`).join('');
@@ -810,6 +1082,11 @@
         command=['importMaterials',priceReport(input).rows,{...input.values,owner:state.currentUser}];
       }
       if(form.id==='dwp-change-offer')command=['issue','offers',{offerType:'Nachtragsangebot',baseOfferId:values.baseOfferId,changeNumber:values.changeNumber,validUntil:values.validUntil,paymentTerms:values.paymentTerms,executionTerms:values.executionTerms,offerNotes:values.offerNotes,owner:state.currentUser}];
+      if(form.id==='dwp-journal'){journalRange=Object.fromEntries(['from','to'].filter(k=>values[k]).map(k=>[k,values[k]]));db.journal(journalRange);openModule('closing');return;}
+      if(form.id==='dwp-lock'){if(!window.confirm('Zeitraum bis '+deDate(values.lockedUntil)+' festschreiben? Das kann nicht zurückgenommen werden.'))return;command=['settings',{lockedUntil:values.lockedUntil}];}
+      if(form.id==='dwp-dunning'){const inv=db.get(values.invoiceId);if(!inv)throw Error('Rechnung auswählen.');selectProject(inv.projectId);command=['dunInvoice',values.invoiceId,{date:values.date,days:values.days,fee:values.fee,interest:form.elements.namedItem('interest').checked,flatFee:form.elements.namedItem('flatFee').checked,owner:state.currentUser}];}
+      if(form.id==='dwp-payout'){const r=db.get(values.incomingId);if(!r)throw Error('Eingangsrechnung auswählen.');selectProject(r.projectId);command=['payIncoming',values.incomingId,{kind:values.kind,date:values.date,amount:values.amount,account:values.account,notes:values.notes,owner:state.currentUser}];}
+      if(form.id==='dwp-accounting')command=['settings',{paymentDays:values.paymentDays,dunningDays:values.dunningDays,dunningFee:values.dunningFee,baseRates:values.baseRates || '',datevConsultant:values.datevConsultant || '',datevClient:values.datevClient || '',fiscalYearStart:values.fiscalYearStart || '',accounts:Object.fromEntries(Object.keys(core.ACCOUNTS).map(k=>[k,values['acc_'+k] || '']))}];
       if(form.id==='dwp-storno')command=['stornoInvoice',values.invoiceId,{reason:values.reason,owner:state.currentUser}];
       if(form.id==='dwp-pair'){window.DWPRemote.pair(values.token).then(()=>{notice('Gerät freigegeben.');openModule('access');}).catch(showError);return;}
       if(!command)return;
@@ -825,6 +1102,9 @@
     }
     try {
       if(action==='module-back'){backModule();return;}
+      if(action==='dunning-print'){const [invoiceId,dunningId]=String(id).split('/');printDunning(invoiceId,dunningId);return;}
+      if(action==='journal-csv' || action==='datev-csv'){journalFile(action==='journal-csv'?'journal':'datev');return;}
+      if(action==='datev-extf'){journalExtf();return;}
       if(action==='project-actions'){const row=target.closest('[data-project-gesture]');if(row)revealProjectDelete(row.classList.contains('is-delete-revealed')?'':id);return;}
       if(action==='project-select'){if(state.unsavedChanges&&!window.confirm('Ungespeicherte Eingaben verwerfen und Projekt wechseln?'))return;selectProject(id);state.unsavedChanges=false;openModule(current);return;}
       if(action==='delete-project-row'){promptProjectDeletion(id);return;}
@@ -841,6 +1121,7 @@
         else if(action==='print')printRecord(output.record);
         else if(action==='bfw-csv')csvExport('DachWerkPro_BFW_Uebergabe.csv',core.bfwTransferRows(output.positions || output.record?.data.positions || []));
         else if(['calc-csv','snapshot-csv'].includes(action)){const rows=output.positions || output.record.data.positions;csvExport('DachWerkPro_Positionen.csv',[['Position','Gliederung','Leistung','Menge','Einheit','EP netto','GP netto','Leistungsart','Wahlgruppe','In Summe'],...[...rows,...(output.record?.module==='offers'?[...(output.record.data.optionalPositions || []),...(output.record.data.alternativePositions || [])]:[])].map(p=>[p.number,p.groupPath || '',p.text,p.qty,p.unit,p.ep,p.gp,p.kind || 'Hauptleistung',p.choiceGroup || '',output.positions?(!['Bedarfsposition','Alternativposition'].includes(p.kind)?'Ja':'Nein'):(rows.includes(p)?'Ja':'Nein')])]);}
+        else if(action==='backup')offerFile(output);
         else download(output.name,output.text,output.type);
         return;
       }
@@ -881,6 +1162,52 @@
       if(action==='print')printRecord(db.get(id));
       if(action==='demand-purchase'){mutate('createPurchase',[id,{owner:state.currentUser}],()=>{notice('Bestellentwurf aus dem offenen Bedarf angelegt.');openModule('purchase');});}
       if(action==='use-quote'){const [supplierId,quoteId]=id.split('/');mutate('useQuote',[supplierId,quoteId,state.currentUser],()=>{notice('Preisquelle freigegeben und Artikelhistorie aktualisiert.');openModule(current);});}
+      if(action==='backup-create'){target.disabled=true;const r=await window.DWPRemote.backups({action:'create'});backupList=r.backups;renderBackup();notice(`Sicherung vom ${core.backupFormat.label(r.created.createdAt)} angelegt.`);return;}
+      if(action==='backup-download'){offerFile(await window.DWPRemote.backups({action:'download',id}));return;}
+      if(action==='backup-restore'){
+        const b=backupList?.find(x=>x.id===id);if(!b)return;
+        if(!window.confirm(`Gesamten Arbeitsbestand durch die Sicherung vom ${core.backupFormat.label(b.sourceCreatedAt || b.createdAt)} ersetzen?\n\nDer aktuelle Stand wird vorher automatisch gesichert und bleibt im Verlauf.`))return;
+        const r=await window.DWPRemote.backups({action:'restore',id});backupList=r.backups;renderBackup();notice('Sicherung eingespielt. Der vorherige Stand steht im Verlauf als „vor Wiederherstellung“.');return;
+      }
+      if(action==='backup-file-restore'){
+        const c=restoreCandidate;if(!c)return;
+        const when=c.meta.createdAt?core.backupFormat.label(c.meta.createdAt):'unbekanntem Datum';
+        const remote=window.DWPRemote?.active;
+        if(!window.confirm(`Gesamten Arbeitsbestand durch die Sicherung vom ${when} ersetzen?\n\n${remote?'Der aktuelle Stand wird vorher automatisch gesichert und bleibt im Verlauf.':'Lokaler Testbetrieb: Lade vorher eine Sicherung des aktuellen Stands herunter.'}`))return;
+        if(remote){target.disabled=true;const r=await window.DWPRemote.uploadBackup(c.text);backupList=r.backups;restoreCandidate=null;renderBackup();notice('Sicherung eingespielt. Der vorherige Stand steht im Verlauf als „vor Wiederherstellung“.');}
+        else mutate('restore',[c.text],()=>{restoreCandidate=null;state.unsavedChanges=false;openModule('backup');notice('Sicherung eingespielt.');});
+        return;
+      }
+      if(action==='backup-file-cancel'){restoreCandidate=null;renderBackup();return;}
+      if(action==='backup-ready-close'){readyFile=null;renderBackup();return;}
+      if(action==='backup-save'){if(readyFile)download(readyFile.name,readyFile.text,readyFile.type || 'application/json');return;}
+      if(action==='backup-share'){
+        if(!readyFile)return;
+        const file=new File([readyFile.text],readyFile.name,{type:'application/json'});
+        try{await navigator.share({files:[file],title:readyFile.name});}
+        catch(e){if(e?.name!=='AbortError')download(readyFile.name,readyFile.text,'application/json');}
+        return;
+      }
+      if(action==='user-extend'){editingUser=id;passwordUser=null;if(current!=='users')openModule('users');else renderUsers();const input=main.querySelector('#dwpu-edit [name="validUntil"]');input?.scrollIntoView({block:'center'});input?.focus();return;}
+      if(action==='user-edit'){editingUser=id;passwordUser=null;renderUsers();main.querySelector('#dwp-user-edit')?.scrollIntoView({block:'start'});return;}
+      if(action==='user-edit-close'){editingUser=null;renderUsers();return;}
+      if(action==='user-password'){passwordUser=id;editingUser=null;renderUsers();main.querySelector('#dwp-user-password')?.scrollIntoView({block:'start'});return;}
+      if(action==='user-password-close'){passwordUser=null;renderUsers();return;}
+      if(action==='user-credentials-close'){lastCredentials=null;renderUsers();return;}
+      if(action==='user-copy'){navigator.clipboard?.writeText(target.dataset.text).then(()=>notice('Zugangsdaten kopiert.')).catch(()=>notice('Kopieren nicht möglich. Bitte markieren und kopieren.'));return;}
+      if(action==='user-block' || action==='user-unblock'){const u=usersData.users.find(x=>x.id===id);if(action==='user-block' && !window.confirm(`${u.name} sperren? Er wird sofort abgemeldet.`))return;userAction({action:action.slice(5),userId:id},()=>notice(action==='user-block'?`${u.name} ist gesperrt.`:`${u.name} ist wieder freigegeben.`));return;}
+      if(action==='calendar-week'){calendarWeek=id==='0'?null:isoAdd(calendarWeek || defaultMonday(),Number(id));const panelEl=main.querySelector('#dwp-calendar');if(panelEl)panelEl.outerHTML=calendarPanel();return;}
+      if(action==='calendar-focus'){const row=main.querySelector(`#dwp-einsatz-${CSS.escape(id)}`)?.closest('tr');if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.classList.add('dwp-row-flash');setTimeout(()=>row.classList.remove('dwp-row-flash'),1600);}return;}
+      if(action==='feed-create' || action==='feed-revoke'){
+        if(action==='feed-create' && feedInfo?.active && !window.confirm('Neuen Link erstellen? Der bisherige Link funktioniert danach nicht mehr; Outlook muss neu abonniert werden.'))return;
+        if(action==='feed-revoke' && !window.confirm('Link sperren? Outlook und iPhone zeigen die Termine danach nicht mehr an.'))return;
+        target.disabled=true;
+        window.DWPRemote.calendarFeed({action:action==='feed-create'?'create':'revoke'}).then(data=>{feedUrl=data.url || '';feedInfo=data;refreshFeed();notice(action==='feed-create'?'Kalender-Link erstellt.':'Kalender-Link gesperrt.');}).catch(showError).finally(()=>{target.disabled=false;});
+        return;
+      }
+      if(action==='feed-copy'){navigator.clipboard?.writeText(feedUrl).then(()=>notice('Kalender-Link kopiert.')).catch(()=>notice('Kopieren nicht möglich. Bitte Link markieren und kopieren.'));return;}
+      if(action==='calendar-open'){openModule('personnel');setTimeout(()=>main.querySelector('#dwp-calendar')?.scrollIntoView({block:'start'}),0);return;}
+      if(action==='respond-schedule'){const [employeeId,assignmentId,answer]=id.split('/');mutate('respondSchedule',[employeeId,assignmentId,{answer}],()=>{notice(answer==='Zugesagt'?'Zusage gespeichert.':'Absage gespeichert.');openModule(current);});return;}
       if(action==='cancel-schedule'){const [employeeId,assignmentId]=id.split('/');mutate('cancelSchedule',[employeeId,assignmentId],()=>{notice('Einsatz storniert und im Logbuch erhalten.');openModule(current);});}
       if(action==='signature')signatureView(id);
       if(action==='clear-signature'){const canvas=main.querySelector('#dwp-signature');canvas.getContext('2d').clearRect(0,0,640,240);signatureStrokes=[], importPreview=null;}
@@ -892,7 +1219,7 @@
         finally{target.disabled=false;target.textContent='Projekte neu laden';}
       }
       if(action==='operating-rate')mutate('applyOperatingCosts',[],()=>{notice('Vollkostensatz übernommen; AGK auf 0 gesetzt.');openModule('calculation');});
-      if(action==='backup')download('DachWerkPro_Sicherung.json',db.backup());
+      if(action==='backup')offerFile({name:core.backupFormat.fileName(),type:'application/json',text:JSON.stringify(core.backupFormat.wrap(db.data,{createdBy:state.currentUser}),null,2)});
       if(action==='project-json')download('DachWerkPro_Projektakte.json',JSON.stringify({project:db.project(),customer:db.get(db.project().data.customerId),records:db.data.records.filter(r=>r.projectId===db.data.selectedProject)},null,2));
       if(action==='bfw-csv')csvExport('DachWerkPro_BFW_Uebergabe.csv',core.bfwTransferRows(db.calculation().positions));
       if(action==='calc-csv' || action==='snapshot-csv') {
@@ -1038,8 +1365,14 @@
       if(['dwp-datanorm-known','dwp-datanorm-listprice','dwp-datanorm-filter'].includes(event.target.id) && priceSource?.datanorm)datanormBook();
       if(event.target.id==='dwp-price-sheet' || event.target.id==='dwp-price-header')priceControls(Number(document.querySelector('#dwp-price-sheet').value),event.target.id==='dwp-price-header'?Number(event.target.value):undefined);
       if(event.target.id==='dwp-restore') {
-        const text=await event.target.files[0].text();
-        if(confirm('Aktuellen lokalen Arbeitsbestand durch diese Sicherung ersetzen?')){mutate('restore',[text],()=>{state.unsavedChanges=false;openModule('dashboard');});}
+        // Erst prüfen und anzeigen, von wann die Sicherung ist; eingespielt wird erst nach Bestätigung.
+        const file=event.target.files[0];if(!file)return;
+        const text=await file.text();let parsed;
+        try{parsed=JSON.parse(text);}catch{restoreCandidate=null;throw Error('Diese Datei ist keine DachWerkPro-Sicherung.');}
+        const {state:content,meta}=core.backupFormat.unwrap(parsed);
+        try{new core.Store({getItem:()=>JSON.stringify(content),setItem(){}});}catch(e){restoreCandidate=null;throw Error('Sicherung ist unvollständig: '+e.message);}
+        restoreCandidate={name:file.name,text,meta};renderBackup();
+        main.querySelector('#dwp-restore-preview')?.scrollIntoView({block:'nearest'});
       }
       if(event.target.closest('#dwp-record, #dwp-import'))state.unsavedChanges=true;
     }catch(e){showError(e);}
@@ -1055,6 +1388,8 @@
   };
   for(const [view,module] of Object.entries(viewsToModule))views[view]=()=>{setTimeout(()=>openModule(module),0);return '';};
   views.dashboard=()=>{setTimeout(()=>openModule('dashboard'),0);return '';};
+  views.users=()=>{setTimeout(()=>openModule('users'),0);return '';};
+  views.backup=()=>{setTimeout(()=>openModule('backup'),0);return '';};
   document.querySelector('#f3-button')?.addEventListener('click',event=>{event.stopImmediatePropagation();closeQuickModal();openModule(state.currentView==='customers'?'customers':'projects');},true);
   document.addEventListener('keydown',event=>{if(event.key==='F3' && !document.querySelector('#app-shell').classList.contains('is-hidden')){event.preventDefault();event.stopImmediatePropagation();openModule(state.currentView==='customers'?'customers':'projects');}},true);
   const globalSearch=document.querySelector('#global-search');

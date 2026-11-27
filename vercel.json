@@ -40,6 +40,16 @@
     {
       "source": "/workspace",
       "destination": "/api/workspace"
+    },
+    {
+      "source": "/kalender/:file",
+      "destination": "/api/calendar?file=:file"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "15 5 * * *"
     }
   ],
   "buildCommand": "npm run build",

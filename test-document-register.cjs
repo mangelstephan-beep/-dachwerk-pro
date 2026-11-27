@@ -26,7 +26,7 @@ const html=fs.readFileSync('index.html','utf8');
 assert(html.includes('/document-register.js'),'Client file included');
 const workflows=fs.readFileSync('project-workflows.js','utf8');
 assert(workflows.includes("if(id==='register')"),'Module 37 reachable');
-assert(workflows.includes("['dashboard','workflow','access','audit','help','settings','register']"),'Deep link allowed');
+assert(workflows.includes("['dashboard','workflow','access','audit','help','settings','register','users','backup']"),'Deep link allowed');
 assert(fs.readFileSync('central-entry.js','utf8').includes('originalFile(recordId,fileId,projectId='),'Cross-project document open');
 assert(fs.readFileSync('lib/access-security.cjs','utf8').includes("if(body.kind==='register')"),'Export route protected through existing owner/device gate');
 (async function testBrowserUploadRetry() {
