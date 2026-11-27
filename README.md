@@ -9,7 +9,7 @@ Produktionsdomain: https://www.dachwerkpro.de/
 
 36 verbundene Arbeitsbereiche. Die Hauptanwendung verwendet serverseitige Anmeldung und zentrale PostgreSQL-Speicherung. Eine Veröffentlichung bedeutet keine vollständige Fachfreigabe aller Module.
 
-**36/36 Modulabnahmen GRÜN** (Freigabe Stephan Mangel 15.11.2026 nach Gesamtablauf-Prüfung; 23, 27, 29 nach Ablauftest Termin → Besuchstermin → Bestandsaufnahme → Angebot → AZ → TR → ST → Abnahme, `test-ablauf-termin-abnahme.cjs`). Fachlich noch offene Punkte stehen je Modul im Nachweis. Maßgeblich ist `module-verification.js`; die vollständige aktuelle Übersicht wird daraus in [ABNAHMESTAND.md](ABNAHMESTAND.md) erzeugt. [MODULSTATUS.md](MODULSTATUS.md) enthält den Entwicklungsverlauf mit datierten historischen Angaben.
+**Aktueller Abnahmestand:** siehe den automatisch erzeugten [ABNAHMESTAND.md](ABNAHMESTAND.md). Die Freigabe vom 15.11.2026 dokumentiert den damaligen Stand; spätere Erweiterungen sind gesondert abzunehmen. Maßgeblich ist `module-verification.js`. Veröffentlichung, lokale Tests, fachliche Produktionsabnahme und dokumentierte Geräteprüfung sind getrennte Nachweise. [MODULSTATUS.md](MODULSTATUS.md) enthält den Entwicklungsverlauf mit datierten historischen Angaben.
 
 ## Prüfen und bauen
 
