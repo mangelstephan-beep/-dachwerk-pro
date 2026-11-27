@@ -558,6 +558,20 @@
       }
       return this.transaction('Einstellungen gespeichert','operating',null,d=>{d.settings=clean;});
     }
+    // Unterschrift und Siegel für das Briefpapier (nicht im Firmenstand der Belege, nicht im Programmcode).
+    letterhead(values={}) {
+      const next={...(this.data.letterhead || {})};
+      for(const key of ['signature','seal']) {
+        if(!(key in values))continue;
+        const v=values[key];
+        if(v==='' || v===null){delete next[key];continue;}
+        if(typeof v!=='string' || !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(v))throw Error('Briefpapier: nur PNG- oder JPG-Bilder.');
+        if(v.length>400000)throw Error('Briefpapier: Bild zu groß (höchstens ca. 300 KB).');
+        next[key]=v;
+      }
+      if(Object.keys(values).some(k=>!['signature','seal'].includes(k)))throw Error('Briefpapier: unbekanntes Bild.');
+      return this.transaction('Briefpapier-Bild gespeichert','operating',null,d=>{d.letterhead=next;});
+    }
     blockers(moduleIds) {
       return moduleIds.flatMap(m=>this.list(m).filter(r=>r.data.blocking && r.status!=='Erledigt'));
     }
