@@ -216,7 +216,7 @@
     "verified": false,
     "checkedAt": "2026-11-15",
     "evidence": "Nachgebaut 15.11.2026: Rechnung nach § 13b UStG ohne USt (Kunde als bauleistender Unternehmer markiert, USt-IdNr. Pflicht, Hinweistext) und Regiepositionen. Freigabe Stephan Mangel 15.11.2026 nach bestandenem Ablauftest test-ablauf-termin-abnahme.cjs (Termin, Besuchstermin, Bestandsaufnahme, Angebot, Auftrag, Abschlags- und Teilrechnung, unterschriebener Stundenzettel, Abnahme, Schlussrechnung, Zahlung mit Skonto/Einbehalt, Abschluss) und test-regie-reverse-charge.cjs. Weiter offen, nicht Teil dieser Freigabe: Mahnwesen, Steuerliche Sonderfälle, XRechnung/ZUGFeRD Erweitert 15.11.2026: Pauschalpreis im Hauptauftrag (Häkchen + Pauschalsumme) – Abschlag schon vor Aufmaß, Abschlags-/Teil-/Schlussrechnung in % der Pauschalsumme ohne Aufmaß; Einheitspreis weiter nach Aufmaß. Abgedeckt durch test-ablauf-termin-abnahme.cjs.",
-    "remaining": "Erweitert 24.11.2026 (PR Buchhaltung): Zahlungsziel in Tagen bei der Rechnungsausgabe, Rechnungsdatum und Fälligkeit auf der Rechnung und im Ausdruck („zahlbar ohne Abzug bis“). Neu abzunehmen auf HP und iPhone."
+    "remaining": "Erweitert 24.11.2026 (PR Buchhaltung): Zahlungsziel in Tagen bei der Rechnungsausgabe, Rechnungsdatum und Fälligkeit auf der Rechnung und im Ausdruck („zahlbar ohne Abzug bis“). Neu abzunehmen auf HP und iPhone. Ergänzt 26.11.2026: Stornorechnung trägt ihr eigenes Ausstellungsdatum (Journal im Storno-Monat)."
   },
   "incoming": {
     "number": 28,
@@ -224,7 +224,7 @@
     "verified": false,
     "checkedAt": "2026-11-15",
     "evidence": "Freigabe Stephan Mangel 15.11.2026: live auf www.dachwerkpro.de geöffnet und bearbeitet; Gesamtablauf am 15.11.2026 mit Beispielprojekt Flachdach (Kunde bis Controlling) geprüft. Weiter offen, nicht Teil dieser Freigabe: OCR/E-Rechnung, automatischer Prüfabgleich",
-    "remaining": "Erweitert 24.11.2026 (PR Buchhaltung): Offene Verbindlichkeiten aller Projekte und Zahlungsausgang (Zahlung / Skonto erhalten) zu freigegebenen Eingangsrechnungen, SKR03 1600 an Bank bzw. 3736/3731/3730. Neu abzunehmen auf HP und iPhone."
+    "remaining": "Erweitert 24.11.2026 (PR Buchhaltung): Offene Verbindlichkeiten aller Projekte und Zahlungsausgang (Zahlung / Skonto erhalten) zu freigegebenen Eingangsrechnungen, SKR03 1600 an Bank bzw. 3736/3731/3730. Neu abzunehmen auf HP und iPhone. Ergänzt 26.11.2026: Festschreibung sperrt Eingangsrechnungen und Zahlungsausgänge im abgeschlossenen Zeitraum."
   },
   "payments": {
     "number": 29,
@@ -232,7 +232,7 @@
     "verified": false,
     "checkedAt": "2026-11-15",
     "evidence": "Nachgebaut 15.11.2026: Buchungsarten Skonto / Abzug (mit Grund) und Sicherheitseinbehalt (mit Frist); Restsumme ausbuchen oder auf Zwischenkonto; Kontovorschläge SKR03 (8736/8730 Skonto, 8700, 1590), mit Steuerberater abzustimmen; Abschluss trotz offenem Einbehalt, spätere Auszahlung auch im abgeschlossenen Projekt. Freigabe Stephan Mangel 15.11.2026 nach bestandenem Ablauftest test-ablauf-termin-abnahme.cjs (Termin, Besuchstermin, Bestandsaufnahme, Angebot, Auftrag, Abschlags- und Teilrechnung, unterschriebener Stundenzettel, Abnahme, Schlussrechnung, Zahlung mit Skonto/Einbehalt, Abschluss) und test-payment-settlement.cjs. Weiter offen, nicht Teil dieser Freigabe: Bankanbindung, Kontenmapping",
-    "remaining": "Erweitert 24.11.2026 (PR Buchhaltung): Offene Posten aller Projekte und Mahnwesen – Zahlungserinnerung, 1. Mahnung, 2. Mahnung, Letzte Mahnung mit Frist, Mahngebühr, Verzugspauschale 40 EUR (Gewerbe), Verzugszinsen nach § 288 BGB (Basiszins Bundesbank), Mahnnummer DWP-M, Ausdruck auf Briefpapier. Neu abzunehmen auf HP und iPhone."
+    "remaining": "Erweitert 24.11.2026 (PR Buchhaltung): Offene Posten aller Projekte und Mahnwesen – Zahlungserinnerung, 1. Mahnung, 2. Mahnung, Letzte Mahnung mit Frist, Mahngebühr, Verzugspauschale 40 EUR (Gewerbe), Verzugszinsen nach § 288 BGB (Basiszins Bundesbank), Mahnnummer DWP-M, Ausdruck auf Briefpapier. Neu abzunehmen auf HP und iPhone. Ergänzt 26.11.2026: Folgemahnungen fordern offene Mahnkosten früherer Schreiben mit; Buchungsarten „Mahngebühr erhalten“ (SKR03 2700) und „Verzugszinsen erhalten“ (2650), höchstens angemahnt; offene Mahnkosten in den offenen Posten."
   },
   "closing": {
     "number": 30,
@@ -240,7 +240,7 @@
     "verified": false,
     "checkedAt": "2026-11-15",
     "evidence": "Freigabe Stephan Mangel 15.11.2026: live auf www.dachwerkpro.de geöffnet und bearbeitet; Gesamtablauf am 15.11.2026 mit Beispielprojekt Flachdach (Kunde bis Controlling) geprüft. Weiter offen, nicht Teil dieser Freigabe: Monatsperioden, DATEV-Paket",
-    "remaining": "Erweitert 24.11.2026 (PR Buchhaltung): SKR03-Buchungsjournal mit Kontensalden und Zeitraumfilter, Export Journal-CSV und DATEV-Buchungen-CSV (ASCII-Felder Umsatz, S/H, Konto, Gegenkonto, Belegdatum, Belegfeld 1, Buchungstext); Konten in den Einstellungen änderbar. DATEV-Import vor produktiver Nutzung mit dem Steuerberater testen. Neu abzunehmen auf HP und iPhone."
+    "remaining": "Erweitert 24.11.2026 (PR Buchhaltung): SKR03-Buchungsjournal mit Kontensalden und Zeitraumfilter, Export Journal-CSV und DATEV-Buchungen-CSV (ASCII-Felder Umsatz, S/H, Konto, Gegenkonto, Belegdatum, Belegfeld 1, Buchungstext); Konten in den Einstellungen änderbar. DATEV-Import vor produktiver Nutzung mit dem Steuerberater testen. Neu abzunehmen auf HP und iPhone. Ergänzt 26.11.2026: DATEV-Buchungsstapel (EXTF 700, Windows-1252) mit Berater-/Mandantennummer und Wirtschaftsjahr aus den Einstellungen, monatlich auch nach Dropbox; Festschreibung bis Datum (nicht rücknehmbar). Neu abzunehmen auf HP und iPhone."
   },
   "controlling": {
     "number": 31,

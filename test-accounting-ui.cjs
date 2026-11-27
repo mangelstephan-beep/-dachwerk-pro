@@ -60,5 +60,20 @@ const reader=b=>new Promise(r=>{const fr=new w.FileReader();fr.onload=()=>r(fr.r
   // Zeitraumfilter
   f=query('#dwp-journal');f.elements.from.value=core.addDays(core.berlinDay(),1);submit(f);assert.equal(error(),'');
   assert(!w.document.body.textContent.includes('ER Handel'),'Zeitraum filtert');
-  console.log('Buchhaltung-Oberfläche: Einstellungen, Zahlungsziel, Mahnwesen, Zahlungsausgang, SKR03-Journal und DATEV-CSV passed.');
+  // DATEV-Buchungsstapel (EXTF): ohne Zeitraum/Beraternummer verständliche Meldung, danach Download
+  open('closing');query('[data-dwp="datev-extf"]').click();assert.match(error(),/Zeitraum/);
+  const t=core.berlinDay();f=query('#dwp-journal');f.elements.from.value=t;f.elements.to.value=t;submit(f);
+  query('[data-dwp="datev-extf"]').click();assert.match(error(),/Beraternummer/);
+  open('settings');f=query('#dwp-accounting');f.elements.datevConsultant.value='1001';f.elements.datevClient.value='1';f.elements.fiscalYearStart.value='';submit(f);assert.equal(error(),'');
+  assert.equal(db().data.settings.datevConsultant,'1001');assert.equal(db().data.settings.datevClient,'1');
+  open('closing');query('[data-dwp="datev-extf"]').click();assert.equal(error(),'');
+  assert.match(files.at(-1).name,/^EXTF_DachWerkPro_Buchungsstapel_/);assert.equal(files.at(-1).type,'text/csv;charset=windows-1252');
+  const extf=await reader(files.at(-1));assert.match(extf,/^"EXTF";700;21;"Buchungsstapel";13;/);assert.match(extf,/;3400;1600;"";/);
+  // Mahnkosten-Buchungsarten im Zahlungsformular
+  open('payments');const kinds=[...query('#dwp-record').elements.direction.options].map(o=>o.value);
+  assert(kinds.includes('Mahngebühr erhalten') && kinds.includes('Verzugszinsen erhalten'));assert(w.document.body.textContent.includes('Mahnkosten offen'));
+  // Festschreibung
+  open('closing');f=query('#dwp-lock');assert(f,'Festschreibungsformular');f.elements.lockedUntil.value=core.addDays(t,-1);submit(f);assert.equal(error(),'');
+  assert.equal(db().lockedUntil(),core.addDays(t,-1));assert(w.document.body.textContent.includes('Festgeschrieben bis'));
+  console.log('Buchhaltung-Oberfläche: Einstellungen, Zahlungsziel, Mahnwesen, Zahlungsausgang, SKR03-Journal, DATEV-CSV, DATEV-EXTF und Festschreibung passed.');
 })().catch(e=>{console.error(e);process.exit(1);});
