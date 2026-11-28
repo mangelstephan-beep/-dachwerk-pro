@@ -55,7 +55,7 @@
     ['contract','LV- und Vertragsprüfung','rules',[title,f('positionId','LV-Position','position'),f('finding','Feststellung','textarea',true),f('question','Rückfrage','textarea'),f('source','Vertrag / Quelle / Fassung'),blocking,note]],
     ['calculation','Kalkulation und Zielpreis','calculation',[]],
     ['efb','EFB und Kalkulationsblätter','calculation',[]],
-    ['services','Leistungskatalog und Zeitwerte','services',[title,f('text','Leistungstext','textarea',true),f('unit','Einheit','text',true),f('minutes','Zeitwert Minuten','number'),f('material','Materialansatz','number'),f('source','Quelle / Fassung'),note],'global'],
+    ['services','Leistungskatalog und Zeitwerte','services',[f('number','Katalognummer (z. B. 0020.0010)'),f('group','Leistungsbereich'),title,f('text','Leistungstext','textarea',true),f('unit','Einheit','text',true),f('minutes','Zeitwert Minuten','number'),f('material','Materialansatz','number'),f('equipment','Geräte / Zusatzkosten je Einheit','number'),f('source','Quelle / Fassung'),note],'global'],
     ['materials','Material und Systeme','prices',[f('name','Artikel / System','text',true),f('article','Artikelnummer'),f('manufacturer','Hersteller'),f('supplier','Lieferant'),f('unit','Einheit','text',true),f('price','Einkaufspreis netto','number',true),f('priceDate','Preisstand','date',true),f('source','Preisquelle','text',true),note],'global'],
     ['suppliers','Lieferanten und Preisvergleich','prices',[f('name','Lieferant','text',true),f('contact','Ansprechpartner'),f('email','E-Mail','email'),f('phone','Telefon'),f('address','Anschrift'),note],'global'],
     ['pricelists','DATANORM und Preislisten','prices',[title,f('supplier','Lieferant'),f('source','Dateiname / Quelle','text',true),f('priceDate','Preisstand','date',true),note],'global'],
@@ -214,6 +214,7 @@
   const sortRecords=(module,records)=>[...records].sort((a,b)=>
     module==='customers'?(!a.data.customerNumber)-(!b.data.customerNumber) || compareText(a.data.customerNumber,b.data.customerNumber) || compareText(a.data.name,b.data.name)
     : module==='projects'?(a.data.phase==='Abgeschlossen')-(b.data.phase==='Abgeschlossen') || compareText(a.data.name,b.data.name) || compareText(a.data.costCenter,b.data.costCenter)
+    : module==='services'?(!a.data.number)-(!b.data.number) || compareText(a.data.number,b.data.number) || compareText(a.data.title,b.data.title)
     : 0);
   const num = value => {
     if (typeof value === 'number') { if (!Number.isFinite(value)) throw Error('Ungültige Zahl.'); return value; }
@@ -408,6 +409,7 @@
         data.groupPath=parts.join(' / ');
       }
       if(module==='lv' && this.list('lv').some(r=>r.id!==options.id && r.data.number===data.number)) throw Error('Positionsnummer bereits vorhanden.');
+      if(module==='services' && data.number && this.list('services').some(r=>r.id!==options.id && r.data.number===data.number)) throw Error(`Katalognummer ${data.number} ist bereits vergeben.`);
       if(module==='documents' && data.number && this.list('documents').some(r=>r.id!==options.id && r.data.number===data.number))throw Error('Dokumentnummer im Projekt bereits vergeben.');
       if(module==='measurements' && data.deduction>data.length*data.width*data.factor) throw Error('Der Abzug überschreitet die gemessene Menge.');
       if(module==='operating' && data.productiveHours<=0) throw Error('Produktive Stunden müssen größer als null sein.');
@@ -690,6 +692,14 @@
       const included=positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
       const sum=k=>round(included.reduce((n,p)=>n+p.qty*p[k],0));
       return {positions,optionalNet:round(positions.filter(p=>p.kind==='Bedarfsposition').reduce((n,p)=>n+p.gp,0)),net:round(included.reduce((n,p)=>n+p.gp,0)),material:sum('material'),labor:sum('labor'),equipment:sum('equipment'),subcontract:sum('subcontract'),other:sum('other'),direct:sum('direct')};
+    }
+    // Deckungsbeitrag in Kurzform (Schema Angebotssumme – Material – Fremdleistung = Roherlös – Lohn = DB).
+    // Grundpositionen ohne Bedarfs-/Alternativpositionen; Lohn = Stunden × Stundenkostensatz der Position.
+    contributionSummary() {
+      const c=this.calculation(),included=c.positions.filter(p=>!['Bedarfsposition','Alternativposition'].includes(p.kind));
+      const hours=round(included.reduce((n,p)=>n+p.qty*p.totalMinutes,0)/60);
+      const other=round(c.equipment+c.other),gross=round(c.net-c.material-c.subcontract-other),contribution=round(gross-c.labor);
+      return {revenue:c.net,material:c.material,subcontract:c.subcontract,other,gross,labor:c.labor,contribution,percent:c.net?round(contribution/c.net*100):0,hours,perHour:hours?round(contribution/hours):0,grossPerHour:hours?round(gross/hours):0};
     }
     // Modul 08: Daten für EFB-Preis 221/222/223 aus der freigegebenen Kalkulationslogik.
     // Ergebnis ist eine Übertragungshilfe für die Formblätter des Auftraggebers, kein amtliches Formular.
@@ -1479,6 +1489,43 @@
         // Imported updates remain in review; no automatic approval of new prices.
         for(const record of imported){const i=d.records.findIndex(r=>r.id===record.id);if(i<0)d.records.push(record);else d.records[i]=record;}
         d.records.push(list);return imported;
+      });
+    }
+    // Modul 09: EP eines Katalogbausteins mit den aktuellen Kalkulationseinstellungen
+    // (Kalkulationslohn, AGK, Wagnis und Gewinn) – gleiche Formel wie eine LV-Position ohne Sonderzuschläge.
+    serviceEp(record) {
+      if(record?.module!=='services')throw Error('Leistungsbaustein fehlt.');
+      const s=this.data.settings,d=record.data;
+      const labor=(d.minutes || 0)/60*(s.wage || 0),direct=labor+(d.material || 0)+(d.equipment || 0);
+      return {labor:round(labor),direct:round(direct),ep:round(direct*(1+(s.agk || 0)/100)*(1+(s.profit || 0)/100))};
+    }
+    // Werte für eine neue LV-Position aus einem Katalogbaustein. Menge und Positionsnummer kommen aus dem Projekt-LV.
+    serviceLvValues(id) {
+      const r=this.get(id);
+      if(r?.module!=='services')throw Error('Leistungsbaustein fehlt.');
+      const d=r.data,head=d.number?`${d.number} ${d.title}`:d.title;
+      return {text:[d.title,d.text].filter(Boolean).join('\n'),unit:d.unit,minutes:d.minutes || 0,material:d.material || 0,equipment:d.equipment || 0,groupPath:String(d.group || '').replace(/^\d{4}\s+/,''),catalogRef:head};
+    }
+    // Katalog-Import (z. B. Preisliste V8): alles oder nichts. Gleiche Katalognummer = Aktualisierung, sonst neu.
+    importServices(rows, source={}) {
+      if(!Array.isArray(rows) || !rows.length || rows.length>2000)throw Error('Bitte 1 bis 2000 Leistungsbausteine importieren.');
+      const label=String(source.source || '').trim();
+      if(!label)throw Error('Quelle / Fassung des Katalogs fehlt.');
+      let staging=this.backup();
+      const staged=new Store({getItem:()=>staging,setItem:(_k,v)=>{staging=v;}});
+      const seen=new Set();let created=0,updated=0;
+      const imported=rows.map(row=>{
+        const number=String(row?.number ?? '').trim();
+        if(!number)throw Error('Katalognummer fehlt.');
+        if(seen.has(number))throw Error(`Katalognummer ${number} doppelt in der Importdatei.`);seen.add(number);
+        const values={number,group:row.group,title:row.title,text:row.text,unit:row.unit,minutes:row.minutes,material:row.material,equipment:row.equipment,source:label,notes:row.notes ?? source.note ?? ''};
+        const existing=staged.list('services').find(r=>r.data.number===number);
+        if(existing)updated++;else created++;
+        return staged.save('services',values,{id:existing?.id,status:'Freigegeben',owner:source.owner || 'Lokaler Testanwender'});
+      });
+      return this.transaction(`Leistungskatalog ${label} eingespielt (${created} neu, ${updated} aktualisiert)`,'services',null,d=>{
+        for(const record of imported){const i=d.records.findIndex(r=>r.id===record.id);if(i<0)d.records.push(record);else d.records[i]=record;}
+        return {created,updated,total:imported.length};
       });
     }
     restore(text) {
