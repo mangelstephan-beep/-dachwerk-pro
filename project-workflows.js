@@ -2,7 +2,7 @@
   'use strict';
   const core=window.DWPProject, main=document.querySelector('#main-content');
   let db, current='dashboard', editing=null, search='', signatureStrokes=[], importPreview=null, excelSource=null, selectionKey=null, importRead=null;
-  let priceSource=null, pricePreview=null, priceReadToken=0;
+  let priceSource=null, pricePreview=null, priceReadToken=0, lvPrefill=null;
   let moduleTrail=[], renderingModule=false, subpage=false;
   const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const money=v=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(v||0);
@@ -216,7 +216,8 @@
   }
 
   function recordForm(mod) {
-    const r=editing?db.get(editing):null, values=r?.pendingPrice?.data || r?.data || defaults(mod.id);
+    const r=editing?db.get(editing):null, values=r?.pendingPrice?.data || r?.data || (mod.id==='lv' && lvPrefill?{...defaults('lv'),...lvPrefill}:defaults(mod.id));
+    if(mod.id==='lv')lvPrefill=null;
     const priceReview=mod.id==='materials' && r?.pendingPrice?`<div class="field-span dwp-panel"><p>Bisheriger Preis: <strong>${money(r.data.price)} / ${esc(r.data.unit)}</strong>. Importvorschlag: <strong>${money(values.price)} / ${esc(values.unit)}</strong>.</p><label><input type="checkbox" name="approveImportedPrice"> Ich habe den Importpreis und meine Änderungen geprüft und bestätige die Übernahme bei Status „Freigegeben“.</label></div>`:'';
     const fields=mod.fields.map(f=>{
       const material=f.key.match(/^materialName([1-4])$/);
@@ -224,7 +225,7 @@
       if(mod.id==='lv' && /^material(Price|Cut|Waste|Minutes)[1-4]$/.test(f.key))return '';
       return field(f.label,input(f,values[f.key]));
     }).join('');
-    return panel(r?'Vorgang bearbeiten':'Vorgang anlegen',`${mod.id==='lv'?`<p>${btn('Vorlage 03/25 · vier Materialien · 62 €/h','blanko-prepare')} · Eingaben werden erst mit „Speichern“ übernommen. Zuschläge separat prüfen.</p>`:''}<form id="dwp-record" class="quick-form"><input type="hidden" name="module" value="${esc(mod.id)}">${priceReview}${fields}${field('Status',`<select name="status">${core.statuses.map(s=>`<option ${s===(r?.status || 'Neu')?'selected':''}>${esc(s)}</option>`).join('')}</select>`)}${field('Verantwortlich',`<input name="owner" value="${esc(r?.owner || '')}" placeholder="Name / Rolle">`)}${field('Rückmeldefrist',`<input name="due" type="date" value="${esc(r?.due)}">`)}<div class="field-span dwp-actions"><button class="button button-primary" type="submit">Speichern</button>${r?btn('Bearbeitung abbrechen','cancel'):''}</div></form>`);
+    return panel(r?'Vorgang bearbeiten':'Vorgang anlegen',`${mod.id==='lv'?`<p>${btn('Vorlage 03/25 · vier Materialien · 62 €/h','blanko-prepare')} · Eingaben werden erst mit „Speichern“ übernommen. Zuschläge separat prüfen.</p>${catalogPicker()}`:''}<form id="dwp-record" class="quick-form"><input type="hidden" name="module" value="${esc(mod.id)}">${priceReview}${fields}${field('Status',`<select name="status">${core.statuses.map(s=>`<option ${s===(r?.status || 'Neu')?'selected':''}>${esc(s)}</option>`).join('')}</select>`)}${field('Verantwortlich',`<input name="owner" value="${esc(r?.owner || '')}" placeholder="Name / Rolle">`)}${field('Rückmeldefrist',`<input name="due" type="date" value="${esc(r?.due)}">`)}<div class="field-span dwp-actions"><button class="button button-primary" type="submit">Speichern</button>${r?btn('Bearbeitung abbrechen','cancel'):''}</div></form>`);
   }
   function prepareBlanko() {
     const form=main.querySelector('#dwp-record');
@@ -237,6 +238,55 @@
     form.querySelector('.dwp-blanko-material').scrollIntoView({block:'start'});
     form.elements.materialName1.focus({preventScroll:true});
     notice('Vier Materialansätze und 62 €/h vorbereitet. Zuschläge prüfen und speichern.');
+  }
+  // ---- Modul 09: Leistungskatalog mit Preisliste V8 ----
+  const v8Data=()=>window.DWPPreislisteV8;
+  function loadV8() {
+    if(v8Data())return Promise.resolve(v8Data());
+    return new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.src='/preisliste-v8.js?v=1';
+      script.onload=()=>v8Data()?resolve(v8Data()):reject(Error('Preisliste V8 konnte nicht gelesen werden.'));
+      script.onerror=()=>reject(Error('Preisliste V8 konnte nicht geladen werden. Bitte Verbindung prüfen und erneut versuchen.'));
+      document.head.append(script);
+    });
+  }
+  const isV8=r=>/preisliste V8/i.test(r.data.source || '');
+  function servicesImportPanel(list) {
+    const present=list.filter(isV8).length,s=db.data.settings;
+    const sameBasis=Number(s.wage)===57.53 && Number(s.agk)===0 && Number(s.profit)===10;
+    return panel('Dach-Kalkulationspreisliste V8',`<p>93 Positionen aus 18 Leistungsbereichen (Stand 11.09.2026): Katalognummer, Kurz- und Langtext, Einheit, Zeitwert, Material-EK und Zusatzkosten. Erneutes Einspielen aktualisiert dieselben Katalognummern; eigene Bausteine bleiben unverändert.</p><p>${present?`<strong>${present} V8-Bausteine im Katalog.</strong>`:'<strong>Noch nicht eingespielt.</strong>'} Kalkulationsbasis aktuell: ${money(s.wage)}/h · AGK ${esc(s.agk)} % · W+G ${esc(s.profit)} %. ${sameBasis?'Entspricht der V8-Referenz.':'V8-Referenz: 57,53 €/h (60 % LG4, 30 % LG5, 10 % LG6, Faktor 2,42), AGK 0 %, W+G 10 %.'}</p><p>Richtwerte: Zeitwerte gegen ZVDH-Zeitwerte (5. Auflage) abgleichen, Material-EK je Projekt auf Rabatt, Fracht, Mindermengen und Verschnitt prüfen.</p><div class="dwp-actions">${btn(present?'Preisliste V8 erneut einspielen':'Preisliste V8 einspielen','services-v8','',true)}${sameBasis?'':btn('V8-Kalkulationsbasis übernehmen','services-v8-basis')}</div>`);
+  }
+  function servicesCatalogPanel(list) {
+    if(!list.length)return panel('Leistungskatalog','<p>Noch keine Leistungsbausteine. Preisliste V8 einspielen oder oben eigene Bausteine anlegen.</p>');
+    const rows=list.map(r=>{const d=r.data,e=db.serviceEp(r),v8=isV8(r)?v8Data()?.rows.find(x=>x.number===d.number):null;
+      return `<tr data-catalog-row data-catalog-search="${esc([d.number,d.group,d.title,d.text].join(' ').toLocaleLowerCase('de'))}"><td><strong>${esc(d.number || '–')}</strong><small>${esc(d.group || '')}</small></td><td><strong>${esc(d.title)}</strong><small>${esc(d.text)}</small></td><td>${esc(d.unit)}</td><td>${esc(String(d.minutes || 0).replace('.',','))}</td><td>${money(d.material)}</td><td>${money(d.equipment)}</td><td><strong>${money(e.ep)}</strong>${v8?`<small>V8: ${money(v8.ep)}</small>`:''}</td><td>${btn('Ins LV','service-lv',r.id,true)}${btn('Bearbeiten','edit',r.id)}</td></tr>`;}).join('');
+    return panel('Leistungskatalog',`<p>EP aktuell = (Minuten / 60 × Kalkulationslohn + Material + Zusatz) × (1 + AGK) × (1 + W+G). „Ins LV“ legt im gewählten Projekt eine neue LV-Position mit diesen Werten an; Menge und Positionsnummer dort eintragen.</p><label>Katalog durchsuchen<input id="dwp-catalog-filter" type="search" placeholder="z. B. FPO, Attika, 0140, Fallrohr" autocomplete="off"></label><p id="dwp-catalog-feedback" aria-live="polite"></p><div class="table-wrap"><table><thead><tr><th>Nr. / Bereich</th><th>Leistung</th><th>Einheit</th><th>Min.</th><th>Material</th><th>Zusatz</th><th>EP netto</th><th>Aktion</th></tr></thead><tbody>${rows}</tbody></table></div>`);
+  }
+  function catalogPicker() {
+    const list=core.sortRecords('services',db.list('services'));
+    if(!list.length)return `<p>Leistungskatalog leer. ${btn('Preisliste V8 einspielen','open','services')}</p>`;
+    const groups=new Map();for(const r of list){const g=r.data.group || 'Eigene Bausteine';if(!groups.has(g))groups.set(g,[]);groups.get(g).push(r);}
+    return `<div class="dwp-panel dwp-catalog-pick"><label>Aus Leistungskatalog übernehmen<select id="dwp-catalog-pick"><option value="">Baustein wählen …</option>${[...groups].map(([g,rs])=>`<optgroup label="${esc(g)}">${rs.map(r=>`<option value="${esc(r.id)}">${esc((r.data.number?r.data.number+' · ':'')+r.data.title+' ('+r.data.unit+')')}</option>`).join('')}</optgroup>`).join('')}</select></label>${btn('Zeitwert, Material und Zusatz eintragen','catalog-apply')}<p>Übernimmt Minuten, Material und Zusatzkosten in diese Position. Leere Felder Leistungstext, Einheit und Gliederung werden mit befüllt; Positionsnummer und Menge bleiben unverändert.</p></div>`;
+  }
+  function nextLvNumber() {
+    const used=new Set(db.list('lv').map(r=>r.data.number));let n=db.list('lv').length+1,number;
+    do{number=String(n++).padStart(3,'0');}while(used.has(number));
+    return number;
+  }
+  function applyCatalog() {
+    const form=main.querySelector('#dwp-record'),id=main.querySelector('#dwp-catalog-pick')?.value;
+    if(!form || form.elements.module.value!=='lv')throw Error('Bitte eine LV-Position öffnen.');
+    if(!id)throw Error('Bitte zuerst einen Baustein aus dem Leistungskatalog wählen.');
+    const v=db.serviceLvValues(id),e=form.elements,hints=[];
+    for(const k of ['minutes','material','equipment'])e[k].value=String(v[k]).replace('.',',');
+    if(!e.text.value.trim())e.text.value=v.text;
+    if(!e.groupPath.value.trim())e.groupPath.value=v.groupPath;
+    if(!e.unit.value.trim())e.unit.value=v.unit;
+    else if(e.unit.value.trim()!==v.unit)hints.push(`Einheit abweichend: Position ${e.unit.value.trim()}, Katalog ${v.unit}. Werte umrechnen.`);
+    if(e.materialId?.value)hints.push('Ein Materialartikel ist gewählt; dessen Preis hat Vorrang vor dem Materialansatz.');
+    if(e.useDetailedMaterials?.checked)hints.push('Vier Materialansätze sind aktiv; der pauschale Materialansatz wird dann nicht verwendet.');
+    state.unsavedChanges=true;
+    notice(`Katalogwerte ${v.catalogRef} eingetragen. ${hints.join(' ')} Mit „Speichern“ übernehmen.`);
   }
   function lvTreePanel() {
     const tree=db.lvTree();
@@ -282,8 +332,9 @@
     let integration='';
     const missing={pricelists:'CSV, XLSX, XLS (Excel 2.0 bis 2003) und DATANORM 4 werden mit Spaltenzuordnung, Preisberechnung und verbindlicher Vorschau übernommen. Importierte Preise müssen einzeln freigegeben werden. DATANORM 5 und Geräteabnahme sind noch offen.',correspondence:'Nachrichten werden als Entwurf geführt. Ein Versand- oder Zustellnachweis entsteht erst mit einer eingerichteten Mailanbindung.',documents:'Fotos und PDF können zugeordnet werden. Scannersteuerung und automatische OCR sind noch nicht angeschlossen.',tenders:'Vergaben mit Fundstelle und Frist können erfasst werden. Der automatische Quellenscan ist noch nicht angeschlossen.',acceptance:'Handschriftliche Unterschriften werden mit dem angezeigten Protokollstand gespeichert. Zentrale Originalablage und qualifizierte elektronische Signatur sind nicht angeschlossen.',personnel:'Einsatzzeiträume werden auf Doppelbelegung geprüft. Jeder Benutzer sieht im Kalender nur seine eigenen Einsätze; Administrator und Personal sehen alle. WhatsApp öffnet nur eine vorbereitete Nachricht, einen Zustellnachweis gibt es nicht. Outlook-Kalender, Feiertage und Teilzeitschichten sind noch nicht angebunden. Sensible Lohn-, Steuer- und SV-Stammdaten benötigen geschützte serverseitige Rollen.'};
     if(missing[mod.id]) integration=panel('Funktionsstand',`<p>${esc(missing[mod.id])}</p>`);
+    if(mod.id==='services'){integration=servicesImportPanel(list);summary=servicesCatalogPanel(list);}
     const attachments=list.flatMap(r=>(r.attachments || []).map(a=>`<li>${esc(names(r.id))} · ${esc(a.name)} ${btn('Öffnen','file',`${r.id}/${a.id}`)}</li>`));
-    shell(mod.name,`${integration}${mod.id==='personnel'?calendarPanel()+feedPanel():''}${recordForm(mod)}${panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
+    shell(mod.name,`${integration}${mod.id==='personnel'?calendarPanel()+feedPanel():''}${recordForm(mod)}${mod.id==='services'?'':panel('Gespeicherte Vorgänge',table(['Vorgang','Status','Verantwortlich','Frist','Aktionen'],rows))}${summary}${attachments.length?panel('Zugeordnete Dateien',`<ul>${attachments.join('')}</ul>`):''}`);
   }
   // ---- Buchhaltung: Offene Posten, Mahnwesen (Modul 29), Zahlungsausgang (Modul 28), SKR03-Journal (Modul 30) ----
   let journalRange={};
@@ -686,6 +737,15 @@
     const c=db.calculation(),s=db.data.settings;
     return panel('Kalkulationsbasis',`<form id="dwp-settings" class="quick-form">${[['wage','Stundenkostensatz'],['agk','AGK %'],['profit','Wagnis / Gewinn %'],['tax','USt %']].map(([k,l])=>field(l,`<input name="${k}" inputmode="decimal" value="${s[k]}" required>`)).join('')}<p class="field-span">Bei einem Vollkostensatz inklusive Gemeinkosten AGK auf 0 setzen, um doppelte Zuschläge zu vermeiden.</p><button class="button button-primary" type="submit">Basis speichern</button></form>`)+panel('LV und Preisermittlung',`${btn('LV bearbeiten','open','lv')}${btn('LV importieren','open','imports')}${btn('CSV exportieren','calc-csv')}${table(['Position','Leistung','Menge','Material / E','Lohn / E','Gerät / E','NU / E','Kalkulierter EP','Rabatt %','Ziel-/Angebots-EP','GP netto','Deckungsbeitrag'],c.positions.map(p=>[esc(p.number),esc(p.text),`${p.qty} ${esc(p.unit)}`,money(p.material),money(p.labor),money(p.equipment),money(p.subcontract),money(p.calculatedEp),esc(p.discountPercent || 0),money(p.ep),money(p.gp),money(p.contribution)]))}<h3>Summe netto ohne Bedarfspositionen ${money(c.net)}</h3><p>Alternativpositionen werden separat ohne Addition kalkuliert. Variantenwahl im Angebot.</p><p>Bedarfspositionen separat: ${money(c.optionalNet)}</p><p>Material ${money(c.material)} · Lohn ${money(c.labor)} · Geräte ${money(c.equipment)} · NU ${money(c.subcontract)}</p>`);
   }
+  function contributionPanel() {
+    const d=db.contributionSummary();
+    if(!d.revenue)return '';
+    const row=(label,value,strong=false)=>[strong?`<strong>${esc(label)}</strong>`:esc(label),strong?`<strong>${value}</strong>`:value];
+    return panel('Deckungsbeitrag (Kurzform)',`<p>Grundpositionen ohne Bedarfs- und Alternativpositionen. Lohn = kalkulierte Stunden × Stundenkostensatz; AGK sowie Wagnis und Gewinn sind im Deckungsbeitrag enthalten. Prozent und Wert je Stunde beziehen sich immer auf denselben Deckungsbeitrag.</p>${table(['Kostenstufe','Betrag'],[
+      row('Angebotssumme netto',money(d.revenue),true),row('− Material-EK',money(d.material)),row('− Fremdleistungen (NU)',money(d.subcontract)),row('− Geräte und Sonstiges',money(d.other)),
+      row('Roherlös',money(d.gross),true),row('− Lohnkosten',money(d.labor)),row('Deckungsbeitrag',money(d.contribution),true),
+      row('Deckungsbeitrag in Prozent',esc(String(d.percent).replace('.',','))+' %'),row('Projektzeit',esc(String(d.hours).replace('.',','))+' h'),row('Deckungsbeitrag je Stunde',money(d.perHour)+' / h'),row('Roherlös je Stunde',money(d.grossPerHour)+' / h')])}`);
+  }
   function nuMarkupPanel() {
     const rows=db.calculation().positions.filter(p=>p.subcontract>0);
     if(!rows.length)return '';
@@ -958,7 +1018,7 @@
     if(mod.scope==='project' && !db.project())return shell(mod.name,panel('Projektbezug erforderlich',`<p>Bitte zuerst einen Kunden und ein Projekt anlegen. Danach das Projekt oben auswählen.</p>`));
     if(!special.has(id))return records(mod);
     let body='';
-    if(['calculation','efb'].includes(id))body=calculation()+nuMarkupPanel()+(id==='efb'?efbBreakdown()+panel('BFW-Übergabe',`<p>Die separate XLS-Übergabedatei enthält Pos, Menge, MEH, Kurztext, Langtext, EP und PA. Hier werden die aktuellen LV-Positionen als Excel-kompatible CSV ausgegeben. PA bleibt leer, bis die Bedeutung der Zielsystem-Schnittstelle fachlich bestätigt ist. Vor der Übernahme Bedarfs-/Alternativpositionen prüfen.</p>${btn('BFW-Übergabe CSV herunterladen','bfw-csv')}`):'');
+    if(['calculation','efb'].includes(id))body=calculation()+contributionPanel()+nuMarkupPanel()+(id==='efb'?efbBreakdown()+panel('BFW-Übergabe',`<p>Die separate XLS-Übergabedatei enthält Pos, Menge, MEH, Kurztext, Langtext, EP und PA. Hier werden die aktuellen LV-Positionen als Excel-kompatible CSV ausgegeben. PA bleibt leer, bis die Bedeutung der Zielsystem-Schnittstelle fachlich bestätigt ist. Vor der Übernahme Bedarfs-/Alternativpositionen prüfen.</p>${btn('BFW-Übergabe CSV herunterladen','bfw-csv')}`):'');
     if(['offers','invoices'].includes(id))body=snapshots(id);
     if(id==='controlling')body=controlling();
     if(id==='closing')body=journalPanel()+panel('Projektbezogenes Belegpaket',`<p>JSON enthält die Projektakte, CSV die Rechnungen und Kostenbelege. Das SKR03-Buchungsjournal oben umfasst alle sichtbaren Projekte.</p>${btn('Projektakte JSON','project-json')}${btn('Belegübersicht CSV','closing-csv')}`);
@@ -1221,8 +1281,26 @@
         pricePreview=input;
       }
       if(action==='service-lv') {
-        const data=db.get(id).data;
-        mutate('save',['lv',{number:`${String(db.list('lv').length+1).padStart(3,'0')}`,text:data.text,qty:1,unit:data.unit,minutes:data.minutes,material:data.material}],()=>notice('Leistungsbaustein als neue LV-Position übernommen.'));
+        if(!db.project())throw Error('Bitte zuerst oben ein Projekt wählen, dann den Baustein ins LV übernehmen.');
+        if(state.unsavedChanges&&!confirm('Ungespeicherte Eingaben verwerfen?'))return;
+        const values=db.serviceLvValues(id);delete values.catalogRef;
+        state.unsavedChanges=false;openModule('lv');lvPrefill={...values,number:nextLvNumber(),qty:''};records(core.definitions.lv);
+        const form=main.querySelector('#dwp-record');state.unsavedChanges=true;
+        form?.scrollIntoView({block:'start'});form?.elements.qty.focus({preventScroll:true});
+        notice('Baustein vorbelegt. Menge und Positionsnummer prüfen, dann speichern.');
+      }
+      if(action==='catalog-apply')applyCatalog();
+      if(action==='services-v8') {
+        const data=await loadV8();
+        const present=db.list('services').filter(isV8).length;
+        if(present && !window.confirm(`${present} V8-Bausteine sind schon vorhanden. Mit den Werten der Preisliste V8 überschreiben? Eigene Änderungen an diesen Katalognummern gehen verloren.`))return;
+        target.disabled=true;
+        const known=new Set(db.list('services').map(r=>r.data.number)),updated=data.rows.filter(r=>known.has(r.number)).length;
+        mutate('importServices',[data.rows.map(({ep,...row})=>row),{source:data.source,note:data.note,owner:state.currentUser}],()=>{openModule('services');notice(`Preisliste V8 eingespielt: ${data.rows.length-updated} neu, ${updated} aktualisiert.`);});
+      }
+      if(action==='services-v8-basis') {
+        if(!window.confirm('Kalkulationslohn 57,53 €/h, AGK 0 % und W+G 10 % als Kalkulationsbasis übernehmen? Das ändert die EP aller nicht freigegebenen LV-Positionen.'))return;
+        mutate('settings',[{wage:57.53,agk:0,profit:10}],()=>{openModule('services');notice('V8-Kalkulationsbasis übernommen.');});
       }
       if(action==='attach') {
         const input=document.createElement('input');input.type='file';input.accept='image/jpeg,image/png,image/webp,application/pdf';
@@ -1275,6 +1353,13 @@
       });
       const message=main.querySelector('#dwp-project-filter-feedback');
       if(message)message.textContent=matches?term?`${matches} von ${rows.length} Projekten gefunden.`:'':window.DWPRemote?.active?'Kein Projekt gefunden. Bitte „Projekte neu laden“ wählen. Wenn es weiter fehlt, Mandant und Projektfreigabe prüfen.':'Kein Projekt in diesem Bestand gefunden.';
+      return;
+    }
+    if(event.target.id==='dwp-catalog-filter'){
+      const term=event.target.value.trim().toLocaleLowerCase('de'),rows=[...main.querySelectorAll('[data-catalog-row]')];
+      const words=term.split(/\s+/).filter(Boolean);let matches=0;
+      rows.forEach(row=>{const visible=words.every(w=>row.dataset.catalogSearch.includes(w));row.hidden=!visible;if(visible)matches++;});
+      const feedback=main.querySelector('#dwp-catalog-feedback');if(feedback)feedback.textContent=term?`${matches} von ${rows.length} Bausteinen.`:'';
       return;
     }
     if(event.target.id==='dwp-module-search'){search=event.target.value;filterModules();return;}
